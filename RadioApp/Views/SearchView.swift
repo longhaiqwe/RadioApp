@@ -9,34 +9,46 @@ struct SearchView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // 霓虹背景
+            AnimatedMeshBackground()
             
             VStack(spacing: 0) {
-                // Header
+                // MARK: - 顶部栏
                 HStack {
                     Button(action: {
                         presentationMode.wrappedValue.dismiss()
                     }) {
                         Image(systemName: "chevron.left")
-                            .foregroundColor(.white)
-                            .padding()
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.8))
+                            .frame(width: 44, height: 44)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial.opacity(0.3))
+                            )
                     }
+                    
                     Spacer()
+                    
                     Text("搜索")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
-                        .font(.headline)
+                    
                     Spacer()
-                    // Spacer to balance back button
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.clear)
-                        .padding()
+                    
+                    Color.clear.frame(width: 44, height: 44)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
                 
-                // Search Bar
-                HStack {
+                // MARK: - 搜索框
+                HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.gray)
+                        .font(.system(size: 18))
+                        .foregroundColor(NeonColors.cyan)
+                    
                     TextField("输入电台名称...", text: $viewModel.query)
+                        .font(.system(size: 16))
                         .foregroundColor(.white)
                         .focused($isFocused)
                         .onSubmit {
@@ -49,25 +61,34 @@ struct SearchView: View {
                             viewModel.query = ""
                         }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
+                                .font(.system(size: 18))
+                                .foregroundColor(.white.opacity(0.5))
                         }
                         
-                        // Explicit Search Button
                         Button(action: {
                             viewModel.search()
-                            isFocused = false // Dismiss keyboard on search
+                            isFocused = false
                         }) {
                             Text("搜索")
-                                .font(.subheadline)
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color.blue)
-                                .cornerRadius(8)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [NeonColors.magenta, NeonColors.purple],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                )
+                                .shadow(color: NeonColors.magenta.opacity(0.4), radius: 8)
                         }
                     }
                     
-                    // Filter Menu
+                    // 筛选菜单
                     Menu {
                         Picker("选择省份", selection: $viewModel.selectedProvince) {
                             Text("全部地区").tag(String?.none)
@@ -77,83 +98,189 @@ struct SearchView: View {
                         }
                     } label: {
                         Image(systemName: "slider.horizontal.3")
-                             .font(.system(size: 20))
-                            .foregroundColor(viewModel.selectedProvince == nil ? .gray : .white)
+                            .font(.system(size: 18))
+                            .foregroundColor(viewModel.selectedProvince == nil ? .white.opacity(0.5) : NeonColors.cyan)
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(viewModel.selectedProvince == nil ? 
+                                          Color.white.opacity(0.1) : 
+                                          NeonColors.cyan.opacity(0.2))
+                            )
                     }
                 }
-                .padding()
-                .background(Color.white.opacity(0.15))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .padding(.bottom, 10) // Add some spacing below search bar
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    GlassmorphicBackground(cornerRadius: 16, glowColor: isFocused ? NeonColors.cyan : NeonColors.cyan.opacity(0.3))
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
                 
-                if viewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .padding()
-                }
-                
-                List {
-                    ForEach(viewModel.stations) { station in
-                        Button(action: {
-                            playerManager.play(station: station)
-                        }) {
-                            HStack {
-                                if let url = URL(string: station.favicon), !station.favicon.isEmpty {
-                                    AsyncImage(url: url) { image in
-                                        image.resizable()
-                                    } placeholder: {
-                                        Color.gray
-                                    }
-                                    .frame(width: 44, height: 44)
-                                    .cornerRadius(8)
-                                } else {
-                                    Image(systemName: "radio.fill")
-                                        .resizable()
-                                        .padding(8)
-                                        .frame(width: 44, height: 44)
-                                        .background(Color.gray.opacity(0.3))
-                                        .cornerRadius(8)
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(station.name)
-                                        .foregroundColor(.white)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                    HStack {
-                                        if !station.state.isEmpty {
-                                            Text(station.state)
-                                                .font(.caption2)
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 2)
-                                                .background(Color.blue.opacity(0.3))
-                                                .cornerRadius(4)
-                                        }
-                                        Text(station.tags)
-                                            .foregroundColor(.gray)
-                                            .font(.caption)
-                                            .lineLimit(1)
-                                    }
-                                }
+                // MARK: - 省份标签（如果选中）
+                if let provinceCode = viewModel.selectedProvince,
+                   let province = viewModel.provinces.first(where: { $0.code == provinceCode }) {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(NeonColors.cyan)
+                            
+                            Text(province.name)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Button(action: {
+                                viewModel.selectedProvince = nil
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.6))
                             }
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparatorTint(Color.white.opacity(0.2))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(NeonColors.cyan.opacity(0.2))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                        
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
-                .listStyle(.plain)
+                
+                // MARK: - 加载指示器
+                if viewModel.isLoading {
+                    HStack {
+                        ProgressView()
+                            .tint(NeonColors.cyan)
+                        Text("搜索中...")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .padding(.vertical, 20)
+                }
+                
+                // MARK: - 搜索结果
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(viewModel.stations) { station in
+                            SearchResultRow(
+                                station: station,
+                                isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
+                            )
+                            .onTapGesture {
+                                playerManager.play(station: station)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 100)
+                }
             }
         }
         .navigationBarHidden(true)
     }
 }
 
+// MARK: - 搜索结果行
+struct SearchResultRow: View {
+    let station: Station
+    var isPlaying: Bool = false
+    
+    var body: some View {
+        HStack(spacing: 14) {
+            // 封面
+            ZStack(alignment: .bottomTrailing) {
+                if let url = URL(string: station.favicon), !station.favicon.isEmpty {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } else if phase.error != nil {
+                            PlaceholderView(name: station.name, id: station.stationuuid)
+                        } else {
+                            ZStack {
+                                NeonColors.cardBg
+                                ProgressView()
+                                    .tint(NeonColors.cyan)
+                            }
+                        }
+                    }
+                } else {
+                    PlaceholderView(name: station.name, id: station.stationuuid)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isPlaying ? NeonColors.cyan.opacity(0.8) : .clear, lineWidth: 2)
+            )
+            .shadow(color: isPlaying ? NeonColors.cyan.opacity(0.4) : .clear, radius: 8)
+            
+            // 信息
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(station.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    if isPlaying {
+                        PulsingView(color: NeonColors.cyan)
+                    }
+                }
+                
+                HStack(spacing: 8) {
+                    if !station.state.isEmpty {
+                        Text(station.state)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(NeonColors.cyan)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(NeonColors.cyan.opacity(0.15))
+                            )
+                    }
+                    
+                    Text(station.tags.isEmpty ? "电台" : station.tags)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.5))
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            // 播放按钮
+            Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                .font(.system(size: 16))
+                .foregroundColor(isPlaying ? NeonColors.cyan : .white.opacity(0.4))
+        }
+        .padding(12)
+        .background(
+            GlassmorphicBackground(
+                cornerRadius: 16,
+                glowColor: isPlaying ? NeonColors.cyan.opacity(0.5) : .clear,
+                showBorder: isPlaying
+            )
+        )
+    }
+}
+
+// MARK: - 数据模型
 struct Province: Identifiable {
     let id = UUID()
-    let name: String // Chinese name
-    let code: String // English state name in API
+    let name: String
+    let code: String
 }
 
 class SearchViewModel: ObservableObject {
@@ -162,7 +289,6 @@ class SearchViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var selectedProvince: String? = nil {
         didSet {
-            // Auto search when filter changes
             search()
         }
     }
@@ -205,8 +331,6 @@ class SearchViewModel: ObservableObject {
     ]
     
     func search() {
-        // If filter is active, we validly allow empty query (to show all stations in province)
-        // If filter is inactive, we need a query
         guard !query.isEmpty || selectedProvince != nil else { return }
         
         isLoading = true
@@ -215,18 +339,16 @@ class SearchViewModel: ObservableObject {
                 let results: [Station]
                 
                 if let province = selectedProvince {
-                    // Use Advanced Search
                     var filter = StationFilter()
                     filter.name = query.isEmpty ? nil : query
                     filter.state = province
-                    filter.countryCode = "CN" // Restrict to China to be safe
-                    filter.limit = 100 // Higher limit for state browsing
+                    filter.countryCode = "CN"
+                    filter.limit = 100
                     filter.order = "clickcount"
                     filter.reverse = true
                     
                     results = try await RadioService.shared.advancedSearch(filter: filter)
                 } else {
-                    // Use Smart Search (Simple Name)
                     results = try await RadioService.shared.searchStations(name: query)
                 }
                 
