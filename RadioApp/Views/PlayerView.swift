@@ -8,6 +8,7 @@ struct PlayerView: View {
     @State private var volume: CGFloat = 0.5
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
+    @State private var showFavoritesList = false
     
     var body: some View {
         ZStack {
@@ -283,11 +284,19 @@ struct PlayerView: View {
             .keyboardShortcut(.downArrow, modifiers: [])
             
             // 列表按钮
-            Button(action: {}) {
+            Button(action: {
+                showFavoritesList = true
+            }) {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 20))
                     .foregroundColor(.white.opacity(0.6))
                     .frame(width: 44, height: 44)
+            }
+            .sheet(isPresented: $showFavoritesList) {
+                FavoritesListView(onStationSelected: { station in
+                    playerManager.play(station: station)
+                    showFavoritesList = false
+                })
             }
         }
         .padding(.horizontal, 20)
