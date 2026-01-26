@@ -33,4 +33,14 @@ struct Station: Codable, Identifiable, Hashable {
         case changeuuid, stationuuid, name, url, homepage, favicon, tags, country, countrycode, state, language, languagecodes, votes, lastchangetime, codec, bitrate, hls, lastcheckok, lastchecktime, lastcheckoktime, lastlocalchecktime, clicktimestamp, clickcount, clicktrend
         case urlResolved = "url_resolved"
     }
+    
+    // MARK: - Equatable & Hashable
+    // Only compare by consistent ID, ignoring dynamic fields like clickcount/votes
+    static func == (lhs: Station, rhs: Station) -> Bool {
+        return lhs.stationuuid == rhs.stationuuid
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(stationuuid)
+    }
 }

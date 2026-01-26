@@ -5,9 +5,9 @@ import Combine
 
 struct PlayerView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
+    @ObservedObject var favoritesManager = FavoritesManager.shared
     @Environment(\.presentationMode) var presentationMode
     @State private var volume: CGFloat = 0.5
-    @State private var isFavorite: Bool = false
     
     var body: some View {
         ZStack {
@@ -50,16 +50,11 @@ struct PlayerView: View {
                         .textCase(.uppercase)
                         .kerning(2)
                     Spacer()
-                    Button(action: {
-                        isFavorite.toggle()
-                    }) {
-                        Image(systemName: isFavorite ? "heart.fill" : "heart")
-                            .font(.title2)
-                            .foregroundColor(isFavorite ? .red : .white.opacity(0.8))
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
+                    // Spacer to balance back button
+                    Image(systemName: "chevron.down")
+                        .font(.title2)
+                        .foregroundColor(.clear)
+                        .padding()
                 }
                 .padding(.horizontal)
                 .padding(.top, 20)
@@ -129,7 +124,22 @@ struct PlayerView: View {
                 Spacer()
                 
                 // MARK: - Controls
-                HStack(spacing: 60) {
+                HStack(spacing: 40) {
+                    // Favorite Button
+                    if let station = playerManager.currentStation {
+                        Button(action: {
+                            favoritesManager.toggleFavorite(station)
+                        }) {
+                            Image(systemName: favoritesManager.isFavorite(station) ? "heart.fill" : "heart")
+                                .font(.system(size: 24))
+                                .foregroundColor(favoritesManager.isFavorite(station) ? .red : .white.opacity(0.6))
+                        }
+                    } else {
+                        Image(systemName: "heart")
+                            .font(.system(size: 24))
+                            .foregroundColor(.clear)
+                    }
+                    
                     Button(action: {}) {
                         Image(systemName: "backward.fill")
                             .font(.system(size: 30))
@@ -160,6 +170,11 @@ struct PlayerView: View {
                             .foregroundColor(.white.opacity(0.3)) // Disabled style
                     }
                     .disabled(true)
+                    
+                    // Spacer/Placeholder for symmetry or future feature (e.g. List)
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white.opacity(0.6))
                 }
                 
                 // MARK: - Volume Slider Placeholder

@@ -4,6 +4,7 @@ import Combine
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @ObservedObject var playerManager = AudioPlayerManager.shared
+    @ObservedObject var favoritesManager = FavoritesManager.shared
     
     var body: some View {
         NavigationView {
@@ -14,25 +15,52 @@ struct HomeView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading) {
-                        HStack {
-                            Text("精选电台")
-                                .font(.title2)
-                                .bold()
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            NavigationLink(destination: SearchView()) {
+                        // MARK: - Search Section
+                        NavigationLink(destination: SearchView()) {
+                            HStack {
                                 Image(systemName: "magnifyingglass")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Color.white.opacity(0.1))
-                                    .clipShape(Circle())
+                                    .foregroundColor(.gray)
+                                Text("搜索")
+                                    .foregroundColor(.gray)
+                                Spacer()
                             }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(10)
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
+                        .padding(.top, 20)
                         
+                        // MARK: - Favorites Section
+                        if !favoritesManager.favoriteStations.isEmpty {
+                            Text("我的收藏")
+                                .font(.headline)
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                                .padding(.top, 10)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 15) {
+                                    ForEach(favoritesManager.favoriteStations) { station in
+                                        StationCard(station: station)
+                                            .onTapGesture {
+                                                playerManager.play(station: station)
+                                            }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            .padding(.bottom, 20)
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.2)).padding(.horizontal)
+                        
+                        Text("热门推荐")
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                            
                         ScrollView(.horizontal, showsIndicators: false) {
                             LazyHStack(spacing: 15) {
                                 ForEach(viewModel.stations) { station in
