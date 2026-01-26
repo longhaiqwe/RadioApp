@@ -46,6 +46,13 @@ struct HomeView: View {
                                             .onTapGesture {
                                                 playerManager.play(station: station)
                                             }
+                                            .contextMenu {
+                                                Button(role: .destructive) {
+                                                    favoritesManager.removeFavorite(station)
+                                                } label: {
+                                                    Label("取消收藏", systemImage: "heart.slash")
+                                                }
+                                            }
                                     }
                                 }
                                 .padding(.horizontal)
