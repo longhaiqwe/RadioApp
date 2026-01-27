@@ -368,40 +368,35 @@ struct PlayerView: View {
     
     // MARK: - Shazam 识别中指示器
     private var shazamMatchingIndicator: some View {
-        HStack(spacing: 8) {
-            // 旋转的 Shazam 图标
-            Image(systemName: "shazam.logo.fill")
-                .font(.system(size: 18))
-                .foregroundColor(NeonColors.cyan)
-                .rotationEffect(Angle(degrees: rotation))
-                .onAppear {
-                    withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                        rotation = 360
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                // 旋转的 Shazam 图标
+                Image(systemName: "shazam.logo.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(NeonColors.cyan)
+                    .rotationEffect(Angle(degrees: rotation))
+                    .onAppear {
+                        withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                            rotation = 360
+                        }
                     }
-                }
-            
-            Text("识别中...")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(NeonColors.cyan)
-            
-            Spacer()
+                
+                Text("识别中...")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(NeonColors.cyan)
+            }
             
             // 取消按钮
             Button(action: {
                 shazamMatcher.stopMatching()
             }) {
                 Text("取消")
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.6))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.black.opacity(0.4))
@@ -415,7 +410,7 @@ struct PlayerView: View {
     
     // MARK: - Shazam 识别结果卡片
     private func shazamResultCard(match: SHMatchedMediaItem) -> some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 10) {
             // 封面
             if let url = match.artworkURL {
                 AsyncImage(url: url) { phase in
@@ -424,61 +419,76 @@ struct PlayerView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } else {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 10)
                             .fill(NeonColors.purple.opacity(0.3))
                     }
                 }
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .shadow(color: NeonColors.purple.opacity(0.5), radius: 4)
+                .frame(width: 50, height: 50)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: NeonColors.purple.opacity(0.5), radius: 6)
             } else {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(NeonColors.purple.opacity(0.3))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 50, height: 50)
                     .overlay(
                         Image(systemName: "music.note")
                             .foregroundColor(.white.opacity(0.5))
                     )
             }
             
-            // 歌曲信息
-            VStack(alignment: .leading, spacing: 2) {
+            // 歌曲信息（居中）
+            VStack(spacing: 2) {
                 Text(match.title ?? "未知歌曲")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .multilineTextAlignment(.center)
                 
                 Text(match.artist ?? "未知歌手")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.7))
                     .lineLimit(1)
+                    .multilineTextAlignment(.center)
             }
             
-            Spacer()
-            
-            // Apple Music 按钮
-            if let appleMusicURL = match.appleMusicURL {
-                Link(destination: appleMusicURL) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 28))
+            // 按钮行
+            HStack(spacing: 20) {
+                // Apple Music 按钮
+                if let appleMusicURL = match.appleMusicURL {
+                    Link(destination: appleMusicURL) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "music.note")
+                                .font(.system(size: 12))
+                            Text("Apple Music")
+                                .font(.system(size: 12))
+                        }
                         .foregroundColor(NeonColors.magenta)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(NeonColors.magenta.opacity(0.15))
+                        .cornerRadius(8)
+                    }
                 }
-            }
-            
-            // 关闭按钮
-            Button(action: {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    shazamMatcher.lastMatch = nil
+                
+                // 关闭按钮
+                Button(action: {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        shazamMatcher.lastMatch = nil
+                    }
+                }) {
+                    Text("关闭")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(8)
                 }
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white.opacity(0.4))
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(
