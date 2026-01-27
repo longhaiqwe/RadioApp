@@ -173,6 +173,9 @@ extension ShazamMatcher: SHSessionDelegate {
     
     func session(_ session: SHSession, didFind match: SHMatch) {
         DispatchQueue.main.async {
+            // 防止重复处理
+            guard self.isMatching else { return }
+            
             self.isMatching = false
             self.matchingProgress = ""
             
@@ -188,6 +191,9 @@ extension ShazamMatcher: SHSessionDelegate {
     
     func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
         DispatchQueue.main.async {
+            // 防止重复处理
+            guard self.isMatching else { return }
+            
             self.isMatching = false
             self.matchingProgress = ""
             
