@@ -50,6 +50,11 @@ struct PlayerView: View {
                     .padding(.horizontal, 40)
                     .padding(.bottom, 50)
             }
+            
+            // MARK: - Shazam 识别结果卡片
+            if let match = shazamMatcher.lastMatch {
+                shazamResultCard(match: match)
+            }
         }
     }
     
@@ -338,13 +343,8 @@ struct PlayerView: View {
                     showFavoritesList = false
                 })
             }
-            
-
         }
         .padding(.horizontal, 20)
-        .sheet(item: $shazamMatcher.lastMatch) { match in
-            SongResultView(match: match)
-        }
     }
     
     // MARK: - 音量控制
@@ -360,6 +360,122 @@ struct PlayerView: View {
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.5))
         }
+    }
+    
+    // MARK: - Shazam 识别结果卡片
+    private func shazamResultCard(match: SHMatchedMediaItem) -> some View {
+        VStack {
+            Spacer()
+            
+            VStack(spacing: 0) {
+                // 顶部拖动条
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.white.opacity(0.3))
+                    .frame(width: 40, height: 4)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+                
+                HStack(spacing: 16) {
+                    // 封面
+                    if let url = match.artworkURL {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } else {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(NeonColors.purple.opacity(0.3))
+                            }
+                        }
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(color: NeonColors.purple.opacity(0.5), radius: 8)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(NeonColors.purple.opacity(0.3))
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "music.note")
+                                    .foregroundColor(.white.opacity(0.5))
+                            )
+                    }
+                    
+                    // 歌曲信息
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(match.title ?? "未知歌曲")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        Text(match.artist ?? "未知歌手")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                        
+                        // 进度提示
+                        if shazamMatcher.isMatching {
+                            Text(shazamMatcher.matchingProgress)
+                                .font(.system(size: 12))
+                                .foregroundColor(NeonColors.cyan)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Apple Music 按钮
+                    if let appleMusicURL = match.appleMusicURL {
+                        Link(destination: appleMusicURL) {
+                            Image(systemName: "arrow.up.right.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(NeonColors.magenta)
+                        }
+                    }
+                    
+                    // 关闭按钮
+                    Button(action: {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            shazamMatcher.lastMatch = nil
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.8),
+                                NeonColors.darkBg.opacity(0.95)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [NeonColors.purple.opacity(0.5), NeonColors.cyan.opacity(0.3)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .shadow(color: NeonColors.purple.opacity(0.3), radius: 20, y: -5)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shazamMatcher.lastMatch != nil)
     }
     
     // MARK: - 辅助方法
