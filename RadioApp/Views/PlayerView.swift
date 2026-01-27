@@ -131,38 +131,8 @@ struct PlayerView: View {
             
             Spacer()
             
-            // 识别按钮
-            Button(action: {
-                if shazamMatcher.isMatching {
-                    shazamMatcher.stopMatching()
-                } else {
-                    shazamMatcher.startMatching()
-                }
-            }) {
-                ZStack {
-                    if shazamMatcher.isMatching {
-                        Circle()
-                            .stroke(NeonColors.cyan, lineWidth: 2)
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                Circle()
-                                    .trim(from: 0, to: 0.7)
-                                    .stroke(NeonColors.magenta, lineWidth: 2)
-                                    .rotationEffect(Angle(degrees: shazamMatcher.isMatching ? 360 : 0))
-                                    .animation(Animation.linear(duration: 1).repeatForever(autoreverses: false), value: shazamMatcher.isMatching)
-                            )
-                    } else {
-                         // Normal state background for better visibility in top bar
-                        Circle()
-                            .fill(.ultraThinMaterial.opacity(0.3))
-                            .frame(width: 44, height: 44)
-                    }
-                    
-                    Image(systemName: "waveform")
-                        .font(.system(size: 20))
-                        .foregroundColor(shazamMatcher.isMatching ? NeonColors.magenta : .white.opacity(0.8))
-                }
-            }
+            // 占位，保持左右对称
+            Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, 20)
     }
@@ -267,7 +237,43 @@ struct PlayerView: View {
     
     // MARK: - 控制按钮
     private var controlButtons: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 12) {
+            // Shazam 识别按钮
+            Button(action: {
+                if shazamMatcher.isMatching {
+                    shazamMatcher.stopMatching()
+                } else {
+                    shazamMatcher.startMatching()
+                }
+            }) {
+                ZStack {
+                    if shazamMatcher.isMatching {
+                        // 识别中 - 渐变旋转动画
+                        Circle()
+                            .stroke(
+                                AngularGradient(
+                                    colors: [NeonColors.cyan, NeonColors.magenta, NeonColors.cyan],
+                                    center: .center
+                                ),
+                                lineWidth: 2
+                            )
+                            .frame(width: 36, height: 36)
+                            .rotationEffect(Angle(degrees: shazamMatcher.isMatching ? 360 : 0))
+                            .animation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false), value: shazamMatcher.isMatching)
+                        
+                        Image(systemName: "shazam.logo.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(NeonColors.cyan)
+                    } else {
+                        // 正常状态
+                        Image(systemName: "shazam.logo")
+                            .font(.system(size: 22))
+                            .foregroundColor(NeonColors.cyan)
+                            .frame(width: 36, height: 36)
+                    }
+                }
+            }
+            
             // 收藏按钮
             if let station = playerManager.currentStation {
                 Button(action: {
@@ -276,13 +282,13 @@ struct PlayerView: View {
                     }
                 }) {
                     Image(systemName: favoritesManager.isFavorite(station) ? "heart.fill" : "heart")
-                        .font(.system(size: 22))
+                        .font(.system(size: 20))
                         .foregroundColor(favoritesManager.isFavorite(station) ? NeonColors.magenta : .white.opacity(0.6))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                 }
                 .neonGlow(color: favoritesManager.isFavorite(station) ? NeonColors.magenta : .clear, radius: 6)
             } else {
-                Color.clear.frame(width: 44, height: 44)
+                Color.clear.frame(width: 36, height: 36)
             }
             
             // 上一首
@@ -290,9 +296,9 @@ struct PlayerView: View {
                 playerManager.playPrevious()
             }) {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: 24))
+                    .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
             }
             .keyboardShortcut(.upArrow, modifiers: [])
             
@@ -309,9 +315,9 @@ struct PlayerView: View {
                 playerManager.playNext()
             }) {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 24))
+                    .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
             }
             .keyboardShortcut(.downArrow, modifiers: [])
             
@@ -322,9 +328,9 @@ struct PlayerView: View {
                 showFavoritesList = true
             }) {
                 Image(systemName: "list.bullet")
-                    .font(.system(size: 20))
+                    .font(.system(size: 18))
                     .foregroundColor(.white.opacity(0.6))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
             }
             .sheet(isPresented: $showFavoritesList) {
                 FavoritesListView(onStationSelected: { station in

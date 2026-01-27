@@ -5,6 +5,9 @@ import MediaToolbox
 class AudioTap {
     var onAudioBuffer: ((AVAudioPCMBuffer, AVAudioTime) -> Void)?
     var processingFormat: AudioStreamBasicDescription?
+    var isActive = false
+    
+    private static var bufferReceivedCount = 0
     
     init() {}
     
@@ -22,39 +25,48 @@ class AudioTap {
         var tap: MTAudioProcessingTap?
         let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap)
         
-        if status == noErr, let tap = tap {
-            // Only audio tracks can be tapped
-            // We need to wait for tracks to be loaded typically, but for AVPlayerItem(url:) they might be available or we can just try.
-            // Actually, for HLS streams, tracks might not be immediately available.
-            // This is a common pitfall. The tracks property of asset might be empty initially.
-            // We might need to load "tracks" key asynchronously.
-            
-            // However, let's assume standard behavior first. If tracks are empty, we might need a different approach.
-            // A safer way is to check playerItem.asset.tracks.
-            
-            do {
-                let tracks = try await playerItem.asset.loadTracks(withMediaType: .audio)
-                if let track = tracks.first {
-                let params = AVMutableAudioMixInputParameters(track: track)
-                params.audioTapProcessor = tap
-                
-                let audioMix = AVMutableAudioMix()
-                audioMix.inputParameters = [params]
-                playerItem.audioMix = audioMix
-                print("AudioTap setup successful")
-            } else {
-                print("AudioTap warning: No audio tracks found on asset yet. Tap might not work immediately.")
-            }
-        } catch {
-            print("AudioTap error loading tracks: \(error)")
+        guard status == noErr, let tap = tap else {
+            print("AudioTap: Failed to create tap, status: \(status)")
+            return
         }
-        } else {
-            print("Failed to create audio tap: \(status)")
+        
+        // 获取所有轨道
+        do {
+            let tracks = try await playerItem.asset.loadTracks(withMediaType: .audio)
+            
+            guard let track = tracks.first else {
+                print("AudioTap: ⚠️ No audio tracks available")
+                return
+            }
+            
+            // 打印轨道信息
+            print("AudioTap: Found audio track: \(track)")
+            print("AudioTap: Track format descriptions: \(track.formatDescriptions)")
+            
+            // 设置 AudioMix
+            let params = AVMutableAudioMixInputParameters(track: track)
+            params.audioTapProcessor = tap
+            
+            let audioMix = AVMutableAudioMix()
+            audioMix.inputParameters = [params]
+            
+            // 应用到 playerItem（需要在主线程）
+            await MainActor.run {
+                playerItem.audioMix = audioMix
+            }
+            
+            isActive = true
+            AudioTap.bufferReceivedCount = 0
+            print("AudioTap: ✅ Setup successful!")
+            
+        } catch {
+            print("AudioTap: Error loading tracks: \(error)")
         }
     }
     
     fileprivate func prepare(maxFrames: CMItemCount, processingFormat: UnsafePointer<AudioStreamBasicDescription>) {
         self.processingFormat = processingFormat.pointee
+        print("AudioTap: Prepared with format - sampleRate: \(processingFormat.pointee.mSampleRate), channels: \(processingFormat.pointee.mChannelsPerFrame)")
     }
     
     fileprivate func process(tap: MTAudioProcessingTap, numberFrames: CMItemCount, flags: MTAudioProcessingTapFlags, bufferListInOut: UnsafeMutablePointer<AudioBufferList>, numberFramesOut: UnsafeMutablePointer<CMItemCount>, flagsOut: UnsafeMutablePointer<MTAudioProcessingTapFlags>) {
@@ -64,9 +76,13 @@ class AudioTap {
         if status != noErr { return }
         
         guard let format = self.processingFormat else { return }
-        
-        // We only process if we have a callback
         guard let callback = self.onAudioBuffer else { return }
+        
+        // 打印前几次收到的缓冲区信息
+        AudioTap.bufferReceivedCount += 1
+        if AudioTap.bufferReceivedCount <= 3 {
+            print("AudioTap: 🎵 Received buffer #\(AudioTap.bufferReceivedCount), frames: \(numberFrames)")
+        }
         
         // Create AVAudioFormat
         var localFormat = format
@@ -77,16 +93,7 @@ class AudioTap {
         pcmBuffer.frameLength = AVAudioFrameCount(numberFrames)
         
         // Copy audio data
-        // We assume non-interleaved float data usually for AVPlayer processing
-        // But we must handle what we get.
-        
-        if let _ = UnsafeMutableAudioBufferListPointer(bufferListInOut).first,
-           let destBuffers = pcmBuffer.floatChannelData {
-            
-            // This is a simplification. We should handle different formats/interleaving.
-            // But MTAudioProcessingTap usually gives Float32 non-interleaved.
-            
-            // We'll iterate channels
+        if let destBuffers = pcmBuffer.floatChannelData {
             let channelCount = Int(format.mChannelsPerFrame)
             let bufferList = UnsafeMutableAudioBufferListPointer(bufferListInOut)
             

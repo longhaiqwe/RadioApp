@@ -13,6 +13,10 @@ class AudioPlayerManager: ObservableObject {
     // Playlist context
     private var playlist: [Station] = []
     
+    // Player item observer
+    private var statusObserver: NSKeyValueObservation?
+    private var audioTap: AudioTap?
+    
     private init() {
         setupAudioSession()
         setupRemoteCommandCenter()
@@ -76,21 +80,18 @@ class AudioPlayerManager: ObservableObject {
         var nowPlayingInfo = [String: Any]()
         nowPlayingInfo[MPMediaItemPropertyTitle] = station.name
         nowPlayingInfo[MPMediaItemPropertyArtist] = station.tags
-        // Set playback rate (1.0 for playing, 0.0 for paused)
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         
-        // Asynchronously load image if available
         if let url = URL(string: station.favicon) {
-            let stationId = station.id // Capture ID
+            let stationId = station.id
             URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
                 guard let self = self else { return }
                 guard let data = data, let image = UIImage(data: data) else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 
                 DispatchQueue.main.async {
-                    // Verify if we are still playing the same station
                     guard self.currentStation?.id == stationId else { return }
                     
                     var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
@@ -100,8 +101,6 @@ class AudioPlayerManager: ObservableObject {
             }.resume()
         }
     }
-    
-    private var audioTap: AudioTap?
     
     // Play a station, optionally updating the playlist context
     func play(station: Station, in newPlaylist: [Station]? = nil) {
@@ -116,71 +115,90 @@ class AudioPlayerManager: ObservableObject {
         
         guard let url = URL(string: station.urlResolved) else { return }
         
-        // Use AVURLAsset to allow track inspection (async)
-        let asset = AVURLAsset(url: url)
+        // 清理之前的观察者
+        statusObserver?.invalidate()
+        statusObserver = nil
         
-        // We create the item immediately but setup tap when tracks match
-        // Note: For HLS, tracks might load later.
+        let asset = AVURLAsset(url: url)
         let playerItem = AVPlayerItem(asset: asset)
         
-        // Setup simple tap immediately? Or wait?
-        // Let's attempt to setup tap. AudioTap handles checking for tracks.
-        // For robustness with HLS, we should really observe "tracks" key.
-        // But for this implementation step, let's initialize the tap which will attach to the first audio track if available.
-        // If not available, we might miss it.
-        // Re-creating the tap on status ready is better.
+        // 设置缓冲
+        playerItem.preferredForwardBufferDuration = 5.0
         
+        // 创建 AudioTap
         self.audioTap = AudioTap()
         self.audioTap?.onAudioBuffer = { buffer, time in
-            // Forward to ShazamMatcher
             ShazamMatcher.shared.match(buffer: buffer, time: time)
         }
         
-        // Observe status to know when tracks are ready?
-        // Actually, let's just create the player item and let the tap try to attach.
-        // A better approach for HLS is to wait for the player item's `tracks` property to be populated.
-        // But let's restart with the straightforward approach first.
-        
-        // Using a small delay or KVO is safer for HLS but let's try direct attachment.
-        // If it fails, our AudioTap implementation prints a warning.
-        
-        // Ideally we should observe `playerItem.p.tracks` using KVO.
-        // But for simplicity in this step:
-
-        Task {
-            do {
-                // Modern async load
-                let _ = try await asset.load(.tracks)
-                
-                // Continue on main actor if needed, or just safely update
-                // Since we are in a Task, we should be careful about self capture and threads.
-                // However, play() is likely on MainActor or we should dispatch to main for player updates.
-                
-                // Let's verify tracks are loaded
-                // Since we successfully awaited load(.tracks), the status is guaranteed to be loaded.
-                await self.audioTap?.setupTap(for: playerItem)
-                
-                await MainActor.run {
-                    // Improve streaming stability
-                    playerItem.preferredForwardBufferDuration = 5.0
-                    
-                    if self.player == nil {
-                        self.player = AVPlayer(playerItem: playerItem)
-                        self.player?.automaticallyWaitsToMinimizeStalling = true
-                    } else {
-                        self.player?.replaceCurrentItem(with: playerItem)
-                    }
-                    
-                    self.player?.play()
-                    self.isPlaying = true
-                    self.currentStation = station
-                    
-                    self.updateNowPlayingInfo()
+        // 使用 KVO 监听 playerItem 状态
+        // 当状态变为 readyToPlay 时再设置 AudioTap
+        statusObserver = playerItem.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard let self = self else { return }
+            
+            switch item.status {
+            case .readyToPlay:
+                print("AudioPlayerManager: PlayerItem ready, setting up AudioTap...")
+                Task {
+                    await self.setupAudioTapWhenReady(for: item)
                 }
-            } catch {
-                print("Failed to load tracks: \(error)")
+            case .failed:
+                print("AudioPlayerManager: PlayerItem failed: \(item.error?.localizedDescription ?? "unknown")")
+            case .unknown:
+                break
+            @unknown default:
+                break
             }
         }
+        
+        // 设置播放器
+        if player == nil {
+            player = AVPlayer(playerItem: playerItem)
+            player?.automaticallyWaitsToMinimizeStalling = true
+        } else {
+            player?.replaceCurrentItem(with: playerItem)
+        }
+        
+        player?.play()
+        isPlaying = true
+        currentStation = station
+        updateNowPlayingInfo()
+    }
+    
+    private func setupAudioTapWhenReady(for playerItem: AVPlayerItem) async {
+        // 尝试多次获取音频轨道
+        let maxAttempts = 10
+        var tracks: [AVAssetTrack] = []
+        
+        for attempt in 1...maxAttempts {
+            do {
+                tracks = try await playerItem.asset.loadTracks(withMediaType: .audio)
+                
+                if !tracks.isEmpty {
+                    print("AudioPlayerManager: Found \(tracks.count) audio track(s) on attempt \(attempt)")
+                    break
+                } else {
+                    print("AudioPlayerManager: No tracks yet (attempt \(attempt)/\(maxAttempts))...")
+                    if attempt < maxAttempts {
+                        try await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+                    }
+                }
+            } catch {
+                print("AudioPlayerManager: Error loading tracks: \(error)")
+                if attempt < maxAttempts {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                }
+            }
+        }
+        
+        guard let track = tracks.first else {
+            print("AudioPlayerManager: ⚠️ No audio tracks found after \(maxAttempts) attempts")
+            print("AudioPlayerManager: URL: \(playerItem.asset)")
+            return
+        }
+        
+        // 创建 AudioMix 并设置 tap
+        await audioTap?.setupTap(for: playerItem)
     }
     
     func pause() {
@@ -215,5 +233,12 @@ class AudioPlayerManager: ObservableObject {
             let prevIndex = (index - 1 + playlist.count) % playlist.count
             play(station: playlist[prevIndex])
         }
+    }
+    
+    // MARK: - Audio Recorder (保留用于兼容)
+    @Published var audioRecorder = AudioRecorder()
+    
+    func startRecording() {
+        audioRecorder.prepareToRecord()
     }
 }

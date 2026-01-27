@@ -204,11 +204,11 @@ struct PlayButton: View {
                         RadialGradient(
                             colors: [NeonColors.magenta.opacity(0.6), NeonColors.purple.opacity(0.3), .clear],
                             center: .center,
-                            startRadius: 30,
-                            endRadius: 60
+                            startRadius: 25,
+                            endRadius: 50
                         )
                     )
-                    .frame(width: 120, height: 120)
+                    .frame(width: 100, height: 100)
                 
                 // 主按钮
                 Circle()
@@ -219,7 +219,7 @@ struct PlayButton: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 80, height: 80)
+                    .frame(width: 65, height: 65)
                     .overlay(
                         Circle()
                             .stroke(
@@ -231,11 +231,11 @@ struct PlayButton: View {
                                 lineWidth: 1
                             )
                     )
-                    .shadow(color: NeonColors.magenta.opacity(0.8), radius: 15, x: 0, y: 5)
+                    .shadow(color: NeonColors.magenta.opacity(0.8), radius: 12, x: 0, y: 4)
                 
                 // 图标
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundColor(.white)
                     .offset(x: isPlaying ? 0 : 2)
             }
