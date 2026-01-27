@@ -204,3 +204,83 @@ extension ShazamMatcher: SHSessionDelegate {
         }
     }
 }
+
+class MusicPlatformService {
+    static let shared = MusicPlatformService()
+    
+    private init() {}
+    
+    // MARK: - QQ Music
+    
+    /// 搜索 QQ 音乐并获取 SongMID
+    func findQQMusicID(title: String, artist: String) async -> String? {
+        // QQ 音乐搜索 API (Mobile Client Endpoint)
+        // https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w={Query}&format=json
+        
+        // 简单的关键词组合
+        let query = "\(title) \(artist)"
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=1&w=\(encodedQuery)&format=json") else {
+            return nil
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            // 尝试解析 JSON
+            // 结构: data -> song -> list -> [0] -> songmid
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let dataObj = json["data"] as? [String: Any],
+               let songObj = dataObj["song"] as? [String: Any],
+               let list = songObj["list"] as? [[String: Any]],
+               let firstSong = list.first,
+               let songmid = firstSong["songmid"] as? String {
+                return songmid
+            }
+        } catch {
+            print("QQ Music Search Error: \(error)")
+        }
+        
+        return nil
+    }
+    
+    // MARK: - NetEase Cloud Music
+    
+    /// 搜索网易云音乐并获取 SongID
+    func findNetEaseID(title: String, artist: String) async -> String? {
+        // 网易云搜索 API (Legacy Endpoint)
+        // http://music.163.com/api/search/get/web?s={Query}&type=1&offset=0&total=true&limit=1
+        
+        let query = "\(title) \(artist)"
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=1") else {
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        // 伪装 Referer 和 User-Agent 以避免部分反爬限制
+        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            
+            // 尝试解析 JSON
+            // 结构: result -> songs -> [0] -> id
+            // 注意：如果在海外 IP，此接口可能返回 "abroad":true 和加密 result，导致解析失败。
+            // 但用户在中国环境下应该能正常获取 JSON。
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let result = json["result"] as? [String: Any],
+               let songs = result["songs"] as? [[String: Any]],
+               let firstSong = songs.first,
+               let id = firstSong["id"] as? Int {
+                return String(id)
+            }
+        } catch {
+            print("NetEase Search Error: \(error)")
+        }
+        
+        return nil
+    }
+}

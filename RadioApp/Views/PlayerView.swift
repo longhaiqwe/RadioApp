@@ -10,6 +10,7 @@ struct PlayerView: View {
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
     @State private var showFavoritesList = false
+    @State private var loadingPlatform: String? = nil // "netease" or "qq"
     @ObservedObject var shazamMatcher = ShazamMatcher.shared
     
     var body: some View {
@@ -469,16 +470,36 @@ struct PlayerView: View {
                 }
                 
                 // 网易云音乐
-                if let netEaseURL = getNetEaseURL(title: match.title, artist: match.artist) {
-                    Link(destination: netEaseURL) {
-                        MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2) // 调整比例
+                Button(action: {
+                    Task {
+                        await openMusicApp(platform: "netease", title: match.title, artist: match.artist)
+                    }
+                }) {
+                    ZStack {
+                        MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2)
+                        if loadingPlatform == "netease" {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(Circle())
+                        }
                     }
                 }
                 
                 // QQ音乐
-                if let qqMusicURL = getQQMusicURL(title: match.title, artist: match.artist) {
-                    Link(destination: qqMusicURL) {
-                        MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 38) // 白底视觉显大，物理尺寸改小一点以平衡
+                Button(action: {
+                    Task {
+                        await openMusicApp(platform: "qq", title: match.title, artist: match.artist)
+                    }
+                }) {
+                    ZStack {
+                        MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 38)
+                        if loadingPlatform == "qq" {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .background(Color.white.opacity(0.6))
+                                .clipShape(Circle())
+                        }
                     }
                 }
                 
@@ -541,26 +562,86 @@ struct PlayerView: View {
         }
     }
     
-    private func getNetEaseURL(title: String?, artist: String?) -> URL? {
-        let query = "\(title ?? "") \(artist ?? "")".trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return nil }
+    private func openMusicApp(platform: String, title: String?, artist: String?) async {
+        guard let title = title, let artist = artist else { return }
+        guard loadingPlatform == nil else { return }
         
-        // 尝试构建网易云搜索 URL (scheme: orpheus://search?keyword=xxx)
-        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            return URL(string: "orpheus://search?keyword=\(encodedQuery)")
+        loadingPlatform = platform
+        
+        // 1. 尝试获取 Song ID
+        var songId: String? = nil
+        if platform == "netease" {
+            songId = await MusicPlatformService.shared.findNetEaseID(title: title, artist: artist)
+        } else if platform == "qq" {
+            songId = await MusicPlatformService.shared.findQQMusicID(title: title, artist: artist)
         }
-        return nil
+        
+        // 2. 构建 URL
+        var finalURL: URL? = nil
+        
+        if let id = songId {
+            // ID 直达模式
+            if platform == "netease" {
+                // 网易云单曲链接: orpheus://song/{id}
+                finalURL = URL(string: "orpheus://song/\(id)")
+            } else if platform == "qq" {
+                // QQ音乐单曲链接
+                let jsonStr = "{\"song\":[{\"type\":\"0\",\"songmid\":\"\(id)\"}],\"action\":\"play\"}"
+                if let encodedJson = jsonStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                    finalURL = URL(string: "qqmusic://qq.com/media/playSonglist?p=\(encodedJson)")
+                }
+            }
+        }
+        
+        // 3. 降级到搜索模式 (如果没找到 ID)
+        if finalURL == nil {
+            if platform == "netease" {
+                finalURL = getNetEaseSearchURL(title: title, artist: artist)
+            } else if platform == "qq" {
+                finalURL = getQQMusicSearchURL(title: title, artist: artist)
+            }
+        }
+        
+        // 4. 打开链接
+        if let url = finalURL {
+            await MainActor.run {
+                UIApplication.shared.open(url)
+            }
+        }
+        
+        loadingPlatform = nil
     }
     
-    private func getQQMusicURL(title: String?, artist: String?) -> URL? {
-        let query = "\(title ?? "") \(artist ?? "")".trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return nil }
+    private func getNetEaseSearchURL(title: String?, artist: String?) -> URL? {
+        guard let query = getSmartQuery(title: title, artist: artist) else { return nil }
+        // 网易云音乐搜索 Scheme
+        // 尝试添加 &type=1 指明搜索单曲，期望能触发搜索
+        return URL(string: "orpheus://search?keyword=\(query)&type=1")
+    }
+    
+    private func getQQMusicSearchURL(title: String?, artist: String?) -> URL? {
+        guard let query = getSmartQuery(title: title, artist: artist) else { return nil }
+        // QQ音乐搜索 Scheme
+        // 更新为 qqmusic://qq.com/ui/search?w=... 尝试修复跳转首页问题
+        return URL(string: "qqmusic://qq.com/ui/search?w=\(query)")
+    }
+    
+    // 生成更精准的搜索关键词
+    private func getSmartQuery(title: String?, artist: String?) -> String? {
+        let safeTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let safeArtist = artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        // 尝试构建 QQ 音乐搜索 URL (scheme: qqmusic://qq.com/search?k=xxx)
-        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            return URL(string: "qqmusic://qq.com/search?k=\(encodedQuery)")
+        guard !safeTitle.isEmpty else { return nil }
+        
+        // 组合 歌名 + 歌手
+        let rawQuery: String
+        if !safeArtist.isEmpty {
+            rawQuery = "\(safeTitle) \(safeArtist)"
+        } else {
+            rawQuery = safeTitle
         }
-        return nil
+        
+        return rawQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
     }
     
 
