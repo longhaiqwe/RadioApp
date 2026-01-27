@@ -451,22 +451,26 @@ struct PlayerView: View {
                     .multilineTextAlignment(.center)
             }
             
-            // 按钮行
-            HStack(spacing: 20) {
-                // Apple Music 按钮
+            // 音乐平台按钮 - 紧凑图标模式
+            HStack(spacing: 24) {
+                // Apple Music
                 if let appleMusicURL = match.appleMusicURL {
                     Link(destination: appleMusicURL) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 12))
-                            Text("Apple Music")
-                                .font(.system(size: 12))
-                        }
-                        .foregroundColor(NeonColors.magenta)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(NeonColors.magenta.opacity(0.15))
-                        .cornerRadius(8)
+                        MusicIconView(imageName: "AppleMusicLogo", color: NeonColors.magenta, scale: 1.0)
+                    }
+                }
+                
+                // 网易云音乐
+                if let netEaseURL = getNetEaseURL(title: match.title, artist: match.artist) {
+                    Link(destination: netEaseURL) {
+                        MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2) // 调整比例
+                    }
+                }
+                
+                // QQ音乐
+                if let qqMusicURL = getQQMusicURL(title: match.title, artist: match.artist) {
+                    Link(destination: qqMusicURL) {
+                        MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 38) // 白底视觉显大，物理尺寸改小一点以平衡
                     }
                 }
                 
@@ -476,15 +480,19 @@ struct PlayerView: View {
                         shazamMatcher.lastMatch = nil
                     }
                 }) {
-                    Text("关闭")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(8)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white.opacity(0.8))
+                        .frame(width: 44, height: 44)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
                 }
             }
+            .padding(.vertical, 8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
@@ -523,6 +531,28 @@ struct PlayerView: View {
         withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
             rotation = 360
         }
+    }
+    
+    private func getNetEaseURL(title: String?, artist: String?) -> URL? {
+        let query = "\(title ?? "") \(artist ?? "")".trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return nil }
+        
+        // 尝试构建网易云搜索 URL (scheme: orpheus://search?keyword=xxx)
+        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            return URL(string: "orpheus://search?keyword=\(encodedQuery)")
+        }
+        return nil
+    }
+    
+    private func getQQMusicURL(title: String?, artist: String?) -> URL? {
+        let query = "\(title ?? "") \(artist ?? "")".trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return nil }
+        
+        // 尝试构建 QQ 音乐搜索 URL (scheme: qqmusic://qq.com/search?k=xxx)
+        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            return URL(string: "qqmusic://qq.com/search?k=\(encodedQuery)")
+        }
+        return nil
     }
     
 
@@ -598,3 +628,31 @@ struct SongResultView: View {
 }
 
 
+
+// 统一的音乐图标组件
+struct MusicIconView: View {
+    let imageName: String
+    let color: Color
+    var scale: CGFloat = 1.0
+    var size: CGFloat = 44.0 // 增加尺寸参数，默认 44
+    
+    var body: some View {
+        ZStack {
+            // 背景层
+            color.opacity(color == .white ? 1.0 : 0.1) // 白色背景不透明，其他半透明
+            
+            // 图标层
+            Image(imageName)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .scaleEffect(scale)
+        }
+        .frame(width: size, height: size)   // 使用动态尺寸
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.25)) // 圆角随尺寸等比缩放 (11/44 = 0.25)
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.25)
+                .stroke(color == .white ? Color.black.opacity(0.1) : Color.white.opacity(0.1), lineWidth: 1) // 白底时用深色边框，否则看不见
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2) // 统一阴影
+    }
+}
