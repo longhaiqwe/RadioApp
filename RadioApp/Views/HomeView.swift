@@ -16,15 +16,30 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         // MARK: - 顶部标题
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("发现")
-                                .font(.system(size: 42, weight: .bold))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [.white, .white.opacity(0.8)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
+                            HStack {
+                                Text("发现")
+                                    .font(.system(size: 42, weight: .bold))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.white, .white.opacity(0.8)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
                                     )
-                                )
+                                
+                                Spacer()
+                                
+                                NavigationLink(destination: ShazamTestView()) {
+                                    Image(systemName: "music.note.list")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(NeonColors.cyan)
+                                        .padding(10)
+                                        .background(
+                                            Circle()
+                                                .fill(Color.white.opacity(0.1))
+                                        )
+                                }
+                            }
                             
                             Text("探索全球电台")
                                 .font(.system(size: 16, weight: .medium))
