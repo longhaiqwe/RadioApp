@@ -22,15 +22,8 @@ struct PlayerView: View {
                 topBar
                     .padding(.top, 20)
                 
-                // MARK: - Shazam 识别结果（显示在顶部栏下方）
-                if let match = shazamMatcher.lastMatch {
-                    shazamResultCard(match: match)
-                        .padding(.top, 8)
-                } else if shazamMatcher.isMatching {
-                    // 识别中状态
-                    shazamMatchingIndicator
-                        .padding(.top, 8)
-                }
+                // MARK: - Shazam 识别结果 (已移至 Overlay)
+
                 
                 Spacer()
                 
@@ -59,6 +52,21 @@ struct PlayerView: View {
                     .padding(.horizontal, 40)
                     .padding(.bottom, 40)
             }
+            
+            // MARK: - Shazam Overlay Layer
+            VStack(spacing: 0) {
+                // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
+                Color.clear.frame(height: 72)
+                
+                if let match = shazamMatcher.lastMatch {
+                    shazamResultCard(match: match)
+                } else if shazamMatcher.isMatching {
+                    shazamMatchingIndicator
+                }
+                
+                Spacer()
+            }
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.isMatching)
         }
     }
     
