@@ -39,7 +39,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             return
         }
         
-        print("StreamSampler: Starting to sample from \(url)")
+        print("StreamSampler: 开始采集音频...")
         
         // 创建 session
         let config = URLSessionConfiguration.default
@@ -93,7 +93,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             try? FileManager.default.removeItem(at: tempFileURL)
             
             try receivedData.write(to: tempFileURL)
-            print("StreamSampler: Saved \(receivedData.count) bytes to \(tempFileURL.lastPathComponent)")
+            print("StreamSampler: 采集完成")
             
             completion?(tempFileURL)
         } catch {
@@ -110,10 +110,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         receivedData.append(data)
         
-        // 进度日志（每100KB打印一次）
-        if receivedData.count % (100 * 1024) < data.count {
-            print("StreamSampler: Received \(receivedData.count / 1024)KB...")
-        }
+        // 静默接收数据，不打印进度
         
         // 收集足够数据后完成
         if receivedData.count >= targetBytes {

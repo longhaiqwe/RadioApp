@@ -45,7 +45,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             session?.delegate = self
         }
         
-        print("ShazamMatcher: Starting stream sampling from \(station.urlResolved)")
+        print("ShazamMatcher: 开始识别...")
         
         // 使用 StreamSampler 下载音频片段
         StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL in
@@ -103,7 +103,7 @@ class ShazamMatcher: NSObject, ObservableObject {
                 let audioFile = try AVAudioFile(forReading: url)
                 let processingFormat = audioFile.processingFormat
                 
-                print("ShazamMatcher: Audio format: \(processingFormat)")
+                // 读取音频数据
                 
                 // 读取音频数据
                 let durationToRead: TimeInterval = 12.0
@@ -115,14 +115,13 @@ class ShazamMatcher: NSObject, ObservableObject {
                 
                 try audioFile.read(into: inputBuffer)
                 
-                print("ShazamMatcher: Read \(inputBuffer.frameLength) frames")
+                // 转换为 Mono 44.1kHz
                 
                 // 转换为 Mono 44.1kHz
                 let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 1, interleaved: false)!
                 var bufferToMatch = inputBuffer
                 
                 if processingFormat.sampleRate != targetFormat.sampleRate || processingFormat.channelCount != targetFormat.channelCount {
-                    print("ShazamMatcher: Converting to Mono 44.1kHz...")
                     
                     guard let converter = AVAudioConverter(from: processingFormat, to: targetFormat) else {
                         throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建转换器"])
@@ -145,15 +144,12 @@ class ShazamMatcher: NSObject, ObservableObject {
                     if let error = error { throw error }
                     
                     bufferToMatch = outputBuffer
-                    print("ShazamMatcher: Converted to \(outputBuffer.frameLength) frames")
                 }
                 
                 // 生成签名并匹配
                 let generator = SHSignatureGenerator()
                 try generator.append(bufferToMatch, at: nil)
                 let signature = generator.signature()
-                
-                print("ShazamMatcher: Generated signature, matching...")
                 self.session?.match(signature)
                 
             } catch {

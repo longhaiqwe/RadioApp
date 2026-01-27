@@ -40,10 +40,10 @@ struct PlayerView: View {
                 // MARK: - 可视化
                 if playerManager.isPlaying {
                     EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
-                        .frame(height: 50)
-                        .padding(.vertical, 20)
+                        .frame(height: 40)
+                        .padding(.vertical, 15)
                 } else {
-                    Spacer().frame(height: 90)
+                    Spacer().frame(height: 70)
                 }
                 
                 // MARK: - 电台信息
@@ -53,12 +53,11 @@ struct PlayerView: View {
                 
                 // MARK: - 控制按钮
                 controlButtons
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 20)
                 
-                // MARK: - 音量滑块
                 volumeControl
                     .padding(.horizontal, 40)
-                    .padding(.bottom, 50)
+                    .padding(.bottom, 40)
             }
         }
     }
@@ -381,7 +380,7 @@ struct PlayerView: View {
                     }
                 }
             
-            Text(shazamMatcher.matchingProgress.isEmpty ? "正在识别..." : shazamMatcher.matchingProgress)
+            Text("识别中...")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(NeonColors.cyan)
             
@@ -396,8 +395,8 @@ struct PlayerView: View {
                     .foregroundColor(.white.opacity(0.6))
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.black.opacity(0.3))
