@@ -368,10 +368,10 @@ struct PlayerView: View {
     
     // MARK: - Shazam 识别中指示器
     private var shazamMatchingIndicator: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             // 旋转的 Shazam 图标
             Image(systemName: "shazam.logo.fill")
-                .font(.system(size: 20))
+                .font(.system(size: 18))
                 .foregroundColor(NeonColors.cyan)
                 .rotationEffect(Angle(degrees: rotation))
                 .onAppear {
@@ -393,16 +393,21 @@ struct PlayerView: View {
                 Text("取消")
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(8)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.3))
+                .fill(Color.black.opacity(0.4))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                        .stroke(NeonColors.cyan.opacity(0.4), lineWidth: 1)
                 )
         )
         .padding(.horizontal, 20)
@@ -410,7 +415,7 @@ struct PlayerView: View {
     
     // MARK: - Shazam 识别结果卡片
     private func shazamResultCard(match: SHMatchedMediaItem) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // 封面
             if let url = match.artworkURL {
                 AsyncImage(url: url) { phase in
@@ -423,13 +428,13 @@ struct PlayerView: View {
                             .fill(NeonColors.purple.opacity(0.3))
                     }
                 }
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .shadow(color: NeonColors.purple.opacity(0.5), radius: 6)
+                .shadow(color: NeonColors.purple.opacity(0.5), radius: 4)
             } else {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(NeonColors.purple.opacity(0.3))
-                    .frame(width: 48, height: 48)
+                    .frame(width: 44, height: 44)
                     .overlay(
                         Image(systemName: "music.note")
                             .foregroundColor(.white.opacity(0.5))
@@ -439,12 +444,12 @@ struct PlayerView: View {
             // 歌曲信息
             VStack(alignment: .leading, spacing: 2) {
                 Text(match.title ?? "未知歌曲")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
                 
                 Text(match.artist ?? "未知歌手")
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.7))
                     .lineLimit(1)
             }
@@ -455,7 +460,7 @@ struct PlayerView: View {
             if let appleMusicURL = match.appleMusicURL {
                 Link(destination: appleMusicURL) {
                     Image(systemName: "play.circle.fill")
-                        .font(.system(size: 32))
+                        .font(.system(size: 28))
                         .foregroundColor(NeonColors.magenta)
                 }
             }
@@ -467,26 +472,27 @@ struct PlayerView: View {
                 }
             }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: 20))
                     .foregroundColor(.white.opacity(0.4))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
                         colors: [
-                            NeonColors.purple.opacity(0.2),
-                            NeonColors.darkBg.opacity(0.8)
+                            NeonColors.purple.opacity(0.25),
+                            NeonColors.darkBg.opacity(0.85)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 14)
                         .stroke(
                             LinearGradient(
                                 colors: [NeonColors.purple.opacity(0.5), NeonColors.cyan.opacity(0.3)],
