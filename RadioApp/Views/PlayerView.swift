@@ -255,7 +255,7 @@ struct PlayerView: View {
             
             // 上一首
             Button(action: {
-                playPreviousFavorite()
+                playerManager.playPrevious()
             }) {
                 Image(systemName: "backward.fill")
                     .font(.system(size: 24))
@@ -274,7 +274,7 @@ struct PlayerView: View {
             
             // 下一首
             Button(action: {
-                playNextFavorite()
+                playerManager.playNext()
             }) {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 24))
@@ -294,7 +294,7 @@ struct PlayerView: View {
             }
             .sheet(isPresented: $showFavoritesList) {
                 FavoritesListView(onStationSelected: { station in
-                    playerManager.play(station: station)
+                    playerManager.play(station: station, in: FavoritesManager.shared.favoriteStations)
                     showFavoritesList = false
                 })
             }
@@ -324,31 +324,7 @@ struct PlayerView: View {
         }
     }
     
-    private func playNextFavorite() {
-        let favorites = favoritesManager.favoriteStations
-        guard !favorites.isEmpty else { return }
-        
-        if let current = playerManager.currentStation,
-           let index = favorites.firstIndex(where: { $0.id == current.id }) {
-            let nextIndex = (index + 1) % favorites.count
-            playerManager.play(station: favorites[nextIndex])
-        } else {
-            playerManager.play(station: favorites[0])
-        }
-    }
-    
-    private func playPreviousFavorite() {
-        let favorites = favoritesManager.favoriteStations
-        guard !favorites.isEmpty else { return }
-        
-        if let current = playerManager.currentStation,
-           let index = favorites.firstIndex(where: { $0.id == current.id }) {
-            let prevIndex = (index - 1 + favorites.count) % favorites.count
-            playerManager.play(station: favorites[prevIndex])
-        } else {
-            playerManager.play(station: favorites[0])
-        }
-    }
+
 }
 
 // 移除旧的 VisualizerView，使用 DesignSystem 中的 EnhancedVisualizerView

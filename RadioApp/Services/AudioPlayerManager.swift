@@ -10,6 +10,9 @@ class AudioPlayerManager: ObservableObject {
     @Published var isPlaying: Bool = false
     @Published var currentStation: Station?
     
+    // Playlist context
+    private var playlist: [Station] = []
+    
     private init() {
         setupAudioSession()
         setupRemoteCommandCenter()
@@ -27,6 +30,7 @@ class AudioPlayerManager: ObservableObject {
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
         
+        // Play/Pause
         commandCenter.playCommand.addTarget { [weak self] event in
             guard let self = self else { return .commandFailed }
             if !self.isPlaying {
@@ -42,9 +46,24 @@ class AudioPlayerManager: ObservableObject {
             guard let self = self else { return .commandFailed }
             if self.isPlaying {
                 self.pause()
-                return .success // pause() calls updateNowPlayingInfo()
+                return .success
             }
             return .commandFailed
+        }
+        
+        // Next/Previous Track
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] event in
+            guard let self = self else { return .commandFailed }
+            self.playNext()
+            return .success
+        }
+        
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] event in
+            guard let self = self else { return .commandFailed }
+            self.playPrevious()
+            return .success
         }
     }
     
@@ -82,7 +101,12 @@ class AudioPlayerManager: ObservableObject {
         }
     }
     
-    func play(station: Station) {
+    // Play a station, optionally updating the playlist context
+    func play(station: Station, in newPlaylist: [Station]? = nil) {
+        if let newPlaylist = newPlaylist {
+            self.playlist = newPlaylist
+        }
+        
         if currentStation?.id == station.id {
             togglePlayPause()
             return
@@ -121,6 +145,24 @@ class AudioPlayerManager: ObservableObject {
             player?.play()
             isPlaying = true
             updateNowPlayingInfo()
+        }
+    }
+    
+    func playNext() {
+        guard !playlist.isEmpty, let current = currentStation else { return }
+        
+        if let index = playlist.firstIndex(where: { $0.id == current.id }) {
+            let nextIndex = (index + 1) % playlist.count
+            play(station: playlist[nextIndex])
+        }
+    }
+    
+    func playPrevious() {
+        guard !playlist.isEmpty, let current = currentStation else { return }
+        
+        if let index = playlist.firstIndex(where: { $0.id == current.id }) {
+            let prevIndex = (index - 1 + playlist.count) % playlist.count
+            play(station: playlist[prevIndex])
         }
     }
 }

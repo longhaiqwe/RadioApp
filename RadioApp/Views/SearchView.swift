@@ -177,7 +177,7 @@ struct SearchView: View {
                                 isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
                             )
                             .onTapGesture {
-                                playerManager.play(station: station)
+                                playerManager.play(station: station, in: viewModel.stations)
                             }
                         }
                     }
