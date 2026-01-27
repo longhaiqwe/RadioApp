@@ -101,6 +101,8 @@ class AudioPlayerManager: ObservableObject {
         }
     }
     
+    private var audioTap: AudioTap?
+    
     // Play a station, optionally updating the playlist context
     func play(station: Station, in newPlaylist: [Station]? = nil) {
         if let newPlaylist = newPlaylist {
@@ -114,22 +116,71 @@ class AudioPlayerManager: ObservableObject {
         
         guard let url = URL(string: station.urlResolved) else { return }
         
-        let playerItem = AVPlayerItem(url: url)
-        // Improve streaming stability
-        playerItem.preferredForwardBufferDuration = 5.0
+        // Use AVURLAsset to allow track inspection (async)
+        let asset = AVURLAsset(url: url)
         
-        if player == nil {
-            player = AVPlayer(playerItem: playerItem)
-            player?.automaticallyWaitsToMinimizeStalling = true
-        } else {
-            player?.replaceCurrentItem(with: playerItem)
+        // We create the item immediately but setup tap when tracks match
+        // Note: For HLS, tracks might load later.
+        let playerItem = AVPlayerItem(asset: asset)
+        
+        // Setup simple tap immediately? Or wait?
+        // Let's attempt to setup tap. AudioTap handles checking for tracks.
+        // For robustness with HLS, we should really observe "tracks" key.
+        // But for this implementation step, let's initialize the tap which will attach to the first audio track if available.
+        // If not available, we might miss it.
+        // Re-creating the tap on status ready is better.
+        
+        self.audioTap = AudioTap()
+        self.audioTap?.onAudioBuffer = { buffer, time in
+            // Forward to ShazamMatcher
+            ShazamMatcher.shared.match(buffer: buffer, time: time)
         }
         
-        player?.play()
-        isPlaying = true
-        currentStation = station
+        // Observe status to know when tracks are ready?
+        // Actually, let's just create the player item and let the tap try to attach.
+        // A better approach for HLS is to wait for the player item's `tracks` property to be populated.
+        // But let's restart with the straightforward approach first.
         
-        updateNowPlayingInfo()
+        // Using a small delay or KVO is safer for HLS but let's try direct attachment.
+        // If it fails, our AudioTap implementation prints a warning.
+        
+        // Ideally we should observe `playerItem.p.tracks` using KVO.
+        // But for simplicity in this step:
+
+        Task {
+            do {
+                // Modern async load
+                let _ = try await asset.load(.tracks)
+                
+                // Continue on main actor if needed, or just safely update
+                // Since we are in a Task, we should be careful about self capture and threads.
+                // However, play() is likely on MainActor or we should dispatch to main for player updates.
+                
+                // Let's verify tracks are loaded
+                // Since we successfully awaited load(.tracks), the status is guaranteed to be loaded.
+                await self.audioTap?.setupTap(for: playerItem)
+                
+                await MainActor.run {
+                    // Improve streaming stability
+                    playerItem.preferredForwardBufferDuration = 5.0
+                    
+                    if self.player == nil {
+                        self.player = AVPlayer(playerItem: playerItem)
+                        self.player?.automaticallyWaitsToMinimizeStalling = true
+                    } else {
+                        self.player?.replaceCurrentItem(with: playerItem)
+                    }
+                    
+                    self.player?.play()
+                    self.isPlaying = true
+                    self.currentStation = station
+                    
+                    self.updateNowPlayingInfo()
+                }
+            } catch {
+                print("Failed to load tracks: \(error)")
+            }
+        }
     }
     
     func pause() {

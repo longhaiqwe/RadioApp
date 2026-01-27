@@ -161,7 +161,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             }
         }
     }
-}
+
     
     // MARK: - Streaming Matching
     

@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import ShazamKit
 
 struct PlayerView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
@@ -9,6 +10,7 @@ struct PlayerView: View {
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
     @State private var showFavoritesList = false
+    @ObservedObject var shazamMatcher = ShazamMatcher.shared
     
     var body: some View {
         ZStack {
@@ -129,8 +131,38 @@ struct PlayerView: View {
             
             Spacer()
             
-            // 占位保持对称
-            Color.clear.frame(width: 44, height: 44)
+            // 识别按钮
+            Button(action: {
+                if shazamMatcher.isMatching {
+                    shazamMatcher.stopMatching()
+                } else {
+                    shazamMatcher.startMatching()
+                }
+            }) {
+                ZStack {
+                    if shazamMatcher.isMatching {
+                        Circle()
+                            .stroke(NeonColors.cyan, lineWidth: 2)
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                Circle()
+                                    .trim(from: 0, to: 0.7)
+                                    .stroke(NeonColors.magenta, lineWidth: 2)
+                                    .rotationEffect(Angle(degrees: shazamMatcher.isMatching ? 360 : 0))
+                                    .animation(Animation.linear(duration: 1).repeatForever(autoreverses: false), value: shazamMatcher.isMatching)
+                            )
+                    } else {
+                         // Normal state background for better visibility in top bar
+                        Circle()
+                            .fill(.ultraThinMaterial.opacity(0.3))
+                            .frame(width: 44, height: 44)
+                    }
+                    
+                    Image(systemName: "waveform")
+                        .font(.system(size: 20))
+                        .foregroundColor(shazamMatcher.isMatching ? NeonColors.magenta : .white.opacity(0.8))
+                }
+            }
         }
         .padding(.horizontal, 20)
     }
@@ -283,6 +315,8 @@ struct PlayerView: View {
             }
             .keyboardShortcut(.downArrow, modifiers: [])
             
+
+
             // 列表按钮
             Button(action: {
                 showFavoritesList = true
@@ -298,8 +332,13 @@ struct PlayerView: View {
                     showFavoritesList = false
                 })
             }
+            
+
         }
         .padding(.horizontal, 20)
+        .sheet(item: $shazamMatcher.lastMatch) { match in
+            SongResultView(match: match)
+        }
     }
     
     // MARK: - 音量控制
@@ -328,3 +367,72 @@ struct PlayerView: View {
 }
 
 // 移除旧的 VisualizerView，使用 DesignSystem 中的 EnhancedVisualizerView
+
+struct SongResultView: View {
+    let match: SHMatchedMediaItem
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        ZStack {
+            NeonColors.darkBg.ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                // Artwork
+                if let url = match.artworkURL {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .cornerRadius(12)
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .frame(width: 200, height: 200)
+                    .shadow(color: NeonColors.purple.opacity(0.5), radius: 20)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 80))
+                        .foregroundColor(NeonColors.cyan)
+                        .frame(width: 200, height: 200)
+                        .background(NeonColors.cardBg)
+                        .cornerRadius(12)
+                }
+                
+                // Info
+                VStack(spacing: 8) {
+                    Text(match.title ?? "Unknown Title")
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(match.artist ?? "Unknown Artist")
+                        .font(.headline)
+                        .foregroundColor(NeonColors.cyan)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                
+                // Apple Music Button
+                if let appleMusicURL = match.appleMusicURL {
+                    Link(destination: appleMusicURL) {
+                        HStack {
+                            Image(systemName: "apple.logo")
+                            Text("Open in Apple Music")
+                        }
+                        .padding()
+                        .background(NeonColors.magenta)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.top, 50)
+        }
+    }
+}
+
+
