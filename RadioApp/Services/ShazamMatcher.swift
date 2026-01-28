@@ -97,56 +97,34 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // MARK: - 文件匹配（内部实现）
     
+    // MARK: - 文件匹配（内部实现）
+    
     private func matchFile(at url: URL) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
+        Task {
             do {
-                let audioFile = try AVAudioFile(forReading: url)
-                let processingFormat = audioFile.processingFormat
+                // 尝试使用 AVAudioFile（支持 mp3, aac, m4a 等）
+                // 如果是 TS 文件，先进行手动解包
+                let buffer: AVAudioPCMBuffer
                 
-                // 读取音频数据
-                
-                // 读取音频数据
-                let durationToRead: TimeInterval = 12.0
-                let framesToRead = AVAudioFrameCount(processingFormat.sampleRate * durationToRead)
-                
-                guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: framesToRead) else {
-                    throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建缓冲区"])
+                if url.pathExtension.lowercased() == "ts" {
+                    print("ShazamMatcher: 使用 TSUnpacker 手动解包 TS 文件...")
+                    buffer = try self.readTSAudioWithUnpacker(from: url)
+                } else {
+                    print("ShazamMatcher: 使用 AVAudioFile 读取...")
+                    buffer = try self.readAudioWithAudioFile(from: url)
                 }
                 
-                try audioFile.read(into: inputBuffer)
-                
-                // 转换为 Mono 44.1kHz
-                
-                // 转换为 Mono 44.1kHz
+                // 转换为 Mono 44.1kHz（ShazamKit 推荐格式）
                 let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 1, interleaved: false)!
-                var bufferToMatch = inputBuffer
+                let bufferToMatch: AVAudioPCMBuffer
                 
-                if processingFormat.sampleRate != targetFormat.sampleRate || processingFormat.channelCount != targetFormat.channelCount {
-                    
-                    guard let converter = AVAudioConverter(from: processingFormat, to: targetFormat) else {
-                        throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建转换器"])
-                    }
-                    
-                    let ratio = targetFormat.sampleRate / processingFormat.sampleRate
-                    let outputFrameCapacity = AVAudioFrameCount(Double(inputBuffer.frameLength) * ratio)
-                    
-                    guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outputFrameCapacity) else {
-                        throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
-                    }
-                    
-                    var error: NSError? = nil
-                    let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-                        outStatus.pointee = .haveData
-                        return inputBuffer
-                    }
-                    
-                    converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
-                    if let error = error { throw error }
-                    
-                    bufferToMatch = outputBuffer
+                if buffer.format.sampleRate != targetFormat.sampleRate || buffer.format.channelCount != targetFormat.channelCount {
+                    bufferToMatch = try self.convertBuffer(buffer, to: targetFormat)
+                } else {
+                    bufferToMatch = buffer
                 }
+                
+                print("ShazamMatcher: 音频准备完成，帧数: \(bufferToMatch.frameLength)")
                 
                 // 生成签名并匹配
                 let generator = SHSignatureGenerator()
@@ -163,6 +141,83 @@ class ShazamMatcher: NSObject, ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - 使用 AVAudioFile 读取（适用于 mp3, aac, m4a 等）
+    
+    private func readAudioWithAudioFile(from url: URL) throws -> AVAudioPCMBuffer {
+        let audioFile = try AVAudioFile(forReading: url)
+        let processingFormat = audioFile.processingFormat
+        
+        let durationToRead: TimeInterval = 12.0
+        let framesToRead = AVAudioFrameCount(processingFormat.sampleRate * durationToRead)
+        
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: framesToRead) else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建缓冲区"])
+        }
+        
+        try audioFile.read(into: buffer)
+        return buffer
+    }
+    
+    // MARK: - 手动解包 TS 并读取
+    
+    private func readTSAudioWithUnpacker(from url: URL) throws -> AVAudioPCMBuffer {
+        // 1. 读取 TS 数据
+        let tsData = try Data(contentsOf: url)
+        
+        // 2. 解包 AAC
+        let aacData = TSUnpacker.extractAudio(from: tsData)
+        guard !aacData.isEmpty else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "TS 解包失败，无音频数据"])
+        }
+        
+        // 3. 保存为临时 .aac 文件
+        // 必须使用 .aac 后缀，AVAudioFile 才能识别 ADTS 格式
+        let tempAACURL = FileManager.default.temporaryDirectory.appendingPathComponent("stream_sample_extracted.aac")
+        try? FileManager.default.removeItem(at: tempAACURL)
+        try aacData.write(to: tempAACURL)
+        
+        print("ShazamMatcher: 已保存解包 AAC 文件: \(aacData.count) bytes")
+        
+        // 4. 使用 AVAudioFile 读取 .aac
+        return try readAudioWithAudioFile(from: tempAACURL)
+    }
+    
+    // MARK: - 音频格式转换
+    
+    private func convertBuffer(_ inputBuffer: AVAudioPCMBuffer, to targetFormat: AVAudioFormat) throws -> AVAudioPCMBuffer {
+        guard let converter = AVAudioConverter(from: inputBuffer.format, to: targetFormat) else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建转换器"])
+        }
+        
+        let ratio = targetFormat.sampleRate / inputBuffer.format.sampleRate
+        let outputFrameCapacity = AVAudioFrameCount(Double(inputBuffer.frameLength) * ratio)
+        
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outputFrameCapacity) else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
+        }
+        
+        var error: NSError?
+        var inputConsumed = false
+        
+        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            if inputConsumed {
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+            inputConsumed = true
+            outStatus.pointee = .haveData
+            return inputBuffer
+        }
+        
+        converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
+        
+        if let error = error {
+            throw error
+        }
+        
+        return outputBuffer
     }
 }
 
