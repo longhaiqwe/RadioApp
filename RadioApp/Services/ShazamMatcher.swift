@@ -221,6 +221,20 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         return outputBuffer
     }
+    // MARK: - 重置状态
+    
+    /// 重置所有识别状态（通常在切歌时调用）
+    func reset() {
+        stopMatching()
+        
+        DispatchQueue.main.async {
+            self.lastMatch = nil
+            self.lyrics = nil
+            self.lastError = nil
+            self.isMatching = false
+            self.matchingProgress = ""
+        }
+    }
 }
 
 // MARK: - SHSessionDelegate

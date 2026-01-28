@@ -109,6 +109,9 @@ class AudioPlayerManager: ObservableObject {
             return
         }
         
+        // 切歌时，清空之前的识别信息
+        ShazamMatcher.shared.reset()
+        
         guard let url = URL(string: station.urlResolved) else { return }
         
         let playerItem = AVPlayerItem(url: url)
