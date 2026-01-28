@@ -1,0 +1,34 @@
+{
+  "identifier" : "8A3B5C2D-1234-5678-9ABC-DEF012345678",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "6.00",
+      "familyShareable" : false,
+      "internalID" : "6758373336",
+      "localizations" : [
+        {
+          "description" : "解锁歌曲识别功能，终身使用",
+          "displayName" : "Pro 终身版",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.shiyinFM.pro.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6758373336",
+    "_developerTeamID" : "YOUR_TEAM_ID"
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

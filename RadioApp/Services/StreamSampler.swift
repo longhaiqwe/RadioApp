@@ -13,12 +13,12 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var completion: ((URL?) -> Void)?
     
     // 采样配置
-    private let targetDuration: TimeInterval = 8.0  // 采样时长（秒）- 最小化以加快识别速度
-    private let estimatedBitrate = 128 * 1024 / 8    // 128kbps 估算字节率
+    private let targetDuration: TimeInterval = 10.0  // 采样时长（秒）- 确保足够捕捉歌曲特征
+    private let estimatedBitrate = 320 * 1024 / 8    // 320kbps (约 40KB/s) - 按高音质估算，确保高音质电台也能下够时长
     private var targetBytes: Int { Int(targetDuration) * estimatedBitrate }
     
     // HLS 配置
-    private let hlsSegmentsToDownload = 3  // 下载几个 ts 片段
+    private let hlsSegmentsToDownload = 3  // 下载几个 ts 片段（如果单个片段太短，需要多下几个）
     
     private var tempFileURL: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("stream_sample.mp3")
@@ -191,46 +191,75 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         return result
     }
     
-    /// 下载片段（仅下载第一个成功的片段，避免拼接导致文件损坏）
+    /// 下载片段（支持递归下载多个片段拼接）
     private func downloadSegments(_ urls: [URL]) {
-        guard let firstURL = urls.first else {
-            callCompletion(nil)
+        downloadNextSegment(from: urls, accumulatedData: Data())
+    }
+    
+    private func downloadNextSegment(from urls: [URL], accumulatedData: Data) {
+        // 如果已经收集了足够的数据（比如超过 10 秒的高音质数据量），或者没有更多片段了，就结束
+        // 注意：TS 文件有头部开销，所以稍微多下载一点
+        if accumulatedData.count >= targetBytes || urls.isEmpty {
+            if accumulatedData.count > 1000 {
+                saveAndComplete(data: accumulatedData, isTS: true)
+            } else {
+                print("StreamSampler: 数据不足以识别")
+                callCompletion(nil)
+            }
             return
         }
         
-        // 只下载第一个片段，通常时长 5-10 秒，足够 Shazam 识别
-        print("StreamSampler: 正在下载第一个片段: \(firstURL)")
+        let currentURL = urls[0]
+        let remainingURLs = Array(urls.dropFirst())
+        
+        print("StreamSampler: 正在下载片段: \(currentURL.lastPathComponent)")
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForRequest = 10
         let session = URLSession(configuration: config)
         
-        session.dataTask(with: firstURL) { [weak self] data, _, error in
+        session.dataTask(with: currentURL) { [weak self] data, _, error in
             guard let self = self else { return }
             
             if let error = error {
-                print("StreamSampler: 下载片段失败 - \(error.localizedDescription)")
-                self.callCompletion(nil)
+                print("StreamSampler: 片段下载失败 - \(error.localizedDescription)")
+                // 如果已经有数据了，就尝试使用已有的
+                if accumulatedData.count > 10000 {
+                    self.saveAndComplete(data: accumulatedData, isTS: true)
+                } else {
+                    self.callCompletion(nil)
+                }
                 return
             }
             
-            guard let data = data, data.count > 1000 else {
-                print("StreamSampler: 片段数据为空或太小")
-                self.callCompletion(nil)
+            guard let data = data, data.count > 0 else {
+                // 如果当前片段为空，尝试下一个
+                self.downloadNextSegment(from: remainingURLs, accumulatedData: accumulatedData)
                 return
             }
             
-            // 保存单个片段
-            do {
-                try? FileManager.default.removeItem(at: self.tempTSFileURL)
-                try data.write(to: self.tempTSFileURL)
-                print("StreamSampler: HLS 片段下载完成 (\(data.count) bytes)")
-                self.callCompletion(self.tempTSFileURL)
-            } catch {
-                print("StreamSampler: 保存 HLS 数据失败 - \(error)")
-                self.callCompletion(nil)
-            }
+            print("StreamSampler: 片段下载成功 (\(data.count) bytes)")
+            
+            var newData = accumulatedData
+            newData.append(data)
+            
+            // 递归下载下一个
+            self.downloadNextSegment(from: remainingURLs, accumulatedData: newData)
+            
         }.resume()
+    }
+    
+    private func saveAndComplete(data: Data, isTS: Bool) {
+        let url = isTS ? tempTSFileURL : tempFileURL
+        do {
+            try? FileManager.default.removeItem(at: url)
+            try data.write(to: url)
+            print("StreamSampler: 采集完成 (Total: \(data.count) bytes)")
+            callCompletion(url)
+        } catch {
+            print("StreamSampler: 保存文件失败 - \(error)")
+            callCompletion(nil)
+        }
     }
     
     // MARK: - 直接流处理（原有逻辑）
@@ -249,8 +278,9 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         dataTask = urlSession?.dataTask(with: request)
         dataTask?.resume()
         
-        // 设置超时
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+        // 设置超时 (12秒强制结束，防止低码率电台无限等待)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            print("StreamSampler: 达到直接流采样时间限制 (12s)")
             self?.finishDirectSampling()
         }
     }
@@ -273,15 +303,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         }
         
         // 保存到临时文件
-        do {
-            try? FileManager.default.removeItem(at: tempFileURL)
-            try receivedData.write(to: tempFileURL)
-            print("StreamSampler: 采集完成 (\(receivedData.count) bytes)")
-            callCompletion(tempFileURL)
-        } catch {
-            print("StreamSampler: Failed to save: \(error)")
-            callCompletion(nil)
-        }
+        saveAndComplete(data: receivedData, isTS: false)
         
         receivedData = Data()
     }

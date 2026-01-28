@@ -44,6 +44,7 @@ class SubscriptionManager: ObservableObject {
                 print("SubscriptionManager: 加载产品成功 - \(product.displayName) (\(product.displayPrice))")
             } else {
                 print("SubscriptionManager: 未找到产品 \(Self.proLifetimeProductID)")
+                errorMessage = "未找到可购买的商品"
             }
         } catch {
             print("SubscriptionManager: 加载产品失败 - \(error.localizedDescription)")

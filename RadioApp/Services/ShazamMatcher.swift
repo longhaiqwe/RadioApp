@@ -145,7 +145,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         let audioFile = try AVAudioFile(forReading: url)
         let processingFormat = audioFile.processingFormat
         
-        let durationToRead: TimeInterval = 8.0
+        let durationToRead: TimeInterval = 10.0
         let framesToRead = AVAudioFrameCount(processingFormat.sampleRate * durationToRead)
         
         guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: framesToRead) else {
@@ -153,6 +153,8 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
         
         try audioFile.read(into: buffer)
+        print("ShazamMatcher: 读取音频文件完成，实际时长: \(Double(buffer.frameLength) / processingFormat.sampleRate)s")
+        
         return buffer
     }
     
