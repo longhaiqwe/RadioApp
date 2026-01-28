@@ -11,6 +11,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     @Published var lastMatch: SHMatchedMediaItem?
     @Published var lastError: Error?
     @Published var matchingProgress: String = ""
+    @Published var lyrics: String? //  New lyrics property
     
     private var session: SHSession?
     
@@ -29,6 +30,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         // 立即清除之前的状态，确保 UI 正确响应
         lastError = nil
         lastMatch = nil
+        lyrics = nil // Reset lyrics
         
         // 获取当前播放的电台 URL
         guard let station = AudioPlayerManager.shared.currentStation,
@@ -238,6 +240,17 @@ extension ShazamMatcher: SHSessionDelegate {
                 print("歌曲: \(mediaItem.title ?? "未知")")
                 print("歌手: \(mediaItem.artist ?? "未知")")
                 print("===========================\n")
+                
+                // Fetch lyrics
+                Task {
+                    let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
+                        title: mediaItem.title ?? "",
+                        artist: mediaItem.artist ?? ""
+                    )
+                    await MainActor.run {
+                        self.lyrics = fetchedLyrics
+                    }
+                }
             }
         }
     }
@@ -336,6 +349,74 @@ class MusicPlatformService {
             }
         } catch {
             print("NetEase Search Error: \(error)")
+        }
+        
+        return nil
+    }
+    // MARK: - Lyrics Fetching
+    
+    /// 获取歌词 (优先 QQ 音乐，失败则使用网易云)
+    func fetchLyrics(title: String, artist: String) async -> String? {
+        // 1. 尝试 QQ 音乐
+        if let qqLyrics = await fetchQQLyrics(title: title, artist: artist) {
+            return qqLyrics
+        }
+        
+        // 2. 尝试网易云音乐 (作为兜底)
+        if let neLyrics = await fetchNetEaseLyrics(title: title, artist: artist) {
+            return neLyrics
+        }
+        
+        return nil
+    }
+    
+    private func fetchQQLyrics(title: String, artist: String) async -> String? {
+        guard let songmid = await findQQMusicID(title: title, artist: artist) else { return nil }
+        
+        // QQ 音乐歌词接口
+        // https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={songmid}&format=json&nobase64=1
+        // 注意：QQ 音乐接口通常需要 Referer 和特定的 Header，且可能需要登录 cookie。
+        // 这里尝试公开接口，如果失败则返回 nil
+        
+        guard let url = URL(string: "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&format=json&nobase64=1") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            
+            // QQ 音乐有时返回 JSONP，需要处理 (不过这里加了 format=json)
+            // 结构: lyric
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let lyric = json["lyric"] as? String {
+                // 解码 HTML 实体 (如果有)
+                return lyric
+            }
+        } catch {
+            print("QQ Music Lyrics Error: \(error)")
+        }
+        
+        return nil
+    }
+    
+    private func fetchNetEaseLyrics(title: String, artist: String) async -> String? {
+        guard let id = await findNetEaseID(title: title, artist: artist) else { return nil }
+        
+        // 网易云歌词接口
+        // http://music.163.com/api/song/lyric?id={id}&lv=1&kv=1&tv=-1
+        guard let url = URL(string: "http://music.163.com/api/song/lyric?id=\(id)&lv=1&kv=1&tv=-1") else { return nil }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let lrc = json["lrc"] as? [String: Any],
+               let lyric = lrc["lyric"] as? String {
+                return lyric
+            }
+        } catch {
+            print("NetEase Lyrics Error: \(error)")
         }
         
         return nil

@@ -12,6 +12,7 @@ struct PlayerView: View {
     @State private var showFavoritesList = false
     @State private var loadingPlatform: String? = nil // "netease" or "qq"
     @ObservedObject var shazamMatcher = ShazamMatcher.shared
+    @State private var showLyrics = false // Lyrics Toggle State
     
     var body: some View {
         ZStack {
@@ -31,16 +32,66 @@ struct PlayerView: View {
                 // MARK: - 封面区域
                 albumArtSection
                 
-                // MARK: - 可视化
-                if playerManager.isPlaying {
-                    EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
-                        .frame(height: 40)
-                        .padding(.vertical, 15)
-                } else {
-                    Spacer().frame(height: 70)
+                // MARK: - 可视化 & 信息 / 歌词区域
+                // MARK: - 可视化 / 识别信息 / 歌词区域
+                VStack(spacing: 12) {
+                    if let match = shazamMatcher.lastMatch {
+                        // 1. 识别到的歌曲信息 (使用完整的卡片)
+                        shazamResultCard(match: match)
+                            .padding(.bottom, 8)
+                        
+                        // 2. 歌词开关 (如果有歌词)
+                        if shazamMatcher.lyrics != nil {
+                             Button(action: {
+                                 withAnimation(.spring()) {
+                                     showLyrics.toggle()
+                                 }
+                             }) {
+                                 HStack(spacing: 4) {
+                                     Image(systemName: "music.note.list")
+                                     Text(showLyrics ? "隐藏歌词" : "显示歌词")
+                                 }
+                                 .font(.system(size: 12, weight: .bold))
+                                 .foregroundColor(showLyrics ? NeonColors.magenta : .white.opacity(0.6))
+                                 .padding(.horizontal, 12)
+                                 .padding(.vertical, 6)
+                                 .background(
+                                     Capsule()
+                                         .fill(Color.black.opacity(0.5))
+                                         .overlay(
+                                             Capsule().stroke(showLyrics ? NeonColors.magenta.opacity(0.5) : .white.opacity(0.2), lineWidth: 1)
+                                         )
+                                 )
+                             }
+                        }
+                        
+                        // 3. 歌词 or 占位
+                        if showLyrics && shazamMatcher.lyrics != nil {
+                             lyricsView
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        } else {
+                            // 即使识别到歌曲，如果没有显示歌词，也显示波形，让界面不空
+                            if playerManager.isPlaying {
+                                EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
+                                    .frame(height: 40)
+                            } else {
+                                Spacer().frame(height: 40)
+                            }
+                        }
+                    } else {
+                        // 未识别到歌曲 -> 显示波形
+                        if playerManager.isPlaying {
+                            EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
+                                .frame(height: 40)
+                                .padding(.vertical, 15)
+                        } else {
+                            Spacer().frame(height: 70)
+                        }
+                    }
                 }
+                .padding(.bottom, 10)
                 
-                // MARK: - 电台信息
+                // MARK: - 电台信息 (始终显示在最下方)
                 stationInfo
                 
                 Spacer()
@@ -59,9 +110,9 @@ struct PlayerView: View {
                 // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
                 Color.clear.frame(height: 72)
                 
-                if let match = shazamMatcher.lastMatch {
-                    shazamResultCard(match: match)
-                } else if shazamMatcher.isMatching {
+                if shazamMatcher.isMatching {
+                    shazamMatchingIndicator
+                } else if shazamMatcher.lastError != nil {
                     shazamMatchingIndicator
                 } else if shazamMatcher.lastError != nil {
                     shazamErrorCard
@@ -169,7 +220,7 @@ struct PlayerView: View {
                     ),
                     lineWidth: 3
                 )
-                .frame(width: 290, height: 290)
+                .frame(width: 145, height: 145)
                 .blur(radius: 4)
                 .opacity(playerManager.isPlaying ? 0.8 : 0.3)
                 .rotationEffect(.degrees(rotation))
@@ -194,7 +245,7 @@ struct PlayerView: View {
                         endRadius: 200
                     )
                 )
-                .frame(width: 400, height: 400)
+                .frame(width: 200, height: 200)
             
             // 封面图片
             Group {
@@ -221,7 +272,7 @@ struct PlayerView: View {
                     }
                 }
             }
-            .frame(width: 260, height: 260)
+            .frame(width: 130, height: 130)
             .clipShape(Circle())
             .overlay(
                 Circle()
@@ -392,7 +443,7 @@ struct PlayerView: View {
                         }
                     }
                 
-                Text("识别中...")
+                Text("歌曲识别中...")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(NeonColors.cyan)
             }
@@ -511,45 +562,47 @@ struct PlayerView: View {
     // MARK: - Shazam 识别结果卡片
     private func shazamResultCard(match: SHMatchedMediaItem) -> some View {
         VStack(spacing: 10) {
-            // 封面
-            if let url = match.artworkURL {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } else {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(NeonColors.purple.opacity(0.3))
+            // 封面 + 歌曲信息 (水平排列，整体居中)
+            HStack(spacing: 12) {
+                // 封面
+                if let url = match.artworkURL {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(NeonColors.purple.opacity(0.3))
+                        }
                     }
-                }
-                .frame(width: 50, height: 50)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .shadow(color: NeonColors.purple.opacity(0.5), radius: 6)
-            } else {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(NeonColors.purple.opacity(0.3))
                     .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .foregroundColor(.white.opacity(0.5))
-                    )
-            }
-            
-            // 歌曲信息（居中）
-            VStack(spacing: 2) {
-                Text(match.title ?? "未知歌曲")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .shadow(color: NeonColors.purple.opacity(0.5), radius: 6)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(NeonColors.purple.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                        .overlay(
+                            Image(systemName: "music.note")
+                                .foregroundColor(.white.opacity(0.5))
+                        )
+                }
                 
-                Text(match.artist ?? "未知歌手")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
+                // 歌曲信息（左对齐）
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(match.title ?? "未知歌曲")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    Text(match.artist ?? "未知歌手")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineLimit(1)
+                }
             }
+            .padding(.horizontal, 10) // 确保整体不会太贴边，保持居中感
             
             // 音乐平台按钮 - 紧凑图标模式
             HStack(spacing: 24) {
@@ -736,6 +789,58 @@ struct PlayerView: View {
     }
     
 
+
+    
+    // MARK: - 歌词视图
+    private var lyricsView: some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    if let lyricsText = shazamMatcher.lyrics {
+                       // 简单处理歌词文本，去掉时间戳 (如果是 LRC 格式)
+                       // 或者直接显示纯文本
+                       let lines = lyricsText.components(separatedBy: "\n")
+                       ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                           // 简单的 LRC 解析展示
+                           let cleanLine = line.replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+                           
+                           if !cleanLine.isEmpty {
+                               Text(cleanLine)
+                                   .font(.system(size: 16, weight: .medium))
+                                   .foregroundColor(NeonColors.cyan.opacity(0.8))
+                                   .multilineTextAlignment(.center)
+                                   .padding(.horizontal, 20)
+                                   .id(index)
+                           }
+                       }
+                    } else {
+                        Text("暂无歌词")
+                            .foregroundColor(.white.opacity(0.5))
+                            .padding(.top, 20)
+                    }
+                }
+                .padding(.vertical, 20)
+                .padding(.bottom, 50) // 底部留白
+            }
+        }
+        .frame(height: 160) // 限制高度，对应红框区域
+        .background(
+             RoundedRectangle(cornerRadius: 16)
+                 .fill(Color.black.opacity(0.3))
+                 .overlay(
+                     RoundedRectangle(cornerRadius: 16)
+                         .stroke(
+                            LinearGradient(
+                                colors: [NeonColors.cyan.opacity(0.3), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                         )
+                 )
+        )
+        .padding(.horizontal, 20)
+    }
 }
 
 // 移除旧的 VisualizerView，使用 DesignSystem 中的 EnhancedVisualizerView
