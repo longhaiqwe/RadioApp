@@ -8,6 +8,8 @@ struct HomeView: View {
     @ObservedObject var favoritesManager = FavoritesManager.shared
     @State private var draggingStation: Station?
     
+    @Environment(\.scenePhase) var scenePhase
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -176,7 +178,15 @@ struct HomeView: View {
             .navigationBarHidden(true)
         }
         .onAppear {
-            viewModel.fetchStations()
+            if viewModel.stations.isEmpty {
+                viewModel.fetchStations()
+            }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active && viewModel.stations.isEmpty {
+                print("App active, retrying fetch stations...")
+                viewModel.fetchStations()
+            }
         }
     }
 }
