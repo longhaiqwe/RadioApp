@@ -33,16 +33,7 @@ struct HomeView: View {
                                 
                                 Spacer()
                                 
-                                NavigationLink(destination: ShazamTestView()) {
-                                    Image(systemName: "music.note.list")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(NeonColors.cyan)
-                                        .padding(10)
-                                        .background(
-                                            Circle()
-                                                .fill(Color.white.opacity(0.1))
-                                        )
-                                }
+
                             }
                             
                             Text("探索全球电台")

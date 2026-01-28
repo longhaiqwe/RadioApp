@@ -89,13 +89,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // MARK: - 文件匹配（公开方法，供测试使用）
     
-    func match(fileURL: URL) {
-        isMatching = true
-        lastMatch = nil
-        lastError = nil
-        matchingProgress = "正在识别..."
-        matchFile(at: fileURL)
-    }
+
     
     // MARK: - 文件匹配（内部实现）
     
