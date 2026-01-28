@@ -13,7 +13,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var completion: ((URL?) -> Void)?
     
     // 采样配置
-    private let targetDuration: TimeInterval = 6.0  // 采样时长（秒）- 最小化以加快识别速度
+    private let targetDuration: TimeInterval = 8.0  // 采样时长（秒）- 最小化以加快识别速度
     private let estimatedBitrate = 128 * 1024 / 8    // 128kbps 估算字节率
     private var targetBytes: Int { Int(targetDuration) * estimatedBitrate }
     

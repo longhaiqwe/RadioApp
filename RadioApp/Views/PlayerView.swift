@@ -112,8 +112,7 @@ struct PlayerView: View {
                 
                 if shazamMatcher.isMatching {
                     shazamMatchingIndicator
-                } else if shazamMatcher.lastError != nil {
-                    shazamMatchingIndicator
+
                 } else if shazamMatcher.lastError != nil {
                     shazamErrorCard
                 }
