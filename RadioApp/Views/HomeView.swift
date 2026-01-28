@@ -1,10 +1,12 @@
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
+    @State private var draggingStation: Station?
     
     var body: some View {
         NavigationView {
@@ -98,7 +100,7 @@ struct HomeView: View {
                                 .padding(.horizontal, 20)
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
-                                    LazyHStack(spacing: 16) {
+                                    HStack(spacing: 16) {
                                         ForEach(favoritesManager.favoriteStations) { station in
                                             NeonStationCard(
                                                 station: station,
@@ -114,6 +116,12 @@ struct HomeView: View {
                                                     Label("取消收藏", systemImage: "heart.slash")
                                                 }
                                             }
+                                            // 拖拽支持
+                                            .onDrag {
+                                                self.draggingStation = station
+                                                return NSItemProvider(object: station.id as NSString)
+                                            }
+                                            .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
                                         }
                                     }
                                     .padding(.horizontal, 20)
@@ -276,5 +284,30 @@ struct StationCard: View {
     
     var body: some View {
         NeonStationCard(station: station)
+    }
+}
+
+struct StationDropDelegate: DropDelegate {
+    let item: Station
+    @Binding var items: [Station]
+    var favoritesManager: FavoritesManager
+    @Binding var draggingItem: Station?
+    
+    func performDrop(info: DropInfo) -> Bool {
+        self.draggingItem = nil
+        return true
+    }
+    
+    func dropEntered(info: DropInfo) {
+        guard let draggingItem = draggingItem else { return }
+        
+        guard let fromIndex = items.firstIndex(of: draggingItem) else { return }
+        guard let toIndex = items.firstIndex(of: item) else { return }
+        
+        if fromIndex != toIndex {
+            withAnimation {
+                favoritesManager.moveFavorite(from: IndexSet(integer: fromIndex), to: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            }
+        }
     }
 }

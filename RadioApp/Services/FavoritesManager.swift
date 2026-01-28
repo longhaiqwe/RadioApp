@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 class FavoritesManager: ObservableObject {
     static let shared = FavoritesManager()
@@ -45,6 +46,11 @@ class FavoritesManager: ObservableObject {
             }
             return false
         }
+        saveFavorites()
+    }
+    
+    func moveFavorite(from source: IndexSet, to destination: Int) {
+        favoriteStations.move(fromOffsets: source, toOffset: destination)
         saveFavorites()
     }
     
