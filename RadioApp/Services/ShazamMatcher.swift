@@ -26,6 +26,10 @@ class ShazamMatcher: NSObject, ObservableObject {
     func startMatching() {
         guard !isMatching else { return }
         
+        // 立即清除之前的状态，确保 UI 正确响应
+        lastError = nil
+        lastMatch = nil
+        
         // 获取当前播放的电台 URL
         guard let station = AudioPlayerManager.shared.currentStation,
               !station.urlResolved.isEmpty else {
@@ -35,8 +39,6 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
         
         isMatching = true
-        lastMatch = nil
-        lastError = nil
         matchingProgress = "正在采集音频..."
         
         // 确保 session 已初始化

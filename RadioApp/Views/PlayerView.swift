@@ -63,11 +63,13 @@ struct PlayerView: View {
                     shazamResultCard(match: match)
                 } else if shazamMatcher.isMatching {
                     shazamMatchingIndicator
+                } else if shazamMatcher.lastError != nil {
+                    shazamErrorCard
                 }
                 
                 Spacer()
             }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.isMatching)
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.isMatching || shazamMatcher.lastError != nil)
         }
     }
     
@@ -415,6 +417,95 @@ struct PlayerView: View {
                 )
         )
         .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Shazam 识别失败提示卡片
+    private var shazamErrorCard: some View {
+        VStack(spacing: 12) {
+            // 图标
+            Image(systemName: "music.note.list")
+                .font(.system(size: 32))
+                .foregroundColor(NeonColors.magenta.opacity(0.8))
+            
+            // 提示文字
+            VStack(spacing: 4) {
+                Text("未能识别歌曲")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Text("可能是纯音乐、广告或音频质量不佳，也有可能没有收录入曲库")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+            
+            // 操作按钮
+            HStack(spacing: 16) {
+                // 再试一次
+                Button(action: {
+                    shazamMatcher.lastError = nil
+                    shazamMatcher.startMatching()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14))
+                        Text("再试一次")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(NeonColors.cyan)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(NeonColors.cyan.opacity(0.6), lineWidth: 1)
+                    )
+                }
+                
+                // 关闭
+                Button(action: {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        shazamMatcher.lastError = nil
+                    }
+                }) {
+                    Text("关闭")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            NeonColors.magenta.opacity(0.15),
+                            NeonColors.darkBg.opacity(0.85)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(
+                            LinearGradient(
+                                colors: [NeonColors.magenta.opacity(0.4), NeonColors.purple.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
+        .padding(.horizontal, 20)
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        .animation(.easeOut(duration: 0.2), value: shazamMatcher.lastError != nil)
     }
     
     // MARK: - Shazam 识别结果卡片
