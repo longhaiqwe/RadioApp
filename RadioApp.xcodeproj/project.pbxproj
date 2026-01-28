@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8F4736CD2F29E6AF00822589 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8F4736CC2F29E6AF00822589 /* StoreKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		8F4736CC2F29E6AF00822589 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		8FF816E92F26FFA500FDAA9F /* RadioApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RadioApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -36,16 +41,26 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8F4736CD2F29E6AF00822589 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8F4736CB2F29E6AF00822589 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8F4736CC2F29E6AF00822589 /* StoreKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		8FF816E02F26FFA500FDAA9F = {
 			isa = PBXGroup;
 			children = (
 				8FF816EB2F26FFA500FDAA9F /* RadioApp */,
+				8F4736CB2F29E6AF00822589 /* Frameworks */,
 				8FF816EA2F26FFA500FDAA9F /* Products */,
 			);
 			sourceTree = "<group>";

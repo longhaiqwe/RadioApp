@@ -12,7 +12,9 @@ struct PlayerView: View {
     @State private var showFavoritesList = false
     @State private var loadingPlatform: String? = nil // "netease" or "qq"
     @ObservedObject var shazamMatcher = ShazamMatcher.shared
+    @ObservedObject var subscriptionManager = SubscriptionManager.shared
     @State private var showLyrics = false // Lyrics Toggle State
+    @State private var showProUpgrade = false // Pro 升级弹窗
     
     var body: some View {
         ZStack {
@@ -308,8 +310,14 @@ struct PlayerView: View {
     // MARK: - 控制按钮
     private var controlButtons: some View {
         HStack(spacing: 12) {
-            // Shazam 识别按钮
+            // Shazam 识别按钮 (Pro 功能)
             Button(action: {
+                // 检查 Pro 权限
+                if !subscriptionManager.isPro {
+                    showProUpgrade = true
+                    return
+                }
+                
                 if shazamMatcher.isMatching {
                     shazamMatcher.stopMatching()
                 } else {
@@ -407,6 +415,9 @@ struct PlayerView: View {
                     playerManager.play(station: station, in: FavoritesManager.shared.favoriteStations)
                     showFavoritesList = false
                 })
+            }
+            .sheet(isPresented: $showProUpgrade) {
+                ProUpgradeView()
             }
         }
         .padding(.horizontal, 20)
