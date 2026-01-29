@@ -337,7 +337,11 @@ struct PlayerView: View {
                 }
                 .neonGlow(color: favoritesManager.isFavorite(station) ? NeonColors.magenta : .clear, radius: 6)
             } else {
-                Color.clear.frame(width: 44, height: 44)
+                // 即使没有电台也显示占位，保持布局
+                 Image(systemName: "heart")
+                    .font(.system(size: 22))
+                    .foregroundColor(.white.opacity(0.3)) // 更加明显的禁用状态
+                    .frame(width: 44, height: 44)
             }
             
             Spacer()
