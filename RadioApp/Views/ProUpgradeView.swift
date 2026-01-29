@@ -67,7 +67,7 @@ struct ProUpgradeView: View {
                             FeatureRow(
                                 icon: "arrow.up.forward.app",
                                 title: "跳转音乐平台",
-                                description: "一键跳转到 QQ 音乐、网易云音乐收听完整版"
+                                description: "一键跳转到主流音乐平台收听完整版"
                             )
                         }
                         .padding(20)

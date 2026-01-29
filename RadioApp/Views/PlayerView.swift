@@ -26,72 +26,21 @@ struct PlayerView: View {
                 topBar
                     .padding(.top, 20)
                 
-                // MARK: - Shazam 识别结果 (已移至 Overlay)
-
-                
                 Spacer()
                 
-                // MARK: - 封面区域
-                albumArtSection
-                
-                // MARK: - 可视化 & 信息 / 歌词区域
-                // MARK: - 可视化 / 识别信息 / 歌词区域
-                VStack(spacing: 12) {
-                    if let match = shazamMatcher.lastMatch {
-                        // 1. 识别到的歌曲信息 (使用完整的卡片)
-                        shazamResultCard(match: match)
-                            .padding(.bottom, 8)
-                        
-                        // 2. 歌词开关 (如果有歌词)
-                        if shazamMatcher.lyrics != nil {
-                             Button(action: {
-                                 withAnimation(.spring()) {
-                                     showLyrics.toggle()
-                                 }
-                             }) {
-                                 HStack(spacing: 4) {
-                                     Image(systemName: "music.note.list")
-                                     Text(showLyrics ? "隐藏歌词" : "显示歌词")
-                                 }
-                                 .font(.system(size: 12, weight: .bold))
-                                 .foregroundColor(showLyrics ? NeonColors.magenta : .white.opacity(0.6))
-                                 .padding(.horizontal, 12)
-                                 .padding(.vertical, 6)
-                                 .background(
-                                     Capsule()
-                                         .fill(Color.black.opacity(0.5))
-                                         .overlay(
-                                             Capsule().stroke(showLyrics ? NeonColors.magenta.opacity(0.5) : .white.opacity(0.2), lineWidth: 1)
-                                         )
-                                 )
-                             }
-                        }
-                        
-                        // 3. 歌词 or 占位
-                        if showLyrics && shazamMatcher.lyrics != nil {
-                             lyricsView
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        } else {
-                            // 即使识别到歌曲，如果没有显示歌词，也显示波形，让界面不空
-                            if playerManager.isPlaying {
-                                EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
-                                    .frame(height: 40)
-                            } else {
-                                Spacer().frame(height: 40)
-                            }
-                        }
+                // MARK: - 封面区域 (仅在没有识别结果时显示)
+                if shazamMatcher.lastMatch == nil {
+                    albumArtSection
+                    
+                    // 波形可视化
+                    if playerManager.isPlaying {
+                        EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
+                            .frame(height: 40)
+                            .padding(.vertical, 15)
                     } else {
-                        // 未识别到歌曲 -> 显示波形
-                        if playerManager.isPlaying {
-                            EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
-                                .frame(height: 40)
-                                .padding(.vertical, 15)
-                        } else {
-                            Spacer().frame(height: 70)
-                        }
+                        Spacer().frame(height: 70)
                     }
                 }
-                .padding(.bottom, 10)
                 
                 // MARK: - 电台信息 (始终显示在最下方)
                 stationInfo
@@ -107,14 +56,18 @@ struct PlayerView: View {
                     .padding(.bottom, 40)
             }
             
-            // MARK: - Shazam Overlay Layer (仅错误提示)
+            // MARK: - Shazam Overlay Layer (识别结果、歌词、错误提示)
             VStack(spacing: 0) {
                 // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
                 Color.clear.frame(height: 72)
                 
-                // 识别中状态已由顶部按钮显示，此处只显示错误提示
                 if shazamMatcher.lastError != nil {
+                    // 错误提示
                     shazamErrorCard
+                    Spacer()
+                } else if let match = shazamMatcher.lastMatch {
+                    // 识别结果和歌词 - 覆盖在封面上方
+                    shazamResultOverlay(match: match)
                 }
                 
                 Spacer()
@@ -595,94 +548,110 @@ struct PlayerView: View {
         .animation(.easeOut(duration: 0.2), value: shazamMatcher.lastError != nil)
     }
     
-    // MARK: - Shazam 识别结果卡片
-    private func shazamResultCard(match: SHMatchedMediaItem) -> some View {
-        VStack(spacing: 10) {
-            // 封面 + 歌曲信息 (水平排列，整体居中)
-            HStack(spacing: 12) {
-                // 封面
-                if let url = match.artworkURL {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(NeonColors.purple.opacity(0.3))
+    // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
+    private func shazamResultOverlay(match: SHMatchedMediaItem) -> some View {
+        VStack(spacing: 0) {
+            // 1. 结果卡片 (作为顶部 Header)
+            VStack(spacing: 16) {
+                // 封面 + 歌曲信息 (左图右文，整体居中)
+                HStack(spacing: 14) {
+                    // 封面
+                    if let url = match.artworkURL {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } else {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(NeonColors.purple.opacity(0.3))
+                            }
+                        }
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: NeonColors.purple.opacity(0.5), radius: 8)
+                    } else {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(NeonColors.purple.opacity(0.3))
+                            .frame(width: 72, height: 72)
+                            .overlay(
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.white.opacity(0.5))
+                            )
+                    }
+                    
+                    // 歌曲信息 (左对齐，占据剩余空间)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(match.title ?? "未知歌曲")
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5) // 自适应缩小
+                        
+                        Text(match.artist ?? "未知歌手")
+                            .font(.system(size: 15))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                }
+                .padding(.horizontal, 8)
+                
+                // 音乐平台按钮
+                HStack(spacing: 24) {
+                    // Apple Music
+                    if let appleMusicURL = match.appleMusicURL {
+                        Link(destination: appleMusicURL) {
+                            MusicIconView(imageName: "AppleMusicLogo", color: NeonColors.magenta, scale: 1.0, size: 40)
                         }
                     }
-                    .frame(width: 50, height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .shadow(color: NeonColors.purple.opacity(0.5), radius: 6)
-                } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(NeonColors.purple.opacity(0.3))
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Image(systemName: "music.note")
-                                .foregroundColor(.white.opacity(0.5))
-                        )
-                }
-                
-                // 歌曲信息（左对齐）
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(match.title ?? "未知歌曲")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
                     
-                    Text(match.artist ?? "未知歌手")
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(1)
+                    // 网易云音乐
+                    Button(action: {
+                        Task {
+                            await openMusicApp(platform: "netease", title: match.title, artist: match.artist)
+                        }
+                    }) {
+                        ZStack {
+                            MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2, size: 40)
+                            if loadingPlatform == "netease" {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            }
+                        }
+                    }
+                    
+                    // QQ音乐
+                    Button(action: {
+                        Task {
+                            await openMusicApp(platform: "qq", title: match.title, artist: match.artist)
+                        }
+                    }) {
+                        ZStack {
+                            MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 37)
+                            if loadingPlatform == "qq" {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                    .scaleEffect(0.8)
+                            }
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 10) // 确保整体不会太贴边，保持居中感
-            
-            // 音乐平台按钮 - 紧凑图标模式
-            HStack(spacing: 24) {
-                // Apple Music
-                if let appleMusicURL = match.appleMusicURL {
-                    Link(destination: appleMusicURL) {
-                        MusicIconView(imageName: "AppleMusicLogo", color: NeonColors.magenta, scale: 1.0)
-                    }
-                }
-                
-                // 网易云音乐
-                Button(action: {
-                    Task {
-                        await openMusicApp(platform: "netease", title: match.title, artist: match.artist)
-                    }
-                }) {
-                    ZStack {
-                        MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2)
-                        if loadingPlatform == "netease" {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .background(Color.black.opacity(0.3))
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-                
-                // QQ音乐
-                Button(action: {
-                    Task {
-                        await openMusicApp(platform: "qq", title: match.title, artist: match.artist)
-                    }
-                }) {
-                    ZStack {
-                        MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 38)
-                        if loadingPlatform == "qq" {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                .background(Color.white.opacity(0.6))
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-                
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(NeonColors.darkBg.opacity(0.95))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(NeonColors.purple.opacity(0.3), lineWidth: 1)
+            )
+            .overlay(alignment: .topTrailing) {
                 // 关闭按钮
                 Button(action: {
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -690,49 +659,26 @@ struct PlayerView: View {
                     }
                 }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 44, height: 44)
-                        .background(Color.white.opacity(0.15))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(width: 32, height: 32)
+                        .background(Color.white.opacity(0.05))
                         .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
                 }
+                .padding(12)
             }
-            .padding(.vertical, 8)
+            .padding(.horizontal, 32)
+            
+            // 2. 歌词区域 (紧接在下方)
+            if shazamMatcher.lyrics != nil {
+                lyricsLayout
+                    .padding(.top, 12)
+            } else {
+                 Text("暂无歌词")
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.top, 40)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .padding(.horizontal, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            NeonColors.purple.opacity(0.25),
-                            NeonColors.darkBg.opacity(0.85)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(
-                            LinearGradient(
-                                colors: [NeonColors.purple.opacity(0.5), NeonColors.cyan.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
-        .padding(.horizontal, 20)
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-        .animation(.easeOut(duration: 0.2), value: shazamMatcher.lastMatch != nil)
     }
     
     // MARK: - 辅助方法
@@ -828,46 +774,46 @@ struct PlayerView: View {
 
     
     // MARK: - 歌词视图
-    private var lyricsView: some View {
+    // MARK: - 歌词布局 (用于 Overlay)
+    private var lyricsLayout: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 12) {
                     if let lyricsText = shazamMatcher.lyrics {
-                       // 简单处理歌词文本，去掉时间戳 (如果是 LRC 格式)
-                       // 或者直接显示纯文本
                        let lines = lyricsText.components(separatedBy: "\n")
                        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                           // 简单的 LRC 解析展示
                            let cleanLine = line.replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
                            
                            if !cleanLine.isEmpty {
                                Text(cleanLine)
                                    .font(.system(size: 16, weight: .medium))
-                                   .foregroundColor(NeonColors.cyan.opacity(0.8))
+                                   .foregroundColor(NeonColors.cyan.opacity(0.9))
                                    .multilineTextAlignment(.center)
-                                   .padding(.horizontal, 20)
+                                   .lineLimit(1)
+                                   .minimumScaleFactor(0.4) // 歌词长句自适应缩小
+                                   .minimumScaleFactor(0.4) // 歌词长句自适应缩小
+                                   .padding(.horizontal, 16)
+                                   .padding(.vertical, 2)
+                                   .padding(.vertical, 2)
                                    .id(index)
                            }
                        }
-                    } else {
-                        Text("暂无歌词")
-                            .foregroundColor(.white.opacity(0.5))
-                            .padding(.top, 20)
                     }
                 }
-                .padding(.vertical, 20)
-                .padding(.bottom, 50) // 底部留白
+                .padding(.vertical, 10)
+                .padding(.bottom, 20)
             }
         }
-        .frame(height: 160) // 限制高度，对应红框区域
+        .frame(height: 320) // 增大高度以覆盖封面区域
+        .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
         .background(
-             RoundedRectangle(cornerRadius: 16)
-                 .fill(Color.black.opacity(0.3))
+             RoundedRectangle(cornerRadius: 20)
+                 .fill(Color.black.opacity(0.9)) // 增加不透明度覆盖底部内容
                  .overlay(
-                     RoundedRectangle(cornerRadius: 16)
+                     RoundedRectangle(cornerRadius: 20)
                          .stroke(
                             LinearGradient(
-                                colors: [NeonColors.cyan.opacity(0.3), .clear],
+                                colors: [NeonColors.cyan.opacity(0.2), .clear],
                                 startPoint: .top,
                                 endPoint: .bottom
                             ),
@@ -875,7 +821,7 @@ struct PlayerView: View {
                          )
                  )
         )
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 32)
     }
 }
 
