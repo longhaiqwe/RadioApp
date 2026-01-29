@@ -68,11 +68,16 @@ struct PlayerView: View {
                 } else if let match = shazamMatcher.lastMatch {
                     // 识别结果和歌词 - 覆盖在封面上方
                     shazamResultOverlay(match: match)
+                } else if shazamMatcher.isMatching {
+                    // 识别进度提示
+                    shazamMatchingIndicator
+                        .padding(.top, 20)
+                    Spacer()
                 }
                 
                 Spacer()
             }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.lastError != nil)
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching)
         }
     }
     
@@ -427,7 +432,7 @@ struct PlayerView: View {
                         }
                     }
                 
-                Text("歌曲识别中...")
+                Text(shazamMatcher.matchingProgress.isEmpty ? "歌曲识别中..." : shazamMatcher.matchingProgress)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(NeonColors.cyan)
             }

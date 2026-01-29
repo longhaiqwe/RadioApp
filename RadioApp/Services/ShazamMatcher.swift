@@ -21,6 +21,10 @@ class ShazamMatcher: NSObject, ObservableObject {
         session?.delegate = self
     }
     
+    // MARK: - Retry Configuration
+    private let maxAutoRetries = 2
+    private var currentRetryAttempt = 0
+    
     // MARK: - 主入口：开始识别
     
     /// 从当前播放的电台识别歌曲
@@ -31,6 +35,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         lastError = nil
         lastMatch = nil
         lyrics = nil // Reset lyrics
+        currentRetryAttempt = 0 // 重置重试计数
         
         // 获取当前播放的电台 URL
         guard let station = AudioPlayerManager.shared.currentStation,
@@ -41,7 +46,16 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
         
         isMatching = true
-        matchingProgress = "正在采集音频..."
+        performMatchCycle(url: station.urlResolved)
+    }
+    
+    /// 执行单次识别循环
+    private func performMatchCycle(url: String) {
+        let attemptSuffix = currentRetryAttempt > 0 ? " (尝试 \(currentRetryAttempt + 1)/\(maxAutoRetries + 1))" : ""
+        
+        DispatchQueue.main.async {
+            self.matchingProgress = "正在采集音频...\(attemptSuffix)"
+        }
         
         // 确保 session 已初始化
         if session == nil {
@@ -49,25 +63,46 @@ class ShazamMatcher: NSObject, ObservableObject {
             session?.delegate = self
         }
         
-        print("ShazamMatcher: 开始识别...")
+        print("ShazamMatcher: 开始识别... 第 \(currentRetryAttempt + 1) 次尝试")
         
         // 使用 StreamSampler 下载音频片段
-        StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL in
+        StreamSampler.shared.sampleStream(from: url) { [weak self] fileURL in
             guard let self = self else { return }
             
             if let fileURL = fileURL {
                 DispatchQueue.main.async {
-                    self.matchingProgress = "正在识别..."
+                    self.matchingProgress = "正在识别...\(attemptSuffix)"
                 }
                 self.matchFile(at: fileURL)
             } else {
-                DispatchQueue.main.async {
-                    self.isMatching = false
-                    self.matchingProgress = ""
-                    self.lastError = NSError(domain: "ShazamMatcher", code: -2,
-                                           userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"])
-                }
+                self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
+                                                userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"]))
             }
+        }
+    }
+    
+    /// 统一失败处理（包含重试逻辑）
+    private func handleFailure(error: Error) {
+        // 如果还有重试机会，且不是用户主动取消（这里暂不处理取消，取消会直接 reset）
+        if currentRetryAttempt < maxAutoRetries {
+            currentRetryAttempt += 1
+            print("ShazamMatcher: 识别失败，准备重试... (下次是第 \(currentRetryAttempt + 1) 次)")
+            
+            if let station = AudioPlayerManager.shared.currentStation {
+                // 稍微延迟一下再重试，避免过于频繁
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.performMatchCycle(url: station.urlResolved)
+                }
+                return
+            }
+        }
+        
+        // 最终失败
+        DispatchQueue.main.async {
+            self.isMatching = false
+            self.matchingProgress = ""
+            self.lastError = error
+            print("ShazamMatcher: Final Error - \(error.localizedDescription)")
         }
     }
     
@@ -129,12 +164,7 @@ class ShazamMatcher: NSObject, ObservableObject {
                 self.session?.match(signature)
                 
             } catch {
-                DispatchQueue.main.async {
-                    self.isMatching = false
-                    self.matchingProgress = ""
-                    self.lastError = error
-                    print("ShazamMatcher: Error - \(error.localizedDescription)")
-                }
+                self.handleFailure(error: error)
             }
         }
     }
@@ -272,16 +302,12 @@ extension ShazamMatcher: SHSessionDelegate {
             // 防止重复处理
             guard self.isMatching else { return }
             
-            self.isMatching = false
-            self.matchingProgress = ""
-            
             if let error = error {
-                self.lastError = error
-                print("ShazamMatcher: Error - \(error.localizedDescription)")
+                self.handleFailure(error: error)
             } else {
-                self.lastError = NSError(domain: "ShazamMatcher", code: -3,
-                                        userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲"])
-                print("ShazamMatcher: No match found")
+                let noMatchError = NSError(domain: "ShazamMatcher", code: -3,
+                                         userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲"])
+                self.handleFailure(error: noMatchError)
             }
         }
     }
