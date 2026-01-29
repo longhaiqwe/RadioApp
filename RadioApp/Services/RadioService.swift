@@ -211,4 +211,24 @@ class RadioService {
         filter.reverse = true
         return try await advancedSearch(filter: filter)
     }
+    
+    // MARK: - Tags / Styles
+    
+    struct Tag: Codable {
+        let name: String
+        let stationcount: Int
+    }
+    
+    /// Fetch top tags (styles) from the API
+    func fetchTopTags(limit: Int = 100) async throws -> [Tag] {
+        await ensureServer()
+        
+        guard let url = URL(string: "\(activeBaseURL)/tags?order=stationcount&reverse=true&limit=\(limit)") else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let tags = try JSONDecoder().decode([Tag].self, from: data)
+        return tags
+    }
 }

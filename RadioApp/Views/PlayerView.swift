@@ -562,13 +562,13 @@ struct PlayerView: View {
                                     .fill(NeonColors.purple.opacity(0.3))
                             }
                         }
-                        .frame(width: 100, height: 100)
+                        .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: NeonColors.purple.opacity(0.5), radius: 8)
                     } else {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(NeonColors.purple.opacity(0.3))
-                            .frame(width: 100, height: 100)
+                            .frame(width: 60, height: 60)
                             .overlay(
                                 Image(systemName: "music.note")
                                     .font(.system(size: 28))
@@ -579,13 +579,13 @@ struct PlayerView: View {
                     // 歌曲信息 (左对齐，占据剩余空间)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(match.title ?? "未知歌曲")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5) // 自适应缩小
                         
                         Text(match.artist ?? "未知歌手")
-                            .font(.system(size: 16))
+                            .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -633,6 +633,26 @@ struct PlayerView: View {
                             }
                         }
                     }
+                    // 分割线
+                    if match.appleMusicURL != nil || loadingPlatform != nil || true { // 确保有图标时显示分割线，这里简单处理
+                        Rectangle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 1, height: 24)
+                    }
+
+                    // 关闭按钮
+                    Button(action: {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            shazamMatcher.lastMatch = nil
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white.opacity(0.6))
+                            .frame(width: 32, height: 32)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Circle())
+                    }
                 }
             }
             .padding(.vertical, 20)
@@ -646,22 +666,6 @@ struct PlayerView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(NeonColors.purple.opacity(0.3), lineWidth: 1)
             )
-            .overlay(alignment: .topTrailing) {
-                // 关闭按钮
-                Button(action: {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        shazamMatcher.lastMatch = nil
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
-                        .frame(width: 32, height: 32)
-                        .background(Color.white.opacity(0.05))
-                        .clipShape(Circle())
-                }
-                .padding(12)
-            }
             .padding(.horizontal, 32)
             
             // 2. 歌词区域 (紧接在下方)

@@ -88,26 +88,44 @@ struct SearchView: View {
                         }
                     }
                     
-                    // 筛选菜单
-                    Menu {
-                        Picker("选择省份", selection: $viewModel.selectedProvince) {
-                            Text("全部地区").tag(String?.none)
-                            ForEach(viewModel.provinces, id: \.code) { province in
-                                Text(province.name).tag(String?.some(province.code))
+                        // 嵌套菜单结构
+                        Menu {
+                            // 1. 地区子菜单
+                            Menu {
+                                Picker("选择省份", selection: $viewModel.selectedProvince) {
+                                    Text("全部地区").tag(String?.none)
+                                    ForEach(viewModel.provinces, id: \.code) { province in
+                                        Text(province.name).tag(String?.some(province.code))
+                                    }
+                                }
+                            } label: {
+                                Label("按地区筛选", systemImage: "map")
                             }
+                            
+                            // 2. 风格子菜单
+                            Menu {
+                                Picker("选择风格", selection: $viewModel.selectedStyle) {
+                                    Text("全部风格").tag(String?.none)
+                                    ForEach(viewModel.styles, id: \.tag) { style in
+                                        Text(style.name).tag(String?.some(style.tag))
+                                    }
+                                }
+                            } label: {
+                                Label("按风格筛选", systemImage: "music.note")
+                            }
+                            
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 18))
+                                .foregroundColor(viewModel.selectedProvince == nil && viewModel.selectedStyle == nil ? .white.opacity(0.5) : NeonColors.cyan)
+                                .frame(width: 36, height: 36)
+                                .background(
+                                    Circle()
+                                        .fill(viewModel.selectedProvince == nil && viewModel.selectedStyle == nil ? 
+                                              Color.white.opacity(0.1) : 
+                                              NeonColors.cyan.opacity(0.2))
+                                )
                         }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 18))
-                            .foregroundColor(viewModel.selectedProvince == nil ? .white.opacity(0.5) : NeonColors.cyan)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(viewModel.selectedProvince == nil ? 
-                                          Color.white.opacity(0.1) : 
-                                          NeonColors.cyan.opacity(0.2))
-                            )
-                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -118,42 +136,33 @@ struct SearchView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
                 
-                // MARK: - 省份标签（如果选中）
-                if let provinceCode = viewModel.selectedProvince,
-                   let province = viewModel.provinces.first(where: { $0.code == provinceCode }) {
-                    HStack {
-                        HStack(spacing: 6) {
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(NeonColors.cyan)
+                // MARK: - 筛选标签（如果选中）
+                if viewModel.selectedProvince != nil || viewModel.selectedStyle != nil {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            // 省份标签
+                            if let provinceCode = viewModel.selectedProvince,
+                               let province = viewModel.provinces.first(where: { $0.code == provinceCode }) {
+                                FilterChip(
+                                    icon: "mappin.circle.fill",
+                                    title: province.name,
+                                    onClose: { viewModel.selectedProvince = nil }
+                                )
+                            }
                             
-                            Text(province.name)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Button(action: {
-                                viewModel.selectedProvince = nil
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.6))
+                            // 风格标签
+                            if let styleTag = viewModel.selectedStyle,
+                               let style = viewModel.styles.first(where: { $0.tag == styleTag }) {
+                                FilterChip(
+                                    icon: "music.note",
+                                    title: style.name,
+                                    onClose: { viewModel.selectedStyle = nil }
+                                )
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(NeonColors.cyan.opacity(0.2))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
-                                )
-                        )
-                        
-                        Spacer()
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
                 }
                 
                 // MARK: - 加载指示器
@@ -276,7 +285,47 @@ struct SearchResultRow: View {
     }
 }
 
+struct FilterChip: View {
+    let icon: String
+    let title: String
+    let onClose: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(NeonColors.cyan)
+            
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+            
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(NeonColors.cyan.opacity(0.2))
+                .overlay(
+                    Capsule()
+                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
 // MARK: - 数据模型
+struct Style: Identifiable {
+    let id = UUID()
+    let name: String
+    let tag: String
+}
+
 struct Province: Identifiable {
     let id = UUID()
     let name: String
@@ -288,6 +337,11 @@ class SearchViewModel: ObservableObject {
     @Published var stations: [Station] = []
     @Published var isLoading: Bool = false
     @Published var selectedProvince: String? = nil {
+        didSet {
+            search()
+        }
+    }
+    @Published var selectedStyle: String? = nil {
         didSet {
             search()
         }
@@ -330,18 +384,100 @@ class SearchViewModel: ObservableObject {
         Province(name: "台湾", code: "Taiwan")
     ]
     
+
+    
+    @Published var styles: [Style] = []
+    
+    private let tagMappings: [String: String] = [
+        "pop": "流行 (Pop)",
+        "rock": "摇滚 (Rock)",
+        "jazz": "爵士 (Jazz)",
+        "classical": "古典 (Classical)",
+        "news": "新闻 (News)",
+        "talk": "谈话 (Talk)",
+        "electronic": "电子 (Electronic)",
+        "dance": "舞曲 (Dance)",
+        "country": "乡村 (Country)",
+        "blues": "蓝调 (Blues)",
+        "folk": "民谣 (Folk)",
+        "hip hop": "嘻哈 (Hip Hop)",
+        "r&b": "节奏布鲁斯 (R&B)",
+        "easy listening": "轻音乐 (Easy Listening)",
+        "metal": "金属 (Metal)",
+        "oldies": "怀旧 (Oldies)",
+        "90s": "90年代 (90s)",
+        "80s": "80年代 (80s)",
+        "70s": "70年代 (70s)",
+        "alternative": "另类 (Alternative)",
+        "ambient": "氛围 (Ambient)",
+        "chillout": "放松 (Chillout)",
+        "house": "浩室 (House)",
+        "instrumental": "纯音乐 (Instrumental)"
+    ]
+    
+    // 过滤掉无意义的通用标签
+    private let blacklistedTags: Set<String> = [
+        "radio", "station", "fm", "online", "music", "webradio", 
+        "internet radio", "live", "web", "hd", "hits", "estacion", 
+        "broadcasting", "air", "digital", "stream", "streaming", "channel",
+        "música", "estación", "radio station"
+    ]
+    
+    init() {
+        fetchStyles()
+    }
+    
+    func fetchStyles() {
+        Task {
+            do {
+                let tags = try await RadioService.shared.fetchTopTags(limit: 100)
+                
+                let filteredTags = tags
+                    .filter { tag in
+                        let name = tag.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                        return !name.isEmpty && !blacklistedTags.contains(name)
+                    }
+                    .prefix(20) // 只取前 20 个
+                
+                let mappedStyles = filteredTags.map { tag -> Style in
+                    let name = tag.name.lowercased()
+                    let displayName = tagMappings[name] ?? name.capitalized
+                    return Style(name: displayName, tag: tag.name)
+                }
+                
+                DispatchQueue.main.async {
+                    self.styles = mappedStyles
+                }
+            } catch {
+                print("Error fetching tags: \(error)")
+                // 出错时使用少量默认值作为保底
+                DispatchQueue.main.async {
+                    if self.styles.isEmpty {
+                        self.styles = [
+                            Style(name: "流行 (Pop)", tag: "pop"),
+                            Style(name: "摇滚 (Rock)", tag: "rock"),
+                            Style(name: "新闻 (News)", tag: "news")
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    
     func search() {
-        guard !query.isEmpty || selectedProvince != nil else { return }
+        guard !query.isEmpty || selectedProvince != nil || selectedStyle != nil else { return }
         
         isLoading = true
         Task {
             do {
                 let results: [Station]
                 
-                if let province = selectedProvince {
+                if selectedProvince != nil || selectedStyle != nil {
                     var filter = StationFilter()
                     filter.name = query.isEmpty ? nil : query
-                    filter.state = province
+                    filter.state = selectedProvince
+                    filter.tag = selectedStyle
+
                     filter.countryCode = "CN"
                     filter.limit = 100
                     filter.order = "clickcount"

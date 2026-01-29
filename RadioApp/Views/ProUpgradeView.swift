@@ -55,7 +55,7 @@ struct ProUpgradeView: View {
                             FeatureRow(
                                 icon: "music.note.list",
                                 title: "歌曲识别",
-                                description: "收听电台时自动识别正在播放的歌曲"
+                                description: "收听电台时可识别正在播放的歌曲"
                             )
                             
                             FeatureRow(
