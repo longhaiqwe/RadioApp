@@ -107,21 +107,19 @@ struct PlayerView: View {
                     .padding(.bottom, 40)
             }
             
-            // MARK: - Shazam Overlay Layer
+            // MARK: - Shazam Overlay Layer (仅错误提示)
             VStack(spacing: 0) {
                 // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
                 Color.clear.frame(height: 72)
                 
-                if shazamMatcher.isMatching {
-                    shazamMatchingIndicator
-
-                } else if shazamMatcher.lastError != nil {
+                // 识别中状态已由顶部按钮显示，此处只显示错误提示
+                if shazamMatcher.lastError != nil {
                     shazamErrorCard
                 }
                 
                 Spacer()
             }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.isMatching || shazamMatcher.lastError != nil)
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.lastError != nil)
         }
     }
     
@@ -369,7 +367,8 @@ struct PlayerView: View {
     
     // MARK: - 控制按钮
     private var controlButtons: some View {
-        HStack(spacing: 12) {
+        HStack {
+            Spacer()
             
             // 收藏按钮
             if let station = playerManager.currentStation {
@@ -379,25 +378,29 @@ struct PlayerView: View {
                     }
                 }) {
                     Image(systemName: favoritesManager.isFavorite(station) ? "heart.fill" : "heart")
-                        .font(.system(size: 20))
+                        .font(.system(size: 22))
                         .foregroundColor(favoritesManager.isFavorite(station) ? NeonColors.magenta : .white.opacity(0.6))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                 }
                 .neonGlow(color: favoritesManager.isFavorite(station) ? NeonColors.magenta : .clear, radius: 6)
             } else {
-                Color.clear.frame(width: 36, height: 36)
+                Color.clear.frame(width: 44, height: 44)
             }
+            
+            Spacer()
             
             // 上一首
             Button(action: {
                 playerManager.playPrevious()
             }) {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 24))
                     .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
             }
             .keyboardShortcut(.upArrow, modifiers: [])
+            
+            Spacer()
             
             // 播放/暂停
             PlayButton(isPlaying: playerManager.isPlaying) {
@@ -407,27 +410,29 @@ struct PlayerView: View {
             }
             .keyboardShortcut(.space, modifiers: [])
             
+            Spacer()
+            
             // 下一首
             Button(action: {
                 playerManager.playNext()
             }) {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 24))
                     .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
             }
             .keyboardShortcut(.downArrow, modifiers: [])
             
-
+            Spacer()
 
             // 列表按钮
             Button(action: {
                 showFavoritesList = true
             }) {
                 Image(systemName: "list.bullet")
-                    .font(.system(size: 18))
+                    .font(.system(size: 20))
                     .foregroundColor(.white.opacity(0.6))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
             }
             .sheet(isPresented: $showFavoritesList) {
                 FavoritesListView(onStationSelected: { station in
@@ -438,6 +443,8 @@ struct PlayerView: View {
             .sheet(isPresented: $showProUpgrade) {
                 ProUpgradeView()
             }
+            
+            Spacer()
         }
         .padding(.horizontal, 20)
     }
