@@ -81,6 +81,20 @@ struct ProUpgradeView: View {
                         )
                         .padding(.horizontal, 20)
                         
+                        // 温馨提示
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.top, 2)
+                            
+                            Text("温馨提示：受电台音质、背景杂音及曲库覆盖面等因素影响，歌曲识别存在失败可能，无法保证 100% 成功。")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white.opacity(0.5))
+                                .lineSpacing(4)
+                        }
+                        .padding(.horizontal, 24)
+                        
                         // 价格卡片
                         VStack(spacing: 12) {
                             if let product = subscriptionManager.proProduct {
