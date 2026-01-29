@@ -53,7 +53,7 @@ class RadioService {
     
     /// Finds the fastest working server
     func resolveBestServer() async {
-        print("DEBUG: Starting Server Discovery...")
+
         
         // We will race the mirrors with a simple "stats" or "config" HEAD request
         let resolvedURL: String? = await withTaskGroup(of: String?.self) { group in
@@ -87,9 +87,6 @@ class RadioService {
         
         if let best = resolvedURL {
             self.activeBaseURL = best
-            print("DEBUG: Selected server: \(best)")
-        } else {
-            print("DEBUG: Server discovery failed. Using default: \(activeBaseURL)")
         }
         
         // IMPORTANT: Mark resolved true regardless of success/fail to prevent infinite retries during search
@@ -151,7 +148,7 @@ class RadioService {
             .components(separatedBy: .whitespaces)
             .filter { !$0.isEmpty }
         
-        print("DEBUG: Smart Search: '\(name)' -> '\(processedName)' -> kw: \(keywords)")
+
         
         guard let firstKeyword = keywords.first else { return [] }
         
@@ -163,7 +160,7 @@ class RadioService {
         filter.hideBroken = true
         
         let stations = try await advancedSearch(filter: filter)
-        print("DEBUG: API returned \(stations.count) candidates for '\(firstKeyword)'")
+
         
         // 3. Client-side filtering for remaining keywords
         if keywords.count > 1 {
@@ -189,11 +186,10 @@ class RadioService {
                 }
             }
             
-            print("DEBUG: Validated \(filtered.count) matches locally")
+
             
             // Fallback logic
             if filtered.isEmpty && !stations.isEmpty {
-                print("DEBUG: Strict filter empty. Fallback triggered.")
                 return stations
             }
             
