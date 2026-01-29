@@ -319,11 +319,10 @@ struct PlayerView: View {
     }
     
     // MARK: - 控制按钮
+    // MARK: - 控制按钮
     private var controlButtons: some View {
-        HStack {
-            Spacer()
-            
-            // 收藏按钮
+        HStack(spacing: 30) {
+            // 1. 收藏按钮
             if let station = playerManager.currentStation {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -337,16 +336,14 @@ struct PlayerView: View {
                 }
                 .neonGlow(color: favoritesManager.isFavorite(station) ? NeonColors.magenta : .clear, radius: 6)
             } else {
-                // 即使没有电台也显示占位，保持布局
-                 Image(systemName: "heart")
+                // 占位
+                Image(systemName: "heart")
                     .font(.system(size: 22))
-                    .foregroundColor(.white.opacity(0.3)) // 更加明显的禁用状态
+                    .foregroundColor(.white.opacity(0.3))
                     .frame(width: 44, height: 44)
             }
             
-            Spacer()
-            
-            // 上一首
+            // 2. 上一首
             Button(action: {
                 playerManager.playPrevious()
             }) {
@@ -357,9 +354,7 @@ struct PlayerView: View {
             }
             .keyboardShortcut(.upArrow, modifiers: [])
             
-            Spacer()
-            
-            // 播放/暂停
+            // 3. 播放/暂停
             PlayButton(isPlaying: playerManager.isPlaying) {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                     playerManager.togglePlayPause()
@@ -367,9 +362,7 @@ struct PlayerView: View {
             }
             .keyboardShortcut(.space, modifiers: [])
             
-            Spacer()
-            
-            // 下一首
+            // 4. 下一首
             Button(action: {
                 playerManager.playNext()
             }) {
@@ -380,9 +373,7 @@ struct PlayerView: View {
             }
             .keyboardShortcut(.downArrow, modifiers: [])
             
-            Spacer()
-
-            // 列表按钮
+            // 5. 列表按钮
             Button(action: {
                 showFavoritesList = true
             }) {
@@ -400,10 +391,9 @@ struct PlayerView: View {
             .sheet(isPresented: $showProUpgrade) {
                 ProUpgradeView()
             }
-            
-            Spacer()
         }
-        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .frame(height: 80)
     }
     
     // MARK: - 音量控制

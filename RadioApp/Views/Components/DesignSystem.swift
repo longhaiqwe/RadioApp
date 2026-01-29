@@ -204,11 +204,11 @@ struct PlayButton: View {
                         RadialGradient(
                             colors: [NeonColors.magenta.opacity(0.6), NeonColors.purple.opacity(0.3), .clear],
                             center: .center,
-                            startRadius: 25,
-                            endRadius: 50
+                            startRadius: 20,
+                            endRadius: 40
                         )
                     )
-                    .frame(width: 100, height: 100)
+                    .frame(width: 80, height: 80)
                 
                 // 主按钮
                 Circle()
