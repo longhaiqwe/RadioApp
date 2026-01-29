@@ -36,9 +36,9 @@ struct PlayerView: View {
                     if playerManager.isPlaying {
                         EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
                             .frame(height: 40)
-                            .padding(.vertical, 15)
+                            .padding(.vertical, 35)
                     } else {
-                        Spacer().frame(height: 70)
+                        Spacer().frame(height: 100)
                     }
                 }
                 
@@ -146,6 +146,7 @@ struct PlayerView: View {
             
             // MARK: 歌曲识别按钮 (Pro 功能)
             shazamRecognitionButton
+                .padding(.top, 10) // 视觉微调：稍微下移
             
             Spacer()
             
@@ -303,7 +304,7 @@ struct PlayerView: View {
     
     // MARK: - 电台信息
     private var stationInfo: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 16) {
             Text(playerManager.currentStation?.name ?? "未选择电台")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(.white)
@@ -561,13 +562,13 @@ struct PlayerView: View {
                                     .fill(NeonColors.purple.opacity(0.3))
                             }
                         }
-                        .frame(width: 72, height: 72)
+                        .frame(width: 100, height: 100)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: NeonColors.purple.opacity(0.5), radius: 8)
                     } else {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(NeonColors.purple.opacity(0.3))
-                            .frame(width: 72, height: 72)
+                            .frame(width: 100, height: 100)
                             .overlay(
                                 Image(systemName: "music.note")
                                     .font(.system(size: 28))
@@ -578,13 +579,13 @@ struct PlayerView: View {
                     // 歌曲信息 (左对齐，占据剩余空间)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(match.title ?? "未知歌曲")
-                            .font(.system(size: 19, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5) // 自适应缩小
                         
                         Text(match.artist ?? "未知歌手")
-                            .font(.system(size: 15))
+                            .font(.system(size: 16))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)

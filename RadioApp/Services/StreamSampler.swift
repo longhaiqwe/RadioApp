@@ -13,7 +13,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var completion: ((URL?) -> Void)?
     
     // 采样配置
-    private let targetDuration: TimeInterval = 10.0  // 采样时长（秒）- 确保足够捕捉歌曲特征
+    private let targetDuration: TimeInterval = 15.0  // 采样时长（秒）- 确保足够捕捉歌曲特征
     private let estimatedBitrate = 320 * 1024 / 8    // 320kbps (约 40KB/s) - 按高音质估算，确保高音质电台也能下够时长
     private var targetBytes: Int { Int(targetDuration) * estimatedBitrate }
     
