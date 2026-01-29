@@ -318,7 +318,7 @@ struct EnhancedVisualizerView: View {
                 startAnimation()
             }
         }
-        .onChange(of: isPlaying) { _, newValue in
+        .onChange(of: isPlaying) { newValue in
             if newValue {
                 startAnimation()
             }

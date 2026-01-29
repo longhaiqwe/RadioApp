@@ -16,7 +16,5 @@
 	<array>
 		<string>audio</string>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>需要您的麦克风权限来识别周围正在播放的音乐。</string>
 </dict>
 </plist>

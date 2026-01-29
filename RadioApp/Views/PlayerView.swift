@@ -247,7 +247,7 @@ struct PlayerView: View {
                         startRotation()
                     }
                 }
-                .onChange(of: playerManager.isPlaying) { _, isPlaying in
+                .onChange(of: playerManager.isPlaying) { isPlaying in
                     if isPlaying {
                         startRotation()
                     }
