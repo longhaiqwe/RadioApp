@@ -193,13 +193,8 @@ struct PlayerView: View {
             
             Spacer()
             
-            VStack(spacing: 2) {
-                Text("正在播放")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(NeonColors.cyan.opacity(0.8))
-                    .textCase(.uppercase)
-                    .kerning(2)
-            }
+            // MARK: 歌曲识别按钮 (Pro 功能)
+            shazamRecognitionButton
             
             Spacer()
             
@@ -207,6 +202,71 @@ struct PlayerView: View {
             Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, 20)
+    }
+    
+    // MARK: - 歌曲识别按钮 (顶部)
+    private var shazamRecognitionButton: some View {
+        Button(action: {
+            // 检查 Pro 权限
+            if !subscriptionManager.isPro {
+                showProUpgrade = true
+                return
+            }
+            
+            if shazamMatcher.isMatching {
+                shazamMatcher.stopMatching()
+            } else {
+                shazamMatcher.startMatching()
+            }
+        }) {
+            HStack(spacing: 6) {
+                // Shazam 图标
+                ZStack {
+                    if shazamMatcher.isMatching {
+                        // 识别中 - 旋转动画
+                        Image(systemName: "shazam.logo.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(NeonColors.cyan)
+                            .rotationEffect(Angle(degrees: rotation))
+                    } else {
+                        Image(systemName: "shazam.logo")
+                            .font(.system(size: 16))
+                            .foregroundColor(NeonColors.magenta)
+                    }
+                }
+                
+                // 文字
+                Text(shazamMatcher.isMatching ? "识别中..." : "歌曲识别")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                
+                // PRO 标签
+                if !subscriptionManager.isPro {
+                    Text("PRO")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(NeonColors.magenta)
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.3))
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                shazamMatcher.isMatching ? NeonColors.cyan.opacity(0.6) : NeonColors.magenta.opacity(0.4),
+                                lineWidth: 1
+                            )
+                    )
+            )
+        }
     }
     
     // MARK: - 封面区域
@@ -310,47 +370,6 @@ struct PlayerView: View {
     // MARK: - 控制按钮
     private var controlButtons: some View {
         HStack(spacing: 12) {
-            // Shazam 识别按钮 (Pro 功能)
-            Button(action: {
-                // 检查 Pro 权限
-                if !subscriptionManager.isPro {
-                    showProUpgrade = true
-                    return
-                }
-                
-                if shazamMatcher.isMatching {
-                    shazamMatcher.stopMatching()
-                } else {
-                    shazamMatcher.startMatching()
-                }
-            }) {
-                ZStack {
-                    if shazamMatcher.isMatching {
-                        // 识别中 - 渐变旋转动画
-                        Circle()
-                            .stroke(
-                                AngularGradient(
-                                    colors: [NeonColors.cyan, NeonColors.magenta, NeonColors.cyan],
-                                    center: .center
-                                ),
-                                lineWidth: 2
-                            )
-                            .frame(width: 36, height: 36)
-                            .rotationEffect(Angle(degrees: shazamMatcher.isMatching ? 360 : 0))
-                            .animation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false), value: shazamMatcher.isMatching)
-                        
-                        Image(systemName: "shazam.logo.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(NeonColors.cyan)
-                    } else {
-                        // 正常状态
-                        Image(systemName: "shazam.logo")
-                            .font(.system(size: 22))
-                            .foregroundColor(NeonColors.cyan)
-                            .frame(width: 36, height: 36)
-                    }
-                }
-            }
             
             // 收藏按钮
             if let station = playerManager.currentStation {
