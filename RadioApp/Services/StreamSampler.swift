@@ -278,10 +278,11 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         dataTask = urlSession?.dataTask(with: request)
         dataTask?.resume()
         
-        // 设置超时 (12秒强制结束，防止低码率电台无限等待)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
-            print("StreamSampler: 达到直接流采样时间限制 (12s)")
-            self?.finishDirectSampling()
+        // 设置超时 (使用 targetDuration 强制结束，防止低码率电台无限等待)
+        DispatchQueue.main.asyncAfter(deadline: .now() + targetDuration) { [weak self] in
+            guard let self = self else { return }
+            print("StreamSampler: 达到直接流采样时间限制 (\(self.targetDuration)s)")
+            self.finishDirectSampling()
         }
     }
     

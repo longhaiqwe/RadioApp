@@ -145,8 +145,10 @@ class ShazamMatcher: NSObject, ObservableObject {
         let audioFile = try AVAudioFile(forReading: url)
         let processingFormat = audioFile.processingFormat
         
-        let durationToRead: TimeInterval = 10.0
-        let framesToRead = AVAudioFrameCount(processingFormat.sampleRate * durationToRead)
+        // Limit to 12 seconds to satisfy ShazamKit requirements and avoid Error 201
+        let maxDuration: TimeInterval = 12.0
+        let maxFrames = AVAudioFrameCount(processingFormat.sampleRate * maxDuration)
+        let framesToRead = min(AVAudioFrameCount(audioFile.length), maxFrames)
         
         guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: framesToRead) else {
             throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建缓冲区"])
