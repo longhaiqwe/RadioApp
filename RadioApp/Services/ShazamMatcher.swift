@@ -57,19 +57,6 @@ class ShazamMatcher: NSObject, ObservableObject {
             return
         }
         
-        // 1. 尝试直接使用直播流元数据 (ICY Metadata) - 速度最快
-        if let streamTitle = AudioPlayerManager.shared.currentStreamTitle, !streamTitle.isEmpty {
-            // 简单过滤：如果元数据包含电台名称，可能只是台标而不是歌名，继续尝试音频识别
-            // 但是如果元数据很长或者包含 " - "，则可信度较高
-            let isStationName = streamTitle.contains(station.name)
-            let hasSeparator = streamTitle.contains(" - ")
-            
-            if !isStationName || hasSeparator {
-                print("ShazamMatcher: 发现流元数据 '\(streamTitle)'，跳过采样直接使用。")
-                processMetadataMatch(streamTitle)
-                return
-            }
-        }
         
         isMatching = true
         matchingProgress = "正在采集音频..."
@@ -99,45 +86,6 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
     }
     
-    /// 处理元数据匹配
-    private func processMetadataMatch(_ rawTitle: String) {
-        // 尝试解析 "Artist - Title" 或 "Title - Artist"
-        // 这是一个简单的启发式，不一定准确
-        var title = rawTitle
-        var artist = "未知"
-        
-        if rawTitle.contains(" - ") {
-            let parts = rawTitle.components(separatedBy: " - ")
-            if parts.count >= 2 {
-                // 常见格式：Artist - Title
-                artist = parts[0].trimmingCharacters(in: .whitespaces)
-                title = parts[1].trimmingCharacters(in: .whitespaces)
-            }
-        } else if rawTitle.contains("-") {
-             // 尝试无空格分隔
-            let parts = rawTitle.components(separatedBy: "-")
-            if parts.count >= 2 {
-                artist = parts[0].trimmingCharacters(in: .whitespaces)
-                title = parts[1].trimmingCharacters(in: .whitespaces)
-            }
-        }
-        
-        print("ShazamMatcher: 解析元数据 -> Title: \(title), Artist: \(artist)")
-        
-        // 直接设置结果
-        DispatchQueue.main.async {
-            self.customMatchResult = CustomMatchResult(title: title, artist: artist, artworkURL: nil)
-            
-            // 尝试获取歌词和封面
-            Task {
-                let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(title: title, artist: artist)
-                await MainActor.run {
-                    self.lyrics = fetchedLyrics
-                }
-            }
-            // 尝试获取 QQ 音乐封面 (可选，MusicPlatformService 需要扩展支持)
-        }
-    }
     
 
     
@@ -185,8 +133,13 @@ class ShazamMatcher: NSObject, ObservableObject {
                     print("ShazamMatcher: 使用 TSUnpacker 手动解包 TS 文件...")
                     buffer = try self.readTSAudioWithUnpacker(from: url)
                 } else {
-                    print("ShazamMatcher: 使用 AVAudioFile 读取...")
-                    buffer = try self.readAudioWithAudioFile(from: url)
+                    do {
+                        print("ShazamMatcher: 尝试使用 AVAudioFile 读取...")
+                        buffer = try self.readAudioWithAudioFile(from: url)
+                    } catch {
+                        print("ShazamMatcher: AVAudioFile 读取失败 (\(error.localizedDescription))，切换到 AVAssetReader 兜底方案...")
+                        buffer = try await self.readAudioWithAsset(from: url)
+                    }
                 }
                 
                 // 转换为 Mono 44.1kHz（ShazamKit 推荐格式）
@@ -211,6 +164,79 @@ class ShazamMatcher: NSObject, ObservableObject {
                 self.handleFailure(error: error)
             }
         }
+    }
+    
+    // MARK: - 使用 AVAssetReader 读取 (兜底方案，抗干扰能力更强)
+    
+    private func readAudioWithAsset(from url: URL) async throws -> AVAudioPCMBuffer {
+        let asset = AVURLAsset(url: url)
+        
+        // 尝试加载音频轨道
+        let tracks = try await asset.loadTracks(withMediaType: .audio)
+        guard let track = tracks.first else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "轨道加载失败或无音频轨"])
+        }
+        
+        let reader = try AVAssetReader(asset: asset)
+        
+        // 输出格式：44.1kHz Float32 Mono (Shazam 喜欢的格式)
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 44100.0,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        reader.add(output)
+        
+        guard reader.startReading() else {
+            throw reader.error ?? NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "AssetReader 启动失败"])
+        }
+        
+        var samples = Data()
+        var format: AVAudioFormat?
+        
+        // 限制采样时长，防止内存溢出
+        let maxSamples = 12 * 44100
+        var totalSamples = 0
+        
+        while reader.status == .reading && totalSamples < maxSamples {
+            if let sampleBuffer = output.copyNextSampleBuffer() {
+                if let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) {
+                    let length = CMBlockBufferGetDataLength(blockBuffer)
+                    var data = [UInt8](repeating: 0, count: length)
+                    CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: &data)
+                    samples.append(contentsOf: data)
+                    totalSamples += length / 4 // Float32 is 4 bytes
+                }
+            } else {
+                break
+            }
+        }
+        
+        if reader.status == .failed {
+            throw reader.error ?? NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "读取过程中出错"])
+        }
+        
+        format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 1, interleaved: false)
+        let frameCount = AVAudioFrameCount(samples.count / 4)
+        
+        guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format!, frameCapacity: frameCount) else {
+            throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "Buffer 创建失败"])
+        }
+        
+        samples.withUnsafeBytes { rawBuffer in
+            if let baseAddress = rawBuffer.baseAddress?.assumingMemoryBound(to: Float.self) {
+                pcmBuffer.floatChannelData?.pointee.assign(from: baseAddress, count: Int(frameCount))
+            }
+        }
+        pcmBuffer.frameLength = frameCount
+        
+        return pcmBuffer
     }
     
     // MARK: - 使用 AVAudioFile 读取（适用于 mp3, aac, m4a 等）

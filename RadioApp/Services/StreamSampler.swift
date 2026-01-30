@@ -316,10 +316,38 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             return
         }
         
+        var finalData = receivedData
+        
+        // 修复 AAC/ADTS 开始可能的残缺数据
+        if currentFileExtension == "aac" {
+            // 搜索 ADTS 同步字 (Sync Word): 0xFFF (12 bits)
+            // 在字节流中通常表现为 0xFF 并且下一个字节高 4 位是 0xF
+            if let syncIndex = findADTSSync(in: receivedData) {
+                if syncIndex > 0 {
+                    print("StreamSampler: 发现 AAC 同步字于 \(syncIndex)，跳过开头残缺数据")
+                    finalData = receivedData.advanced(by: syncIndex)
+                }
+            } else {
+                print("StreamSampler: 警告: 未在 AAC 流中找到同步字，文件可能损坏")
+            }
+        }
+        
         // 保存到临时文件
-        saveAndComplete(data: receivedData, fileExtension: self.currentFileExtension)
+        saveAndComplete(data: finalData, fileExtension: self.currentFileExtension)
         
         receivedData = Data()
+    }
+    
+    /// 寻找 ADTS 同步字 (0xFF 0xFx)
+    private func findADTSSync(in data: Data) -> Int? {
+        guard data.count > 2 else { return nil }
+        
+        for i in 0..<(data.count - 1) {
+            if data[i] == 0xFF && (data[i+1] & 0xF0) == 0xF0 {
+                return i
+            }
+        }
+        return nil
     }
     
     /// 安全地调用完成回调

@@ -15,9 +15,9 @@ class AudioPlayerManager: ObservableObject {
     @Published var playlistTitle: String = "播放列表"
     @Published var playlistStations: [Station] = [] // Expose playlist for UI binding if needed, or just access current property
     
-    // Live Metadata (ICY)
-    @Published var currentStreamTitle: String?
-    private var metadataObserver: NSKeyValueObservation?
+    // Live Metadata (ICY) - Removed due to low accuracy
+    // @Published var currentStreamTitle: String?
+    // private var metadataObserver: NSKeyValueObservation?
     
     private init() {
         setupAudioSession()
@@ -80,8 +80,8 @@ class AudioPlayerManager: ObservableObject {
         }
         
         var nowPlayingInfo = [String: Any]()
-        // Use live stream title if available, otherwise station name
-        nowPlayingInfo[MPMediaItemPropertyTitle] = currentStreamTitle ?? station.name
+        // Use station name for title
+        nowPlayingInfo[MPMediaItemPropertyTitle] = station.name
         nowPlayingInfo[MPMediaItemPropertyArtist] = station.tags
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         
@@ -123,22 +123,11 @@ class AudioPlayerManager: ObservableObject {
         
         // 切歌时，清空之前的识别信息
         ShazamMatcher.shared.reset()
-        // 清空元数据
-        currentStreamTitle = nil
-        metadataObserver?.invalidate()
-        metadataObserver = nil
         
         guard let url = URL(string: station.urlResolved) else { return }
         
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 5.0
-        
-        // 监听元数据 (ICY Metadata)
-        let options: NSKeyValueObservingOptions = [.new]
-        metadataObserver = playerItem.observe(\AVPlayerItem.timedMetadata, options: options) { [weak self] (item: AVPlayerItem, change: NSKeyValueObservedChange<[AVMetadataItem]?>) in
-            guard let self = self else { return }
-            self.handleMetadata(item.timedMetadata)
-        }
         
         // 设置播放器
         if player == nil {
@@ -154,30 +143,6 @@ class AudioPlayerManager: ObservableObject {
         updateNowPlayingInfo()
     }
     
-    private func handleMetadata(_ metadata: [AVMetadataItem]?) {
-        guard let metadata = metadata else { return }
-        
-        for item in metadata {
-            // Check for StreamTitle
-            // Usually commonKey is nil for ICY, but value is there.
-            // Often identifying by keySpace or just checking string value.
-            // ICY metadata often comes as 'StreamTitle' in value or identifier.
-            
-            if let stringValue = item.stringValue, !stringValue.isEmpty {
-                print("Stream Metadata: \(stringValue) KEY: \(String(describing: item.commonKey))")
-                
-                // 简单的过滤逻辑：通常 StreamTitle 会包含 " - " 分隔歌手和歌名
-                // 或者我们直接显示出来
-                // 有些元数据是单纯的 Station Name，需要过滤吗？
-                // 暂时直接更新，由 UI 决定显示
-                
-                DispatchQueue.main.async {
-                    self.currentStreamTitle = stringValue
-                    self.updateNowPlayingInfo()
-                }
-            }
-        }
-    }
     
     func pause() {
         player?.pause()
