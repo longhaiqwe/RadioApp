@@ -392,10 +392,7 @@ class SearchViewModel: ObservableObject {
             search()
         }
     }
-    @Published var selectedStyle: String? = nil {
-        didSet {
-            search()
-        }
+
     @Published var selectedStyle: String? = nil {
         didSet {
             search()

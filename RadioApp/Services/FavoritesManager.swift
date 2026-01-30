@@ -136,34 +136,6 @@ class FavoritesManager: ObservableObject {
                              clickcount: finalStation.clickcount,
                              clicktrend: finalStation.clicktrend
                          )
-                    } else if finalStation.stationuuid == "acbeaef9-17d7-498f-ace0-dfbb78caa430" && finalStation.favicon != "bundle://cnr3_cover" {
-                         finalStation = Station(
-                             changeuuid: finalStation.changeuuid,
-                             stationuuid: finalStation.stationuuid,
-                             name: finalStation.name,
-                             url: finalStation.url,
-                             urlResolved: finalStation.urlResolved,
-                             homepage: finalStation.homepage,
-                             favicon: "bundle://cnr3_cover",
-                             tags: finalStation.tags,
-                             country: finalStation.country,
-                             countrycode: finalStation.countrycode,
-                             state: finalStation.state,
-                             language: finalStation.language,
-                             languagecodes: finalStation.languagecodes,
-                             votes: finalStation.votes,
-                             lastchangetime: finalStation.lastchangetime,
-                             codec: finalStation.codec,
-                             bitrate: finalStation.bitrate,
-                             hls: finalStation.hls,
-                             lastcheckok: finalStation.lastcheckok,
-                             lastchecktime: finalStation.lastchecktime,
-                             lastcheckoktime: finalStation.lastcheckoktime,
-                             lastlocalchecktime: finalStation.lastlocalchecktime,
-                             clicktimestamp: finalStation.clicktimestamp,
-                             clickcount: finalStation.clickcount,
-                             clicktrend: finalStation.clicktrend
-                         )
                     }
                     uniqueStations.append(finalStation)
                     seenNames.insert(station.name)
@@ -174,8 +146,7 @@ class FavoritesManager: ObservableObject {
         self.favoriteStations = uniqueStations
         // Only save if count changed to avoid unnecessary writes
         if existing.count != uniqueStations.count 
-            || uniqueStations.contains(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && $0.favicon == "bundle://huaiji_cover" && existing.first(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" })?.favicon != "bundle://huaiji_cover" })
-            || uniqueStations.contains(where: { $0.stationuuid == "acbeaef9-17d7-498f-ace0-dfbb78caa430" && $0.favicon == "bundle://cnr3_cover" && existing.first(where: { $0.stationuuid == "acbeaef9-17d7-498f-ace0-dfbb78caa430" })?.favicon != "bundle://cnr3_cover" }) {
+            || uniqueStations.contains(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && $0.favicon == "bundle://huaiji_cover" && existing.first(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" })?.favicon != "bundle://huaiji_cover" }) {
             saveFavorites()
         }
     }
@@ -184,30 +155,30 @@ class FavoritesManager: ObservableObject {
         return [
             Station(
                 changeuuid: UUID().uuidString,
-                stationuuid: "acbeaef9-17d7-498f-ace0-dfbb78caa430",
+                stationuuid: "a09db942-832d-4932-8c05-494e17dc37e0",
                 name: "CNR-3 音乐之声",
-                url: "https://satellitepull.cnr.cn/live/wxyyzs/playlist.m3u8",
-                urlResolved: "https://satellitepull.cnr.cn/live/wxyyzs/playlist.m3u8",
-                homepage: "https://www.cnr.cn/",
-                favicon: "bundle://cnr3_cover",
+                url: "https://ngcdn001.cnr.cn/live/yyzs/index.m3u8",
+                urlResolved: "https://ngcdn001.cnr.cn/live/yyzs/index.m3u8",
+                homepage: "http://www.cnr.cn/",
+                favicon: "bundle://cnr3_cover_v2",
                 tags: "music",
                 country: "China",
                 countrycode: "CN",
                 state: "",
                 language: "Chinese",
                 languagecodes: "zh",
-                votes: 0,
-                lastchangetime: "",
-                codec: "MP3",
-                bitrate: 128,
+                votes: 405,
+                lastchangetime: "2026-01-15 06:45:25",
+                codec: "UNKNOWN",
+                bitrate: 0,
                 hls: 1,
                 lastcheckok: 1,
-                lastchecktime: "",
-                lastcheckoktime: "",
-                lastlocalchecktime: "",
-                clicktimestamp: "",
-                clickcount: 0,
-                clicktrend: 0
+                lastchecktime: "2026-01-15 06:45:25",
+                lastcheckoktime: "2026-01-15 06:45:25",
+                lastlocalchecktime: "2026-01-15 06:45:25",
+                clicktimestamp: "2026-01-30 03:06:23",
+                clickcount: 16,
+                clicktrend: 16
             ),
             Station(
                 changeuuid: UUID().uuidString,
