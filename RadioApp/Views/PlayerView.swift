@@ -473,7 +473,7 @@ struct PlayerView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                 
-                Text("可能是纯音乐、广告或音频质量不佳，也有可能没有收录入曲库")
+                Text("很遗憾，该歌曲未收录入曲库")
                     .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.6))
                     .multilineTextAlignment(.center)

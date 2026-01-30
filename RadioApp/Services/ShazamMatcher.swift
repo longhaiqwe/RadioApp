@@ -59,6 +59,20 @@ class ShazamMatcher: NSObject, ObservableObject {
             return
         }
         
+        // 1. 尝试直接使用直播流元数据 (ICY Metadata) - 速度最快
+        if let streamTitle = AudioPlayerManager.shared.currentStreamTitle, !streamTitle.isEmpty {
+            // 简单过滤：如果元数据包含电台名称，可能只是台标而不是歌名，继续尝试音频识别
+            // 但是如果元数据很长或者包含 " - "，则可信度较高
+            let isStationName = streamTitle.contains(station.name)
+            let hasSeparator = streamTitle.contains(" - ")
+            
+            if !isStationName || hasSeparator {
+                print("ShazamMatcher: 发现流元数据 '\(streamTitle)'，跳过采样直接使用。")
+                processMetadataMatch(streamTitle)
+                return
+            }
+        }
+        
         isMatching = true
         matchingProgress = "正在采集音频..."
         
@@ -84,6 +98,46 @@ class ShazamMatcher: NSObject, ObservableObject {
                 self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
                                                 userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"]))
             }
+        }
+    }
+    
+    /// 处理元数据匹配
+    private func processMetadataMatch(_ rawTitle: String) {
+        // 尝试解析 "Artist - Title" 或 "Title - Artist"
+        // 这是一个简单的启发式，不一定准确
+        var title = rawTitle
+        var artist = "未知"
+        
+        if rawTitle.contains(" - ") {
+            let parts = rawTitle.components(separatedBy: " - ")
+            if parts.count >= 2 {
+                // 常见格式：Artist - Title
+                artist = parts[0].trimmingCharacters(in: .whitespaces)
+                title = parts[1].trimmingCharacters(in: .whitespaces)
+            }
+        } else if rawTitle.contains("-") {
+             // 尝试无空格分隔
+            let parts = rawTitle.components(separatedBy: "-")
+            if parts.count >= 2 {
+                artist = parts[0].trimmingCharacters(in: .whitespaces)
+                title = parts[1].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        
+        print("ShazamMatcher: 解析元数据 -> Title: \(title), Artist: \(artist)")
+        
+        // 直接设置结果
+        DispatchQueue.main.async {
+            self.customMatchResult = CustomMatchResult(title: title, artist: artist, artworkURL: nil)
+            
+            // 尝试获取歌词和封面
+            Task {
+                let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(title: title, artist: artist)
+                await MainActor.run {
+                    self.lyrics = fetchedLyrics
+                }
+            }
+            // 尝试获取 QQ 音乐封面 (可选，MusicPlatformService 需要扩展支持)
         }
     }
     
@@ -149,7 +203,6 @@ class ShazamMatcher: NSObject, ObservableObject {
         StreamSampler.shared.cancel()
         isMatching = false
         matchingProgress = ""
-        print("ShazamMatcher: Stopped matching")
     }
     
     // MARK: - 从 AudioTap 接收缓冲区（如果 AudioTap 可用）

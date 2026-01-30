@@ -13,9 +13,14 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var completion: ((URL?) -> Void)?
     
     // 采样配置
-    private let targetDuration: TimeInterval = 15.0  // 采样时长（秒）- 确保足够捕捉歌曲特征
-    private let estimatedBitrate = 320 * 1024 / 8    // 320kbps (约 40KB/s) - 按高音质估算，确保高音质电台也能下够时长
-    private var targetBytes: Int { Int(targetDuration) * estimatedBitrate }
+    // 采样配置
+    private let targetDuration: TimeInterval = 10.0  // 超时时长（秒）：网络差时的兜底等待时间
+    private let successDuration: TimeInterval = 6.0  // 成功时长（秒）：只要数据量达到这个时长（约 96KB），就认为足够识别并立即停止
+    private let estimatedBitrate = 128 * 1024 / 8    // 128kbps (约 16KB/s)
+    
+    // 目标字节数：基于“成功时长”计算
+    // 逻辑：如果网速快，几秒钟下够了 96KB 就停；如果网速慢，最多等 10s 超时
+    private var targetBytes: Int { Int(successDuration) * estimatedBitrate }
     
     // HLS 配置
     private let hlsSegmentsToDownload = 3  // 下载几个 ts 片段（如果单个片段太短，需要多下几个）
@@ -259,6 +264,11 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     // MARK: - 直接流处理（原有逻辑）
     
     /// 采样直接音频流
+    private var timeoutWorkItem: DispatchWorkItem?
+    
+    // MARK: - 直接流处理（原有逻辑）
+    
+    /// 采样直接音频流
     private func sampleDirectStream(from url: URL) {
         // 创建 session
         let config = URLSessionConfiguration.default
@@ -273,14 +283,19 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         dataTask?.resume()
         
         // 设置超时 (使用 targetDuration 强制结束，防止低码率电台无限等待)
-        DispatchQueue.main.asyncAfter(deadline: .now() + targetDuration) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             print("StreamSampler: 达到直接流采样时间限制 (\(self.targetDuration)s)")
             self.finishDirectSampling()
         }
+        
+        self.timeoutWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + targetDuration, execute: workItem)
     }
     
     func cancel() {
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
         dataTask?.cancel()
         dataTask = nil
         urlSession?.invalidateAndCancel()
@@ -289,6 +304,8 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     }
     
     private func finishDirectSampling() {
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
         dataTask?.cancel()
         
         guard receivedData.count > 1000 else {
