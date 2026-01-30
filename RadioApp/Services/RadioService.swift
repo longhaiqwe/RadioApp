@@ -62,7 +62,7 @@ class RadioService {
                     guard let url = URL(string: "\(mirror)/config") else { return nil }
                     var request = URLRequest(url: url)
                     request.httpMethod = "HEAD"
-                    request.timeoutInterval = 3.0 // Increased slightly for connectivity issues
+                    request.timeoutInterval = 5.0 // Increased slightly for connectivity issues
                     
                     do {
                         let (_, response) = try await URLSession.shared.data(for: request)
@@ -114,6 +114,7 @@ class RadioService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("iOS-Radio-App/1.0", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 10.0 // 10秒超时避免无限等待
         
         request.httpBody = try JSONEncoder().encode(filter)
         
@@ -129,7 +130,7 @@ class RadioService {
         filter.countryCode = "CN"
         filter.order = "clickcount"
         filter.reverse = true
-        filter.limit = limit
+        filter.limit = 100 // Increased default limit
         return try await advancedSearch(filter: filter)
     }
     
@@ -156,7 +157,7 @@ class RadioService {
         // usage of advancedSearch allows us to do this cleanly
         var filter = StationFilter()
         filter.name = firstKeyword
-        filter.limit = 100 // Get enough candidates
+        filter.limit = 500 // Get enough candidates
         filter.hideBroken = true
         
         let stations = try await advancedSearch(filter: filter)

@@ -193,6 +193,57 @@ struct SearchView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 100)
                 }
+                
+                // MARK: - 状态提示
+                if !viewModel.isLoading {
+                    if let error = viewModel.errorMessage {
+                        // 错误提示
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 48))
+                                .foregroundColor(.white.opacity(0.3))
+                            Text(error)
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                            
+                            Button(action: {
+                                viewModel.search()
+                            }) {
+                                Text("重试")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        Capsule()
+                                            .fill(NeonColors.cyan.opacity(0.2))
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                                            )
+                                    )
+                            }
+                        }
+                        .frame(maxHeight: .infinity)
+                        .padding(.bottom, 100)
+                    } else if viewModel.stations.isEmpty && !viewModel.query.isEmpty && viewModel.selectedProvince == nil && viewModel.selectedStyle == nil {
+                        // 无结果提示
+                        VStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 50))
+                                .foregroundColor(.white.opacity(0.2))
+                            Text("未找到相关电台")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text("尝试使用更短的关键词")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.3))
+                        }
+                        .frame(maxHeight: .infinity)
+                        .padding(.bottom, 100)
+                    }
+                }
             }
         }
         .navigationBarHidden(true)
@@ -345,7 +396,14 @@ class SearchViewModel: ObservableObject {
         didSet {
             search()
         }
+    @Published var selectedStyle: String? = nil {
+        didSet {
+            search()
+        }
     }
+    @Published var errorMessage: String? = nil
+    
+    private var searchTask: Task<Void, Never>?
     
     let provinces: [Province] = [
         Province(name: "北京市", code: "Beijing"),
@@ -468,7 +526,15 @@ class SearchViewModel: ObservableObject {
         guard !query.isEmpty || selectedProvince != nil || selectedStyle != nil else { return }
         
         isLoading = true
-        Task {
+        errorMessage = nil
+        stations = [] // 清空旧数据
+        
+        // 取消上一次搜索
+        searchTask?.cancel()
+        
+        searchTask = Task {
+            // 确保任务未被取消
+            if Task.isCancelled { return }
             do {
                 let results: [Station]
                 
@@ -493,9 +559,23 @@ class SearchViewModel: ObservableObject {
                     self.isLoading = false
                 }
             } catch {
+                if Task.isCancelled { return }
                 print("Search error: \(error)")
                 DispatchQueue.main.async {
                     self.isLoading = false
+                    // 友好错误提示
+                    if let urlError = error as? URLError {
+                        switch urlError.code {
+                        case .notConnectedToInternet:
+                            self.errorMessage = "网络未连接，请检查网络设置"
+                        case .timedOut:
+                            self.errorMessage = "连接超时，请重试"
+                        default:
+                            self.errorMessage = "搜索失败，请稍后重试"
+                        }
+                    } else {
+                        self.errorMessage = "发生未知错误"
+                    }
                 }
             }
         }
