@@ -96,7 +96,9 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             print("StreamSampler: m3u8 内容获取成功，开始解析...")
             
             // 2. 解析 m3u8 获取片段 URL
-            let segmentURLs = self.parseM3U8(content: content, baseURL: url)
+            // 使用响应的 URL 作为基准（处理重定向情况）
+            let playlistURL = response?.url ?? url
+            let segmentURLs = self.parseM3U8(content: content, baseURL: playlistURL)
             
             if segmentURLs.isEmpty {
                 print("StreamSampler: m3u8 中未找到媒体片段")
@@ -116,9 +118,6 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         var segmentURLs: [URL] = []
         let lines = content.components(separatedBy: .newlines)
         
-        // 获取基础 URL（去掉文件名）
-        let baseURLString = baseURL.deletingLastPathComponent().absoluteString
-        
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             
@@ -127,38 +126,22 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
                 // 检查是否是嵌套的 m3u8（多码率）
                 if trimmed.hasPrefix("#EXT-X-STREAM-INF") {
                     // 这是一个多码率播放列表，需要获取实际的媒体播放列表
-                    // 暂时跳过，后续处理下一行
                     continue
                 }
                 continue
             }
             
             // 构建完整 URL
-            var segmentURL: URL?
-            
-            if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
-                // 绝对 URL
-                segmentURL = URL(string: trimmed)
-            } else if trimmed.hasPrefix("/") {
-                // 从根路径开始
-                if let scheme = baseURL.scheme, let host = baseURL.host {
-                    let port = baseURL.port.map { ":\($0)" } ?? ""
-                    segmentURL = URL(string: "\(scheme)://\(host)\(port)\(trimmed)")
-                }
-            } else {
-                // 相对路径
-                segmentURL = URL(string: baseURLString + trimmed)
-            }
-            
-            if let url = segmentURL {
+            // 使用 URL(string: relativeTo:) 自动处理相对路径、绝对路径和 query 参数
+            if let segmentURL = URL(string: trimmed, relativeTo: baseURL)?.absoluteURL {
                 // 检查是否是嵌套的 m3u8
-                if url.pathExtension.lowercased() == "m3u8" {
-                    // 递归获取实际片段（简化处理：只取第一个嵌套列表）
-                    print("StreamSampler: 发现嵌套 m3u8: \(url)")
-                    return fetchNestedM3U8(from: url)
+                if segmentURL.pathExtension.lowercased() == "m3u8" || trimmed.hasSuffix(".m3u8") {
+                    // 递归获取实际片段
+                    print("StreamSampler: 发现嵌套 m3u8: \(segmentURL)")
+                    return fetchNestedM3U8(from: segmentURL)
                 }
                 
-                segmentURLs.append(url)
+                segmentURLs.append(segmentURL)
             }
         }
         
