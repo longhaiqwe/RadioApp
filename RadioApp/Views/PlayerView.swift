@@ -76,11 +76,16 @@ struct PlayerView: View {
                     shazamMatchingIndicator
                         .padding(.top, 20)
                     Spacer()
+                } else if shazamMatcher.showAdvancedRecognitionPrompt {
+                    // 高级识别提示
+                    shazamAdvancedPromptCard
+                        .padding(.top, 20)
+                    Spacer()
                 }
                 
                 Spacer()
             }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching)
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching || shazamMatcher.showAdvancedRecognitionPrompt)
         }
     }
     
@@ -205,9 +210,17 @@ struct PlayerView: View {
                 }
                 
                 // 文字
-                Text(shazamMatcher.isMatching ? "识别中..." : "歌曲识别")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(shazamMatcher.isMatching ? "识别中..." : "歌曲识别")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white)
+                    
+                    if subscriptionManager.isPro {
+                        Text("剩余高级次数: \(shazamMatcher.remainingCredits)")
+                            .font(.system(size: 9))
+                            .foregroundColor(NeonColors.cyan.opacity(0.8))
+                    }
+                }
                 
                 // PRO 标签
                 if !subscriptionManager.isPro {
@@ -455,6 +468,72 @@ struct PlayerView: View {
                 )
         )
         .padding(.horizontal, 20)
+    }
+    
+    // MARK: - ACRCloud 高级识别提示
+    private var shazamAdvancedPromptCard: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 30))
+                .foregroundColor(NeonColors.cyan)
+                .neonGlow(color: NeonColors.cyan, radius: 10)
+            
+            VStack(spacing: 8) {
+                Text("普通识别未命中")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("是否消耗 1 次高级识别配额进行深度检索？\n(针对中文歌曲识别率更高)")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            
+            HStack(spacing: 16) {
+                // 确认按钮
+                Button(action: {
+                    shazamMatcher.startAdvancedMatching()
+                }) {
+                    Text("高级识别")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.black)
+                        .frame(width: 140)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(NeonColors.cyan)
+                        )
+                }
+                
+                // 取消按钮
+                Button(action: {
+                    shazamMatcher.showAdvancedRecognitionPrompt = false
+                }) {
+                    Text("不用了")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(width: 80)
+                        .padding(.vertical, 12)
+                }
+            }
+            .padding(.top, 8)
+            
+            Text("当前剩余高级配额: \(shazamMatcher.remainingCredits) 次")
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.4))
+        }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(NeonColors.cardBg.opacity(0.95))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
+        .shadow(color: NeonColors.cyan.opacity(0.2), radius: 20)
     }
     
     // MARK: - Shazam 识别失败提示卡片

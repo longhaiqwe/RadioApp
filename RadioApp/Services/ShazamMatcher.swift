@@ -10,6 +10,7 @@ struct CustomMatchResult {
 }
 
 
+@MainActor
 class ShazamMatcher: NSObject, ObservableObject {
     static let shared = ShazamMatcher()
     
@@ -19,6 +20,10 @@ class ShazamMatcher: NSObject, ObservableObject {
     @Published var lastError: Error?
     @Published var matchingProgress: String = ""
     @Published var lyrics: String? //  New lyrics property
+    
+    // ACRCloud 集成
+    @Published var showAdvancedRecognitionPrompt = false
+    @Published var remainingCredits: Int = SubscriptionManager.shared.currentCredits
     
     // 自定义匹配结果 (用于 QQ 音乐等非 Shazam 源)
     @Published var customMatchResult: CustomMatchResult?
@@ -298,19 +303,22 @@ class ShazamMatcher: NSObject, ObservableObject {
             throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
         }
         
-        var error: NSError?
-        var inputConsumed = false
+        class ConsumptionState {
+            var inputConsumed = false
+        }
+        let state = ConsumptionState()
         
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if inputConsumed {
+            if state.inputConsumed {
                 outStatus.pointee = .endOfStream
                 return nil
             }
-            inputConsumed = true
+            state.inputConsumed = true
             outStatus.pointee = .haveData
             return inputBuffer
         }
         
+        var error: NSError?
         converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
         
         if let error = error {
@@ -373,58 +381,16 @@ extension ShazamMatcher: SHSessionDelegate {
             // 防止重复处理
             guard self.isMatching else { return }
 
-            // 检查是否配置了腾讯云，并且不是已经在跑腾讯云了
-            if TencentConfiguration.isValid {
-                print("ShazamMatcher: Shazam 识别失败，尝试使用腾讯云 QQ 音乐识别...")
-                self.matchingProgress = "Shazam 未找到，尝试 QQ 音乐..."
+            // 检查是否配置了 ACRCloud
+            if ACRCloudConfiguration.accessKey != "YOUR_ACCESS_KEY" {
+                print("ShazamMatcher: Shazam 识别失败，准备显示高级识别提示...")
                 
-                // 这里需要获取刚才识别的文件 URL
-                // 由于 ShazamKit 的 session 回调不带 fileURL，我们需要从外部记录
-                // 已经在 startMatching 保存到 currentMatchingFileURL
-                if let fileURL = self.currentMatchingFileURL {
-                    TencentMPSMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist in
-                        guard let self = self else { return }
-                        
-                        DispatchQueue.main.async {
-                            self.isMatching = false
-                            self.matchingProgress = ""
-                            self.currentMatchingFileURL = nil
-                            
-                            if let song = song {
-                                // 构造一个假的 SHMatchedMediaItem 用于显示
-                                // 注意：SHMatchedMediaItem 是只读的，难以直接实例化
-                                // 这里我们可能需要修改 lastMatch 的类型或者使用自定义对象
-                                // 为了简单，我们先用一种 Hack 或者 UI 层兼容的方式
-                                // 由于 Swift 类型限制，我们暂时无法创建 SHMatchedMediaItem
-                                // 因此，建议 UI 层读取一个新的 published 属性 `customMatch`
-                                
-                                print("\n=== 🎵 QQ 音乐识别成功 ===")
-                                print("歌曲: \(song)")
-                                print("歌手: \(artist ?? "未知")")
-                                print("===========================\n")
-                                
-                                // 这里为了演示，我们使用一个简单的 Struct 包装，
-                                // 您需要在 UI 层(PlayerView)同时监听 lastMatch 和 customMatchResult
-                                self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
-                                
-                                // Fetch lyrics
-                                Task {
-                                    let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
-                                        title: song,
-                                        artist: artist ?? ""
-                                    )
-                                    await MainActor.run {
-                                        self.lyrics = fetchedLyrics
-                                    }
-                                }
-                            } else {
-                                self.lastError = NSError(domain: "ShazamMatcher", code: -3,
-                                                       userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲 (Shazam & QQ Music)"])
-                                print("ShazamMatcher: No match found")
-                            }
-                        }
-                    }
-                    return // 退出，等待腾讯云结果
+                // 仅对 Pro 用户或有配额的用户显示
+                if SubscriptionManager.shared.isPro && SubscriptionManager.shared.currentCredits > 0 {
+                    self.isMatching = false
+                    self.showAdvancedRecognitionPrompt = true
+                    // 保持识别文件 URL，以备后续使用
+                    return // 挂起，等待用户在 UI 上的操作
                 }
             }
             
@@ -439,6 +405,58 @@ extension ShazamMatcher: SHSessionDelegate {
                 self.lastError = NSError(domain: "ShazamMatcher", code: -3,
                                         userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲"])
                 print("ShazamMatcher: No match found")
+            }
+        }
+    }
+    
+    // MARK: - 触发高级识别
+    
+    func startAdvancedMatching() {
+        guard let fileURL = self.currentMatchingFileURL, 
+              SubscriptionManager.shared.currentCredits > 0 else {
+            self.showAdvancedRecognitionPrompt = false
+            return
+        }
+        
+        self.showAdvancedRecognitionPrompt = false
+        self.isMatching = true
+        self.matchingProgress = "正在进行高级识别..."
+        
+        // 消耗 1 次配额
+        SubscriptionManager.shared.consumeCredit()
+        self.remainingCredits = SubscriptionManager.shared.currentCredits
+        
+        ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                self.isMatching = false
+                self.matchingProgress = ""
+                self.currentMatchingFileURL = nil
+                
+                if let song = song {
+                    print("\n=== 🎵 ACRCloud 识别成功 ===")
+                    print("歌曲: \(song)")
+                    print("歌手: \(artist ?? "未知")")
+                    print("===========================\n")
+                    
+                    self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
+                    
+                    // Fetch lyrics
+                    Task {
+                        let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
+                            title: song,
+                            artist: artist ?? ""
+                        )
+                        await MainActor.run {
+                            self.lyrics = fetchedLyrics
+                        }
+                    }
+                } else {
+                    self.lastError = NSError(domain: "ShazamMatcher", code: -3,
+                                           userInfo: [NSLocalizedDescriptionKey: "高级识别也未找到匹配歌曲"])
+                    print("ShazamMatcher: ACRCloud no match found")
+                }
             }
         }
     }

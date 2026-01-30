@@ -19,10 +19,20 @@ class SubscriptionManager: ObservableObject {
     
     // MARK: - 持久化 Key
     private let isPurchasedKey = "isPro_purchased"
+    private let creditsKey = "recognition_credits"
+    private let initialCredits = 200
     
     private init() {
         // 启动时检查购买状态
-        isPro = UserDefaults.standard.bool(forKey: isPurchasedKey)
+        let purchased = UserDefaults.standard.bool(forKey: isPurchasedKey)
+        isPro = purchased
+        
+        // 加载配额 (如果是 Pro 但没有配额记录，则初始化)
+        if purchased {
+            if UserDefaults.standard.object(forKey: creditsKey) == nil {
+                UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+            }
+        }
         
         // 异步加载产品和验证购买
         Task {
@@ -168,8 +178,31 @@ class SubscriptionManager: ObservableObject {
     // MARK: - 解锁 Pro
     
     private func unlockPro() async {
-        isPro = true
-        UserDefaults.standard.set(true, forKey: isPurchasedKey)
-        print("SubscriptionManager: Pro 已解锁!")
+        if !isPro {
+            isPro = true
+            UserDefaults.standard.set(true, forKey: isPurchasedKey)
+            
+            // 首次解锁赠送配额
+            if UserDefaults.standard.object(forKey: creditsKey) == nil {
+                UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+            }
+            print("SubscriptionManager: Pro 已解锁，初始化 \(initialCredits) 次高级识别配额!")
+        }
+    }
+    
+    // MARK: - 配额管理
+    
+    /// 获取当前剩余配额
+    var currentCredits: Int {
+        return UserDefaults.standard.integer(forKey: creditsKey)
+    }
+    
+    /// 消耗 1 次配额
+    func consumeCredit() {
+        let current = currentCredits
+        if current > 0 {
+            UserDefaults.standard.set(current - 1, forKey: creditsKey)
+            self.objectWillChange.send()
+        }
     }
 }

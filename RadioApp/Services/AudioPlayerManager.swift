@@ -3,6 +3,7 @@ import AVFoundation
 import Combine
 import MediaPlayer
 
+@MainActor
 class AudioPlayerManager: ObservableObject {
     static let shared = AudioPlayerManager()
     
