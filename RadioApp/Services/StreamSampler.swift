@@ -44,6 +44,8 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         
         self.completion = completion
         self.receivedData = Data()
+        self.currentFileExtension = "mp3" // Reset to default
+
         
         guard let url = URL(string: urlString) else {
             print("StreamSampler: Invalid URL: \(urlString)")
@@ -315,7 +317,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         }
         
         // 保存到临时文件
-        saveAndComplete(data: receivedData, fileExtension: "mp3")
+        saveAndComplete(data: receivedData, fileExtension: self.currentFileExtension)
         
         receivedData = Data()
     }
@@ -328,7 +330,32 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         }
     }
     
+    private var currentFileExtension: String = "mp3" // Default to mp3
+    
     // MARK: - URLSessionDataDelegate
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        if let mimeType = response.mimeType?.lowercased() {
+             print("StreamSampler: 检测到流格式: \(mimeType)")
+            
+            // Map MIME types to extensions
+            if mimeType == "audio/mpeg" {
+                self.currentFileExtension = "mp3"
+            } else if mimeType.contains("aac") { // audio/aac, audio/x-aac
+                self.currentFileExtension = "aac"
+            } else if mimeType == "audio/mp4" || mimeType == "audio/x-m4a" {
+                self.currentFileExtension = "m4a"
+            } else if mimeType.contains("ogg") {
+                self.currentFileExtension = "ogg"
+            } else if mimeType.contains("wav") {
+                self.currentFileExtension = "wav"
+            }
+            
+             print("StreamSampler: 将使用文件后缀: .\(self.currentFileExtension)")
+        }
+        
+        completionHandler(.allow)
+    }
     
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         receivedData.append(data)
