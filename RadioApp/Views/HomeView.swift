@@ -214,29 +214,8 @@ struct NeonStationCard: View {
                     .fill(NeonColors.cardBg)
                     .frame(width: 150, height: 150)
                     .overlay(
-                        Group {
-                            if let url = URL(string: station.favicon), !station.favicon.isEmpty {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        ZStack {
-                                            NeonColors.cardBg
-                                            ProgressView()
-                                                .tint(NeonColors.cyan)
-                                        }
-                                    case .success(let image):
-                                        image.resizable().aspectRatio(contentMode: .fill)
-                                    case .failure:
-                                        PlaceholderView(name: station.name, id: station.stationuuid)
-                                    @unknown default:
-                                        PlaceholderView(name: station.name, id: station.stationuuid)
-                                    }
-                                }
-                            } else {
-                                PlaceholderView(name: station.name, id: station.stationuuid)
-                            }
-                        }
-                    )
+                             StationAvatarView(urlString: station.favicon, placeholderName: station.name, placeholderId: station.stationuuid)
+                     )
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)

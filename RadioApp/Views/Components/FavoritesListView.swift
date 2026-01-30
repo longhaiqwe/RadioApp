@@ -90,19 +90,7 @@ struct FavoriteStationRow: View {
         HStack(spacing: 14) {
             // 封面图
             ZStack {
-                if let url = URL(string: station.favicon), !station.favicon.isEmpty {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
-                            PlaceholderView(name: station.name, id: station.stationuuid)
-                        }
-                    }
-                } else {
-                    PlaceholderView(name: station.name, id: station.stationuuid)
-                }
+                StationAvatarView(urlString: station.favicon, placeholderName: station.name, placeholderId: station.stationuuid)
             }
             .frame(width: 56, height: 56)
             .clipShape(RoundedRectangle(cornerRadius: 12))

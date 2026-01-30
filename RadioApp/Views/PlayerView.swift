@@ -92,18 +92,27 @@ struct PlayerView: View {
             
             // 动态封面模糊背景
             if let station = playerManager.currentStation {
-                if let url = URL(string: station.favicon), !station.favicon.isEmpty {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .blur(radius: 80)
-                                .opacity(0.4)
+                Group {
+                    if station.favicon.hasPrefix("bundle://") {
+                         let assetName = String(station.favicon.dropFirst("bundle://".count))
+                         Image(assetName)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .blur(radius: 80)
+                            .opacity(0.4)
+                    } else if let url = URL(string: station.favicon) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .blur(radius: 80)
+                                    .opacity(0.4)
+                            }
                         }
                     }
-                    .ignoresSafeArea()
                 }
+                .ignoresSafeArea()
             }
             
             // 渐变叠加
@@ -271,19 +280,7 @@ struct PlayerView: View {
             // 封面图片
             Group {
                 if let station = playerManager.currentStation {
-                    if let url = URL(string: station.favicon), !station.favicon.isEmpty {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image {
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } else {
-                                PlaceholderView(name: station.name, id: station.stationuuid)
-                            }
-                        }
-                    } else {
-                        PlaceholderView(name: station.name, id: station.stationuuid)
-                    }
+                     StationAvatarView(urlString: station.favicon, placeholderName: station.name, placeholderId: station.stationuuid)
                 } else {
                     ZStack {
                         NeonColors.cardBg
