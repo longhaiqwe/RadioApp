@@ -34,9 +34,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         session?.delegate = self
     }
     
-    // MARK: - Retry Configuration
-    private let maxAutoRetries = 2
-    private var currentRetryAttempt = 0
+
     
     // MARK: - 主入口：开始识别
     
@@ -49,7 +47,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         lastMatch = nil
         customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
-        currentRetryAttempt = 0 // 重置重试计数
+
         
         // 获取当前播放的电台 URL
         guard let station = AudioPlayerManager.shared.currentStation,
@@ -141,60 +139,15 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
     }
     
-    /// 执行单次识别循环
-    private func performMatchCycle(url: String) {
-        let attemptSuffix = currentRetryAttempt > 0 ? " (尝试 \(currentRetryAttempt + 1)/\(maxAutoRetries + 1))" : ""
-        
-        DispatchQueue.main.async {
-            self.matchingProgress = "正在采集音频...\(attemptSuffix)"
-        }
-        
-        // 确保 session 已初始化
-        if session == nil {
-            session = SHSession()
-            session?.delegate = self
-        }
-        
-        print("ShazamMatcher: 开始识别... 第 \(currentRetryAttempt + 1) 次尝试")
-        
-        // 使用 StreamSampler 下载音频片段
-        StreamSampler.shared.sampleStream(from: url) { [weak self] fileURL in
-            guard let self = self else { return }
-            
-            if let fileURL = fileURL {
-                DispatchQueue.main.async {
-                    self.matchingProgress = "正在识别...\(attemptSuffix)"
-                }
-                self.matchFile(at: fileURL)
-            } else {
-                self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
-                                                userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"]))
-            }
-        }
-    }
+
     
-    /// 统一失败处理（包含重试逻辑）
+    /// 统一失败处理
     private func handleFailure(error: Error) {
-        // 如果还有重试机会，且不是用户主动取消（这里暂不处理取消，取消会直接 reset）
-        if currentRetryAttempt < maxAutoRetries {
-            currentRetryAttempt += 1
-            print("ShazamMatcher: 识别失败，准备重试... (下次是第 \(currentRetryAttempt + 1) 次)")
-            
-            if let station = AudioPlayerManager.shared.currentStation {
-                // 稍微延迟一下再重试，避免过于频繁
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    self.performMatchCycle(url: station.urlResolved)
-                }
-                return
-            }
-        }
-        
-        // 最终失败
         DispatchQueue.main.async {
             self.isMatching = false
             self.matchingProgress = ""
             self.lastError = error
-            print("ShazamMatcher: Final Error - \(error.localizedDescription)")
+            print("ShazamMatcher: Error - \(error.localizedDescription)")
         }
     }
     
