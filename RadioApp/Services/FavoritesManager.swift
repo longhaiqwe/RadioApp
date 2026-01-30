@@ -106,7 +106,38 @@ class FavoritesManager: ObservableObject {
         for station in existing {
             if !seenNames.contains(station.name) {
                 if let best = bestStation(for: station.name) {
-                    uniqueStations.append(best)
+                    var finalStation = best
+                    // Patch: Fix missing Huaiji favicon
+                    if finalStation.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && finalStation.favicon.isEmpty {
+                         finalStation = Station(
+                             changeuuid: finalStation.changeuuid,
+                             stationuuid: finalStation.stationuuid,
+                             name: finalStation.name,
+                             url: finalStation.url,
+                             urlResolved: finalStation.urlResolved,
+                             homepage: finalStation.homepage,
+                             favicon: "http://www.hj0758.cn/favicon.ico",
+                             tags: finalStation.tags,
+                             country: finalStation.country,
+                             countrycode: finalStation.countrycode,
+                             state: finalStation.state,
+                             language: finalStation.language,
+                             languagecodes: finalStation.languagecodes,
+                             votes: finalStation.votes,
+                             lastchangetime: finalStation.lastchangetime,
+                             codec: finalStation.codec,
+                             bitrate: finalStation.bitrate,
+                             hls: finalStation.hls,
+                             lastcheckok: finalStation.lastcheckok,
+                             lastchecktime: finalStation.lastchecktime,
+                             lastcheckoktime: finalStation.lastcheckoktime,
+                             lastlocalchecktime: finalStation.lastlocalchecktime,
+                             clicktimestamp: finalStation.clicktimestamp,
+                             clickcount: finalStation.clickcount,
+                             clicktrend: finalStation.clicktrend
+                         )
+                    }
+                    uniqueStations.append(finalStation)
                     seenNames.insert(station.name)
                 }
             }
@@ -114,7 +145,7 @@ class FavoritesManager: ObservableObject {
         
         self.favoriteStations = uniqueStations
         // Only save if count changed to avoid unnecessary writes
-        if existing.count != uniqueStations.count {
+        if existing.count != uniqueStations.count || uniqueStations.contains(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && !$0.favicon.isEmpty && existing.first(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" })?.favicon.isEmpty ?? false }) {
             saveFavorites()
         }
     }
@@ -155,7 +186,7 @@ class FavoritesManager: ObservableObject {
                 url: "https://lhttp.qingting.fm/live/4804/64k.mp3",
                 urlResolved: "https://lhttp.qingting.fm/live/4804/64k.mp3",
                 homepage: "",
-                favicon: "",
+                favicon: "http://www.hj0758.cn/favicon.ico",
                 tags: "local,music",
                 country: "China",
                 countrycode: "CN",
