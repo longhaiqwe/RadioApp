@@ -77,9 +77,45 @@ class FavoritesManager: ObservableObject {
                 saveFavorites()
             } else {
                 self.favoriteStations = stations
+                deduplicateFavorites()
             }
         } catch {
             print("Failed to load favorites: \(error)")
+        }
+    }
+    
+    /// Deduplicates favorites by name, keeping the highest bitrate version
+    private func deduplicateFavorites() {
+        var seenNames = Set<String>()
+        var uniqueStations: [Station] = []
+        
+        // 1. Sort by bitrate descending to prioritize higher quality
+        // Note: We need to preserve original order as much as possible for user preference,
+        // but for duplicates, we want the best quality.
+        // Strategy: Group by name, find best in group, then reconstruct list preserving first appearance order?
+        // Simpler for now: Just straightforward dedupe prioritizing quality.
+        
+        let existing = favoriteStations
+        
+        // Helper to find best station among those with same name
+        func bestStation(for name: String) -> Station? {
+            return existing.filter { $0.name == name }
+                .max(by: { $0.bitrate < $1.bitrate })
+        }
+        
+        for station in existing {
+            if !seenNames.contains(station.name) {
+                if let best = bestStation(for: station.name) {
+                    uniqueStations.append(best)
+                    seenNames.insert(station.name)
+                }
+            }
+        }
+        
+        self.favoriteStations = uniqueStations
+        // Only save if count changed to avoid unnecessary writes
+        if existing.count != uniqueStations.count {
+            saveFavorites()
         }
     }
 
@@ -87,13 +123,13 @@ class FavoritesManager: ObservableObject {
         return [
             Station(
                 changeuuid: UUID().uuidString,
-                stationuuid: "a09db942-832d-4932-8c05-494e17dc37e0",
+                stationuuid: "acbeaef9-17d7-498f-ace0-dfbb78caa430",
                 name: "CNR-3 音乐之声",
-                url: "https://ngcdn001.cnr.cn/live/yyzs/index.m3u8",
-                urlResolved: "https://ngcdn001.cnr.cn/live/yyzs/index.m3u8",
-                homepage: "http://www.cnr.cn/",
-                favicon: "",
-                tags: "pop,news,china",
+                url: "https://satellitepull.cnr.cn/live/wxyyzs/playlist.m3u8",
+                urlResolved: "https://satellitepull.cnr.cn/live/wxyyzs/playlist.m3u8",
+                homepage: "https://www.cnr.cn/",
+                favicon: "https://ytmedia.radio.cn/CCYT/202302/09/17/j5t4Bt3drpLhkZnDREc2023020917793.png",
+                tags: "music",
                 country: "China",
                 countrycode: "CN",
                 state: "",

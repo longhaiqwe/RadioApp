@@ -190,13 +190,33 @@ class RadioService {
             
             // Fallback logic
             if filtered.isEmpty && !stations.isEmpty {
-                return stations
+                return deduplicateStations(stations)
             }
             
-            return filtered
+            return deduplicateStations(filtered)
         }
         
-        return stations
+        return deduplicateStations(stations)
+    }
+    
+    /// Deduplicates stations by name, keeping only the highest bitrate version
+    private func deduplicateStations(_ stations: [Station]) -> [Station] {
+        // 1. Sort by bitrate descending so the highest quality comes first
+        let sorted = stations.sorted { $0.bitrate > $1.bitrate }
+        
+        // 2. Filter duplicates by name
+        var seenNames = Set<String>()
+        var result: [Station] = []
+        
+        for station in sorted {
+            let name = station.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !seenNames.contains(name) {
+                seenNames.insert(name)
+                result.append(station)
+            }
+        }
+        
+        return result
     }
     
     func fetchStationsByCountryCode(_ code: String, limit: Int = 20) async throws -> [Station] {

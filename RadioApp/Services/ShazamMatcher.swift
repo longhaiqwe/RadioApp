@@ -3,6 +3,13 @@ import Combine
 import ShazamKit
 import AVFoundation
 
+struct CustomMatchResult {
+    let title: String
+    let artist: String
+    let artworkURL: URL?
+}
+
+
 class ShazamMatcher: NSObject, ObservableObject {
     static let shared = ShazamMatcher()
     
@@ -12,6 +19,12 @@ class ShazamMatcher: NSObject, ObservableObject {
     @Published var lastError: Error?
     @Published var matchingProgress: String = ""
     @Published var lyrics: String? //  New lyrics property
+    
+    // 自定义匹配结果 (用于 QQ 音乐等非 Shazam 源)
+    @Published var customMatchResult: CustomMatchResult?
+    
+    // 内部记录当前正在匹配的文件
+    var currentMatchingFileURL: URL?
     
     private var session: SHSession?
     
@@ -34,6 +47,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         // 立即清除之前的状态，确保 UI 正确响应
         lastError = nil
         lastMatch = nil
+        customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
         currentRetryAttempt = 0 // 重置重试计数
         
@@ -46,7 +60,31 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
         
         isMatching = true
-        performMatchCycle(url: station.urlResolved)
+        matchingProgress = "正在采集音频..."
+        
+        // 确保 session 已初始化
+        if session == nil {
+            session = SHSession()
+            session?.delegate = self
+        }
+        
+        print("ShazamMatcher: 开始识别...")
+        
+        // 使用 StreamSampler 下载音频片段
+        StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL in
+            guard let self = self else { return }
+            
+            if let fileURL = fileURL {
+                DispatchQueue.main.async {
+                    self.matchingProgress = "正在识别..."
+                    self.currentMatchingFileURL = fileURL // 保存 URL 供兜底使用
+                }
+                self.matchFile(at: fileURL)
+            } else {
+                self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
+                                                userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"]))
+            }
+        }
     }
     
     /// 执行单次识别循环
@@ -257,6 +295,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         DispatchQueue.main.async {
             self.lastMatch = nil
+            self.customMatchResult = nil
             self.lyrics = nil
             self.lastError = nil
             self.isMatching = false
@@ -301,13 +340,73 @@ extension ShazamMatcher: SHSessionDelegate {
         DispatchQueue.main.async {
             // 防止重复处理
             guard self.isMatching else { return }
+
+            // 检查是否配置了腾讯云，并且不是已经在跑腾讯云了
+            if TencentConfiguration.isValid {
+                print("ShazamMatcher: Shazam 识别失败，尝试使用腾讯云 QQ 音乐识别...")
+                self.matchingProgress = "Shazam 未找到，尝试 QQ 音乐..."
+                
+                // 这里需要获取刚才识别的文件 URL
+                // 由于 ShazamKit 的 session 回调不带 fileURL，我们需要从外部记录
+                // 已经在 startMatching 保存到 currentMatchingFileURL
+                if let fileURL = self.currentMatchingFileURL {
+                    TencentMPSMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist in
+                        guard let self = self else { return }
+                        
+                        DispatchQueue.main.async {
+                            self.isMatching = false
+                            self.matchingProgress = ""
+                            self.currentMatchingFileURL = nil
+                            
+                            if let song = song {
+                                // 构造一个假的 SHMatchedMediaItem 用于显示
+                                // 注意：SHMatchedMediaItem 是只读的，难以直接实例化
+                                // 这里我们可能需要修改 lastMatch 的类型或者使用自定义对象
+                                // 为了简单，我们先用一种 Hack 或者 UI 层兼容的方式
+                                // 由于 Swift 类型限制，我们暂时无法创建 SHMatchedMediaItem
+                                // 因此，建议 UI 层读取一个新的 published 属性 `customMatch`
+                                
+                                print("\n=== 🎵 QQ 音乐识别成功 ===")
+                                print("歌曲: \(song)")
+                                print("歌手: \(artist ?? "未知")")
+                                print("===========================\n")
+                                
+                                // 这里为了演示，我们使用一个简单的 Struct 包装，
+                                // 您需要在 UI 层(PlayerView)同时监听 lastMatch 和 customMatchResult
+                                self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
+                                
+                                // Fetch lyrics
+                                Task {
+                                    let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
+                                        title: song,
+                                        artist: artist ?? ""
+                                    )
+                                    await MainActor.run {
+                                        self.lyrics = fetchedLyrics
+                                    }
+                                }
+                            } else {
+                                self.lastError = NSError(domain: "ShazamMatcher", code: -3,
+                                                       userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲 (Shazam & QQ Music)"])
+                                print("ShazamMatcher: No match found")
+                            }
+                        }
+                    }
+                    return // 退出，等待腾讯云结果
+                }
+            }
+            
+            self.isMatching = false
+            self.matchingProgress = ""
+            self.currentMatchingFileURL = nil
             
             if let error = error {
-                self.handleFailure(error: error)
+                self.lastError = error
+                print("ShazamMatcher: Error - \(error.localizedDescription)")
             } else {
-                let noMatchError = NSError(domain: "ShazamMatcher", code: -3,
-                                         userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲"])
-                self.handleFailure(error: noMatchError)
+                self.lastError = NSError(domain: "ShazamMatcher", code: -3,
+                                        userInfo: [NSLocalizedDescriptionKey: "未找到匹配的歌曲"])
+                print("ShazamMatcher: No match found")
             }
         }
     }

@@ -68,6 +68,9 @@ struct PlayerView: View {
                 } else if let match = shazamMatcher.lastMatch {
                     // 识别结果和歌词 - 覆盖在封面上方
                     shazamResultOverlay(match: match)
+                } else if shazamMatcher.customMatchResult != nil {
+                    // 自定义识别结果
+                    shazamResultOverlay(match: nil)
                 } else if shazamMatcher.isMatching {
                     // 识别进度提示
                     shazamMatchingIndicator
@@ -77,7 +80,7 @@ struct PlayerView: View {
                 
                 Spacer()
             }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching)
+            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching)
         }
     }
     
@@ -549,14 +552,20 @@ struct PlayerView: View {
     }
     
     // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
-    private func shazamResultOverlay(match: SHMatchedMediaItem) -> some View {
-        VStack(spacing: 0) {
+    private func shazamResultOverlay(match: SHMatchedMediaItem?) -> some View {
+        // 优先使用 Shazam 结果，如果没有则尝试使用 Custom 结果
+        let title = match?.title ?? shazamMatcher.customMatchResult?.title ?? "未知歌曲"
+        let artist = match?.artist ?? shazamMatcher.customMatchResult?.artist ?? "未知歌手"
+        let artworkURL = match?.artworkURL ?? shazamMatcher.customMatchResult?.artworkURL
+        let appleMusicURL = match?.appleMusicURL
+        
+        return VStack(spacing: 0) {
             // 1. 结果卡片 (作为顶部 Header)
             VStack(spacing: 16) {
                 // 封面 + 歌曲信息 (左图右文，整体居中)
                 HStack(spacing: 14) {
                     // 封面
-                    if let url = match.artworkURL {
+                    if let url = artworkURL {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image
@@ -571,6 +580,7 @@ struct PlayerView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: NeonColors.purple.opacity(0.5), radius: 8)
                     } else {
+                        // 占位封面 (Custom Match 往往没有封面)
                         RoundedRectangle(cornerRadius: 12)
                             .fill(NeonColors.purple.opacity(0.3))
                             .frame(width: 60, height: 60)
@@ -583,13 +593,13 @@ struct PlayerView: View {
                     
                     // 歌曲信息 (左对齐，占据剩余空间)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(match.title ?? "未知歌曲")
+                        Text(title)
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5) // 自适应缩小
                         
-                        Text(match.artist ?? "未知歌手")
+                        Text(artist)
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
@@ -601,7 +611,7 @@ struct PlayerView: View {
                 // 音乐平台按钮
                 HStack(spacing: 24) {
                     // Apple Music
-                    if let appleMusicURL = match.appleMusicURL {
+                    if let appleMusicURL = appleMusicURL {
                         Link(destination: appleMusicURL) {
                             MusicIconView(imageName: "AppleMusicLogo", color: NeonColors.magenta, scale: 1.0, size: 40)
                         }
@@ -610,7 +620,7 @@ struct PlayerView: View {
                     // 网易云音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "netease", title: match.title, artist: match.artist)
+                            await openMusicApp(platform: "netease", title: title, artist: artist)
                         }
                     }) {
                         ZStack {
@@ -626,7 +636,7 @@ struct PlayerView: View {
                     // QQ音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "qq", title: match.title, artist: match.artist)
+                            await openMusicApp(platform: "qq", title: title, artist: artist)
                         }
                     }) {
                         ZStack {
@@ -639,7 +649,7 @@ struct PlayerView: View {
                         }
                     }
                     // 分割线
-                    if match.appleMusicURL != nil || loadingPlatform != nil || true { // 确保有图标时显示分割线，这里简单处理
+                    if appleMusicURL != nil || loadingPlatform != nil || true { // 确保有图标时显示分割线，这里简单处理
                         Rectangle()
                             .fill(Color.white.opacity(0.1))
                             .frame(width: 1, height: 24)
@@ -649,6 +659,7 @@ struct PlayerView: View {
                     Button(action: {
                         withAnimation(.easeOut(duration: 0.2)) {
                             shazamMatcher.lastMatch = nil
+                            shazamMatcher.customMatchResult = nil
                         }
                     }) {
                         Image(systemName: "xmark")
