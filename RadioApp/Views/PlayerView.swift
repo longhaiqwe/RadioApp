@@ -389,10 +389,8 @@ struct PlayerView: View {
                     .frame(width: 44, height: 44)
             }
             .sheet(isPresented: $showFavoritesList) {
-                FavoritesListView(onStationSelected: { station in
-                    playerManager.play(station: station, in: FavoritesManager.shared.favoriteStations)
-                    showFavoritesList = false
-                })
+                // Now uses the Generic StationListView which binds to AudioPlayerManager's playlist
+                StationListView()
             }
             .sheet(isPresented: $showProUpgrade) {
                 ProUpgradeView()

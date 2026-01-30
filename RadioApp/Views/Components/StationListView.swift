@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct FavoritesListView: View {
-    @ObservedObject var favoritesManager = FavoritesManager.shared
+struct StationListView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @Environment(\.dismiss) var dismiss
     
-    let onStationSelected: (Station) -> Void
+    // Optional closure if custom handling is needed, but default is good
+    var onStationSelected: ((Station) -> Void)?
     
     var body: some View {
         NavigationView {
@@ -24,52 +24,62 @@ struct FavoritesListView: View {
                 )
                 .ignoresSafeArea()
                 
-                if favoritesManager.favoriteStations.isEmpty {
+                if playerManager.playlistStations.isEmpty {
                     // 空状态
                     emptyStateView
                 } else {
-                    // 收藏列表
-                    favoritesList
+                    // 电台列表
+                    stationList
                 }
             }
-            .navigationTitle("收藏电台")
+            .navigationTitle(playerManager.playlistTitle) // Dynamic Title
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(NeonColors.darkBg.opacity(0.8), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            // Restore close button usually handled by Sheet
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("关闭") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+            }
         }
     }
     
     // MARK: - 空状态视图
     private var emptyStateView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "heart.slash")
+            Image(systemName: "music.note.list")
                 .font(.system(size: 60))
                 .foregroundColor(NeonColors.cyan.opacity(0.5))
             
-            Text("暂无收藏电台")
+            Text("暂无播放列表")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.white.opacity(0.8))
-            
-            Text("点击电台旁的爱心按钮添加收藏")
-                .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.5))
-                .multilineTextAlignment(.center)
         }
         .padding(40)
     }
     
-    // MARK: - 收藏列表
-    private var favoritesList: some View {
+    // MARK: - 电台列表
+    private var stationList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(favoritesManager.favoriteStations) { station in
-                    FavoriteStationRow(
+                ForEach(playerManager.playlistStations) { station in
+                    StationListRow(
                         station: station,
                         isCurrentlyPlaying: playerManager.currentStation?.id == station.id,
                         isPlaying: playerManager.isPlaying && playerManager.currentStation?.id == station.id
                     )
                     .onTapGesture {
-                        onStationSelected(station)
+                        if let customHandler = onStationSelected {
+                             customHandler(station)
+                        } else {
+                            // Default behavior: Play from the current playlist
+                            playerManager.play(station: station)
+                        }
+                        dismiss()
                     }
                 }
             }
@@ -79,8 +89,8 @@ struct FavoritesListView: View {
     }
 }
 
-// MARK: - 收藏电台行
-struct FavoriteStationRow: View {
+// MARK: - 电台行 (Rename from FavoriteStationRow)
+struct StationListRow: View {
     let station: Station
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
@@ -120,22 +130,22 @@ struct FavoriteStationRow: View {
             
             Spacer()
             
-            // 播放指示器 + 取消收藏按钮
+            // 播放指示器 + 收藏按钮
             HStack(spacing: 12) {
                 if isPlaying {
                     // 播放动画指示器
                     PlayingIndicator()
                 }
                 
-                // 取消收藏按钮
+                // 收藏/取消收藏按钮 (Toggle)
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        favoritesManager.removeFavorite(station)
+                        favoritesManager.toggleFavorite(station)
                     }
                 }) {
-                    Image(systemName: "heart.fill")
+                    Image(systemName: favoritesManager.isFavorite(station) ? "heart.fill" : "heart")
                         .font(.system(size: 18))
-                        .foregroundColor(NeonColors.magenta)
+                        .foregroundColor(favoritesManager.isFavorite(station) ? NeonColors.magenta : .white.opacity(0.4))
                 }
             }
         }
@@ -157,7 +167,7 @@ struct FavoriteStationRow: View {
     }
 }
 
-// MARK: - 播放指示器动画
+// MARK: - 播放指示器动画 (Reuse)
 struct PlayingIndicator: View {
     @State private var isAnimating = false
     
@@ -182,5 +192,5 @@ struct PlayingIndicator: View {
 }
 
 #Preview {
-    FavoritesListView(onStationSelected: { _ in })
+    StationListView()
 }

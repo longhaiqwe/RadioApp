@@ -12,6 +12,8 @@ class AudioPlayerManager: ObservableObject {
     
     // Playlist context
     private var playlist: [Station] = []
+    @Published var playlistTitle: String = "播放列表"
+    @Published var playlistStations: [Station] = [] // Expose playlist for UI binding if needed, or just access current property
     
     // Live Metadata (ICY)
     @Published var currentStreamTitle: String?
@@ -102,11 +104,16 @@ class AudioPlayerManager: ObservableObject {
             }.resume()
         }
     }
-    
+
     // Play a station, optionally updating the playlist context
-    func play(station: Station, in newPlaylist: [Station]? = nil) {
+    func play(station: Station, in newPlaylist: [Station]? = nil, title: String? = nil) {
         if let newPlaylist = newPlaylist {
             self.playlist = newPlaylist
+            self.playlistStations = newPlaylist
+        }
+        
+        if let title = title {
+            self.playlistTitle = title
         }
         
         if currentStation?.id == station.id {
@@ -127,7 +134,8 @@ class AudioPlayerManager: ObservableObject {
         playerItem.preferredForwardBufferDuration = 5.0
         
         // 监听元数据 (ICY Metadata)
-        metadataObserver = playerItem.observe(\.timedMetadata, options: [.new]) { [weak self] item, change in
+        let options: NSKeyValueObservingOptions = [.new]
+        metadataObserver = playerItem.observe(\AVPlayerItem.timedMetadata, options: options) { [weak self] (item: AVPlayerItem, change: NSKeyValueObservedChange<[AVMetadataItem]?>) in
             guard let self = self else { return }
             self.handleMetadata(item.timedMetadata)
         }

@@ -100,7 +100,7 @@ struct HomeView: View {
                                                 isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
                                             )
                                             .onTapGesture {
-                                                playerManager.play(station: station, in: favoritesManager.favoriteStations)
+                                                playerManager.play(station: station, in: favoritesManager.favoriteStations, title: "我的收藏")
                                             }
                                             .contextMenu {
                                                 Button(role: .destructive) {
@@ -153,7 +153,7 @@ struct HomeView: View {
                                             isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
                                         )
                                         .onTapGesture {
-                                            playerManager.play(station: station, in: viewModel.stations)
+                                            playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
                                         }
                                     }
                                 }
