@@ -178,24 +178,78 @@ struct SearchView: View {
                 }
                 
                 // MARK: - 搜索结果
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(viewModel.stations) { station in
-                            SearchResultRow(
-                                station: station,
-                                isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
-                            )
-                            .onTapGesture {
-                                playerManager.play(station: station, in: viewModel.stations, title: "搜索结果")
+                if !viewModel.stations.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(viewModel.stations) { station in
+                                SearchResultRow(
+                                    station: station,
+                                    isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
+                                )
+                                .onTapGesture {
+                                    playerManager.play(station: station, in: viewModel.stations, title: "搜索结果")
+                                }
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 100)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 100)
-                }
-                
-                // MARK: - 状态提示
-                if !viewModel.isLoading {
+                } else if viewModel.isLoading {
+                    // 加载中已在上方显示，此处留空或显示占位
+                    Spacer()
+                } else if viewModel.query.isEmpty && viewModel.selectedProvince == nil && viewModel.selectedStyle == nil {
+                    // MARK: - 搜索历史
+                    if !viewModel.history.isEmpty {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("最近搜索")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.8))
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    viewModel.clearHistory()
+                                }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.4))
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(viewModel.history, id: \.self) { item in
+                                        Button(action: {
+                                            viewModel.query = item
+                                            viewModel.search()
+                                            isFocused = false
+                                        }) {
+                                            Text(item)
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.white.opacity(0.8))
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(Color.white.opacity(0.1))
+                                                        .overlay(
+                                                            Capsule()
+                                                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                                        )
+                                                )
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                        .padding(.top, 20)
+                    }
+                    Spacer()
+                } else {
+                    // MARK: - 状态提示
                     if let error = viewModel.errorMessage {
                         // 错误提示
                         VStack(spacing: 16) {
@@ -227,7 +281,7 @@ struct SearchView: View {
                         }
                         .frame(maxHeight: .infinity)
                         .padding(.bottom, 100)
-                    } else if viewModel.stations.isEmpty && !viewModel.query.isEmpty && viewModel.selectedProvince == nil && viewModel.selectedStyle == nil {
+                    } else {
                         // 无结果提示
                         VStack(spacing: 12) {
                             Image(systemName: "magnifyingglass")
@@ -387,6 +441,7 @@ class SearchViewModel: ObservableObject {
     @Published var query: String = ""
     @Published var stations: [Station] = []
     @Published var isLoading: Bool = false
+    @Published var history: [String] = []
     @Published var selectedProvince: String? = nil {
         didSet {
             search()
@@ -480,6 +535,7 @@ class SearchViewModel: ObservableObject {
     
     init() {
         fetchStyles()
+        self.history = SearchHistoryManager.shared.history
     }
     
     func fetchStyles() {
@@ -520,7 +576,13 @@ class SearchViewModel: ObservableObject {
     }
     
     func search() {
-        guard !query.isEmpty || selectedProvince != nil || selectedStyle != nil else { return }
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedQuery.isEmpty {
+            SearchHistoryManager.shared.addHistory(trimmedQuery)
+            self.history = SearchHistoryManager.shared.history
+        }
+        
+        guard !trimmedQuery.isEmpty || selectedProvince != nil || selectedStyle != nil else { return }
         
         isLoading = true
         errorMessage = nil
@@ -576,5 +638,15 @@ class SearchViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func clearHistory() {
+        SearchHistoryManager.shared.clearHistory()
+        self.history = []
+    }
+    
+    func deleteHistory(_ item: String) {
+        SearchHistoryManager.shared.removeHistory(item)
+        self.history = SearchHistoryManager.shared.history
     }
 }
