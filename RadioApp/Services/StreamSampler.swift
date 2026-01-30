@@ -108,8 +108,15 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             
             print("StreamSampler: 找到 \(segmentURLs.count) 个片段，开始下载前 \(min(self.hlsSegmentsToDownload, segmentURLs.count)) 个...")
             
+            // 检测片段文件类型 (默认 ts，如果是 aac/mp3 则使用对应后缀)
+            let firstSegment = segmentURLs.first!
+            let ext = firstSegment.pathExtension.lowercased()
+            let fileExtension = (ext == "aac" || ext == "mp3") ? ext : "ts"
+            
+            print("StreamSampler: 识别片段类型为: \(fileExtension)")
+            
             // 3. 下载片段并拼接
-            self.downloadSegments(Array(segmentURLs.prefix(self.hlsSegmentsToDownload)))
+            self.downloadSegments(Array(segmentURLs.prefix(self.hlsSegmentsToDownload)), fileExtension: fileExtension)
         }.resume()
     }
     
@@ -157,7 +164,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         config.timeoutIntervalForRequest = 10
         let session = URLSession(configuration: config)
         
-        session.dataTask(with: url) { [weak self] data, _, _ in
+        session.dataTask(with: url) { [weak self] data, response, _ in
             defer { semaphore.signal() }
             
             guard let self = self,
@@ -166,7 +173,9 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
                 return
             }
             
-            result = self.parseM3U8(content: content, baseURL: url)
+            // 使用响应的 URL 作为基准
+            let playlistURL = response?.url ?? url
+            result = self.parseM3U8(content: content, baseURL: playlistURL)
         }.resume()
         
         // 等待最多 10 秒
@@ -175,16 +184,16 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     }
     
     /// 下载片段（支持递归下载多个片段拼接）
-    private func downloadSegments(_ urls: [URL]) {
-        downloadNextSegment(from: urls, accumulatedData: Data())
+    private func downloadSegments(_ urls: [URL], fileExtension: String) {
+        downloadNextSegment(from: urls, accumulatedData: Data(), fileExtension: fileExtension)
     }
     
-    private func downloadNextSegment(from urls: [URL], accumulatedData: Data) {
+    private func downloadNextSegment(from urls: [URL], accumulatedData: Data, fileExtension: String) {
         // 如果已经收集了足够的数据（比如超过 10 秒的高音质数据量），或者没有更多片段了，就结束
         // 注意：TS 文件有头部开销，所以稍微多下载一点
         if accumulatedData.count >= targetBytes || urls.isEmpty {
             if accumulatedData.count > 1000 {
-                saveAndComplete(data: accumulatedData, isTS: true)
+                saveAndComplete(data: accumulatedData, fileExtension: fileExtension)
             } else {
                 print("StreamSampler: 数据不足以识别")
                 callCompletion(nil)
@@ -208,7 +217,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
                 print("StreamSampler: 片段下载失败 - \(error.localizedDescription)")
                 // 如果已经有数据了，就尝试使用已有的
                 if accumulatedData.count > 10000 {
-                    self.saveAndComplete(data: accumulatedData, isTS: true)
+                    self.saveAndComplete(data: accumulatedData, fileExtension: fileExtension)
                 } else {
                     self.callCompletion(nil)
                 }
@@ -217,7 +226,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             
             guard let data = data, data.count > 0 else {
                 // 如果当前片段为空，尝试下一个
-                self.downloadNextSegment(from: remainingURLs, accumulatedData: accumulatedData)
+                self.downloadNextSegment(from: remainingURLs, accumulatedData: accumulatedData, fileExtension: fileExtension)
                 return
             }
             
@@ -227,17 +236,19 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             newData.append(data)
             
             // 递归下载下一个
-            self.downloadNextSegment(from: remainingURLs, accumulatedData: newData)
+            self.downloadNextSegment(from: remainingURLs, accumulatedData: newData, fileExtension: fileExtension)
             
         }.resume()
     }
     
-    private func saveAndComplete(data: Data, isTS: Bool) {
-        let url = isTS ? tempTSFileURL : tempFileURL
+    private func saveAndComplete(data: Data, fileExtension: String) {
+        let fileName = "stream_sample.\(fileExtension)"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
         do {
             try? FileManager.default.removeItem(at: url)
             try data.write(to: url)
-            print("StreamSampler: 采集完成 (Total: \(data.count) bytes)")
+            print("StreamSampler: 采集完成 (Total: \(data.count) bytes, 文件: \(fileName))")
             callCompletion(url)
         } catch {
             print("StreamSampler: 保存文件失败 - \(error)")
@@ -287,7 +298,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         }
         
         // 保存到临时文件
-        saveAndComplete(data: receivedData, isTS: false)
+        saveAndComplete(data: receivedData, fileExtension: "mp3")
         
         receivedData = Data()
     }
