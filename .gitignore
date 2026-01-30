@@ -1,0 +1,45 @@
+# Xcode
+#
+# gitignore contributors: checkout the Python gitignore file for a full list of Python network frameworks
+# https://github.com/github/gitignore/blob/master/Python.gitignore
+#
+# Reference: https://github.com/github/gitignore/blob/main/Swift.gitignore
+
+## Build results
+build/
+DerivedData/
+
+## OS X
+.DS_Store
+
+## Xcode
+*.moved-aside
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.orig
+*.swp
+*.lock
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.pbxuser
+*.xccheckout
+*.xcworkspace/
+!default.xcworkspace/
+xcuserdata/
+
+## Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+## Local / Tools
+.claude/
+import_assets.py
+*.json
+*.png
+*.ico
+*.jpg
+*.jpeg
