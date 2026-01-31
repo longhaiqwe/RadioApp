@@ -43,6 +43,8 @@ class ShazamMatcher: NSObject, ObservableObject {
     // 内部记录当前正在匹配的文件
     var currentMatchingFileURL: URL?
     private var captureEndTime: Date? // 记录采集完成的时间，用于校准歌词同步
+    private var isHLSStream: Bool = false // 是否是 HLS 流
+    private var hlsStreamOffset: TimeInterval = 0 // HLS 动态偏移量
     
     private var session: SHSession?
     
@@ -92,7 +94,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         print("ShazamMatcher: 开始识别...")
         
         // 使用 StreamSampler 下载音频片段
-        StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL in
+        StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL, isHLS, hlsOffset in
             guard let self = self else { return }
             
             if let fileURL = fileURL {
@@ -100,6 +102,8 @@ class ShazamMatcher: NSObject, ObservableObject {
                     self.matchingProgress = "正在识别..."
                     self.captureEndTime = Date() // 记录采集完成时间
                     self.currentMatchingFileURL = fileURL // 保存 URL 供兜底使用
+                    self.isHLSStream = isHLS
+                    self.hlsStreamOffset = hlsOffset
                     self.matchFile(at: fileURL)
                 }
             } else {
@@ -475,7 +479,18 @@ extension ShazamMatcher: SHSessionDelegate {
                     // 对于 ACRCloud，使用返回的 offset
                     // 时间基准依然使用采集完成时间
                     self.matchDate = self.captureEndTime ?? Date()
-                    self.matchOffset = offset ?? 0
+                    let rawOffset = offset ?? 0
+                    
+                    // 根据流类型应用不同的偏移量校正
+                    if self.isHLSStream {
+                        // HLS 流：歌词偏慢，需要加上 HLS 动态偏移量
+                        self.matchOffset = rawOffset + self.hlsStreamOffset
+                        print("ACRCloud: 应用 HLS 偏移量 +\(String(format: "%.1f", self.hlsStreamOffset))s")
+                    } else {
+                        // MP3 直播流：歌词偏快，需要减去缓冲时延 (-3.5s)
+                        self.matchOffset = max(0, rawOffset - 3.5)
+                        print("ACRCloud: 应用 MP3 缓冲校正 -3.5s")
+                    }
                     
                     // Fetch lyrics
                     self.isFetchingLyrics = true
@@ -620,9 +635,20 @@ class MusicPlatformService {
                let result = json["result"] as? [String: Any],
                let songs = result["songs"] as? [[String: Any]],
                let firstSong = songs.first,
-               let id = firstSong["id"] as? Int {
-                print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(firstSong["name"] ?? "")")
-                return String(id)
+               let id = firstSong["id"] as? Int,
+               let resultName = firstSong["name"] as? String {
+                
+                // 严格校验：歌名必须匹配
+                let normalizedQuery = title.lowercased().replacingOccurrences(of: " ", with: "")
+                let normalizedResult = resultName.lowercased().replacingOccurrences(of: " ", with: "")
+                
+                if normalizedQuery.contains(normalizedResult) || normalizedResult.contains(normalizedQuery) {
+                    print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(resultName) ✓ 匹配")
+                    return String(id)
+                } else {
+                    print("MusicPlatformService: NetEase 搜索结果不匹配 - Query: '\(title)', Result: '\(resultName)' ✗")
+                    return nil
+                }
             } else {
                  print("MusicPlatformService: NetEase 搜索未找到结果或解析失败")
             }

@@ -10,7 +10,9 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var urlSession: URLSession?
     private var dataTask: URLSessionDataTask?
     private var receivedData = Data()
-    private var completion: ((URL?) -> Void)?
+    private var completion: ((URL?, Bool, TimeInterval) -> Void)?
+    private var isHLSStream_: Bool = false
+    private var hlsSegmentOffset: TimeInterval = 0
     
     // 采样配置
     // 采样配置
@@ -38,18 +40,22 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     }
     
     /// 从流 URL 采样一段音频
-    func sampleStream(from urlString: String, completion: @escaping (URL?) -> Void) {
+    /// - Parameters:
+    ///   - urlString: 流 URL
+    ///   - completion: (文件URL, 是否HLS, HLS偏移量秒数)
+    func sampleStream(from urlString: String, completion: @escaping (URL?, Bool, TimeInterval) -> Void) {
         // 取消之前的任务
         cancel()
         
         self.completion = completion
         self.receivedData = Data()
         self.currentFileExtension = "mp3" // Reset to default
-
+        self.isHLSStream_ = false
+        self.hlsSegmentOffset = 0
         
         guard let url = URL(string: urlString) else {
             print("StreamSampler: Invalid URL: \(urlString)")
-            completion(nil)
+            completion(nil, false, 0)
             return
         }
         
@@ -57,6 +63,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
         
         // 检测是否为 HLS 流
         if isHLSStream(urlString) {
+            self.isHLSStream_ = true
             print("StreamSampler: 检测到 HLS 流，开始解析 m3u8...")
             sampleHLSStream(from: url)
         } else {
@@ -102,15 +109,34 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             
             print("StreamSampler: m3u8 内容获取成功，开始解析...")
             
-            // 2. 解析 m3u8 获取片段 URL
+            // 2. 解析 m3u8 获取片段 URL 和时长
             // 使用响应的 URL 作为基准（处理重定向情况）
             let playlistURL = response?.url ?? url
-            let segmentURLs = self.parseM3U8(content: content, baseURL: playlistURL)
+            let (segmentURLs, segmentDurations) = self.parseM3U8WithDurations(content: content, baseURL: playlistURL)
             
             if segmentURLs.isEmpty {
                 print("StreamSampler: m3u8 中未找到媒体片段")
                 self.callCompletion(nil)
                 return
+            }
+            
+            // 计算 HLS 偏移量
+            // 假设：播放器通常落后于最新分片约 3 个片段
+            // 我们下载的是列表末尾的最新片段 (前 3 个)
+            // 偏移量 = 播放器落后的片段时长总和
+            let playerLagSegments = 3  // 播放器落后的片段数
+            let totalSegments = segmentURLs.count
+            
+            if totalSegments > playerLagSegments {
+                // 计算播放器落后的时长 (最后 playerLagSegments 个片段的总时长)
+                let lagStartIndex = totalSegments - playerLagSegments
+                let lagDuration = segmentDurations.suffix(playerLagSegments).reduce(0, +)
+                self.hlsSegmentOffset = lagDuration
+                print("StreamSampler: HLS 偏移量计算: 播放器落后 \(playerLagSegments) 个片段, 约 \(String(format: "%.1f", lagDuration)) 秒")
+            } else {
+                // 片段太少，使用默认值
+                self.hlsSegmentOffset = 10.0
+                print("StreamSampler: HLS 片段较少，使用默认偏移量 10s")
             }
             
             print("StreamSampler: 找到 \(segmentURLs.count) 个片段，开始下载前 \(min(self.hlsSegmentsToDownload, segmentURLs.count)) 个...")
@@ -126,16 +152,37 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             self.downloadSegments(Array(segmentURLs.prefix(self.hlsSegmentsToDownload)), fileExtension: fileExtension)
         }.resume()
     }
-    
-    /// 解析 m3u8 播放列表，提取媒体片段 URL
+    /// 解析 m3u8 播放列表，提取媒体片段 URL（旧版本，保持兼容）
     private func parseM3U8(content: String, baseURL: URL) -> [URL] {
+        let (urls, _) = parseM3U8WithDurations(content: content, baseURL: baseURL)
+        return urls
+    }
+    
+    /// 解析 m3u8 播放列表，提取媒体片段 URL 和时长
+    private func parseM3U8WithDurations(content: String, baseURL: URL) -> ([URL], [TimeInterval]) {
         var segmentURLs: [URL] = []
+        var segmentDurations: [TimeInterval] = []
         let lines = content.components(separatedBy: .newlines)
+        
+        var currentDuration: TimeInterval = 0
         
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             
-            // 跳过注释和空行
+            // 解析 EXTINF 获取时长
+            if trimmed.hasPrefix("#EXTINF:") {
+                // 格式: #EXTINF:6.0, 或 #EXTINF:6.006,title
+                let durationPart = trimmed.dropFirst("#EXTINF:".count)
+                if let commaIndex = durationPart.firstIndex(of: ",") {
+                    let durationString = String(durationPart[..<commaIndex])
+                    currentDuration = TimeInterval(durationString) ?? 0
+                } else {
+                    currentDuration = TimeInterval(durationPart) ?? 0
+                }
+                continue
+            }
+            
+            // 跳过其他注释和空行
             if trimmed.isEmpty || trimmed.hasPrefix("#") {
                 // 检查是否是嵌套的 m3u8（多码率）
                 if trimmed.hasPrefix("#EXT-X-STREAM-INF") {
@@ -152,20 +199,28 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
                 if segmentURL.pathExtension.lowercased() == "m3u8" || trimmed.hasSuffix(".m3u8") {
                     // 递归获取实际片段
                     print("StreamSampler: 发现嵌套 m3u8: \(segmentURL)")
-                    return fetchNestedM3U8(from: segmentURL)
+                    return fetchNestedM3U8WithDurations(from: segmentURL)
                 }
                 
                 segmentURLs.append(segmentURL)
+                segmentDurations.append(currentDuration > 0 ? currentDuration : 6.0) // 默认 6 秒
+                currentDuration = 0 // 重置
             }
         }
         
-        return segmentURLs
+        return (segmentURLs, segmentDurations)
     }
     
     /// 获取嵌套的 m3u8 内容
     private func fetchNestedM3U8(from url: URL) -> [URL] {
+        let (urls, _) = fetchNestedM3U8WithDurations(from: url)
+        return urls
+    }
+    
+    /// 获取嵌套的 m3u8 内容（带时长）
+    private func fetchNestedM3U8WithDurations(from url: URL) -> ([URL], [TimeInterval]) {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: [URL] = []
+        var result: ([URL], [TimeInterval]) = ([], [])
         
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
@@ -182,7 +237,7 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             
             // 使用响应的 URL 作为基准
             let playlistURL = response?.url ?? url
-            result = self.parseM3U8(content: content, baseURL: playlistURL)
+            result = self.parseM3U8WithDurations(content: content, baseURL: playlistURL)
         }.resume()
         
         // 等待最多 10 秒
@@ -397,8 +452,10 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     
     /// 安全地调用完成回调
     private func callCompletion(_ url: URL?) {
+        let isHLS = self.isHLSStream_
+        let offset = self.hlsSegmentOffset
         DispatchQueue.main.async { [weak self] in
-            self?.completion?(url)
+            self?.completion?(url, isHLS, offset)
             self?.completion = nil
         }
     }
