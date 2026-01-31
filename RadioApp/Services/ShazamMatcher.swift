@@ -381,7 +381,15 @@ extension ShazamMatcher: SHSessionDelegate {
             self.isMatching = false
             self.matchingProgress = ""
             
-            if let mediaItem = match.mediaItems.first {
+            // 优先选择非 Live / Demo 版本
+            // 遍历所有匹配结果，寻找标题中不包含 "Live" 或 "Demo" 的项
+            let validMatch = match.mediaItems.first { item in
+                let title = item.title ?? ""
+                return !title.localizedCaseInsensitiveContains("Live") && 
+                       !title.localizedCaseInsensitiveContains("Demo")
+            } ?? match.mediaItems.first
+            
+            if let mediaItem = validMatch {
                 self.lastMatch = mediaItem
                 
                 // 记录匹配时间点和偏移量
