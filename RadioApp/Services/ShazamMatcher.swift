@@ -592,26 +592,43 @@ class MusicPlatformService {
         return nil
     }
     
-    /// 简单的字符串匹配校验
-    private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String) -> Bool {
-        let normalize = { (str: String) -> String in
-            return str.lowercased()
-                .replacingOccurrences(of: " ", with: "")
-                .replacingOccurrences(of: "(", with: "")
-                .replacingOccurrences(of: ")", with: "")
-                .replacingOccurrences(of: "-", with: "")
-                .replacingOccurrences(of: ".", with: "")
+    /// 字符串归一化处理：繁转简、去括号内容、去标点、去语气干扰
+    private func normalizeString(_ str: String) -> String {
+        // 1. 繁体转简体
+        let simplified = str.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? str
+        
+        // 2. 去除括号及其内容 (支持英文(), 中文（）, 方括号 [])
+        // 例如: "喜欢你 (粤语版)" -> "喜欢你"
+        var result = simplified.replacingOccurrences(of: "\\s*[\\(\\[（\\{][^\\)\\]）\\}]*[\\)\\]）\\}]", with: "", options: .regularExpression)
+        
+        // 3. 转小写
+        result = result.lowercased()
+        
+        // 4. 移除特定的干扰词 (如 "粤语", "国语", "版本" 等)
+        let fillers = ["粤语", "国语", "版", "music", "video", "official"]
+        for filler in fillers {
+            result = result.replacingOccurrences(of: filler, with: "")
         }
         
-        // 标题匹配：只要包含即可
-        let qTitle = normalize(queryTitle)
-        let rTitle = normalize(resultTitle)
-        let titleMatch = qTitle.contains(rTitle) || rTitle.contains(qTitle)
+        // 5. 移除所有标点符号和空格，保留字母数字和中文字符
+        result = result.components(separatedBy: CharacterSet.punctuationCharacters.union(.symbols).union(.whitespacesAndNewlines))
+            .joined()
+        
+        return result
+    }
+    
+    /// 简单的字符串匹配校验
+    private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String) -> Bool {
+        let qTitle = normalizeString(queryTitle)
+        let rTitle = normalizeString(resultTitle)
+        
+        // 标题匹配：只要包含即可 (且不能为空)
+        let titleMatch = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle.contains(rTitle) || rTitle.contains(qTitle))
         
         // 歌手匹配
-        let qArtist = normalize(queryArtist)
-        let rArtist = normalize(resultArtist)
-        let artistMatch = qArtist.contains(rArtist) || rArtist.contains(qArtist)
+        let qArtist = normalizeString(queryArtist)
+        let rArtist = normalizeString(resultArtist)
+        let artistMatch = !qArtist.isEmpty && !rArtist.isEmpty && (qArtist.contains(rArtist) || rArtist.contains(qArtist))
         
         return titleMatch && artistMatch
     }
@@ -652,15 +669,14 @@ class MusicPlatformService {
                let id = firstSong["id"] as? Int,
                let resultName = firstSong["name"] as? String {
                 
-                // 严格校验：歌名必须匹配
-                let normalizedQuery = title.lowercased().replacingOccurrences(of: " ", with: "")
-                let normalizedResult = resultName.lowercased().replacingOccurrences(of: " ", with: "")
+                let singers = firstSong["artists"] as? [[String: Any]] ?? []
+                let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
                 
-                if normalizedQuery.contains(normalizedResult) || normalizedResult.contains(normalizedQuery) {
+                if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultName, resultArtist: resultArtist) {
                     print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(resultName) ✓ 匹配")
                     return String(id)
                 } else {
-                    print("MusicPlatformService: NetEase 搜索结果不匹配 - Query: '\(title)', Result: '\(resultName)' ✗")
+                    print("MusicPlatformService: NetEase 搜索结果不匹配 - Query: '\(title)' vs Result: '\(resultName)', Artist: '\(resultArtist)' ✗")
                     return nil
                 }
             } else {
