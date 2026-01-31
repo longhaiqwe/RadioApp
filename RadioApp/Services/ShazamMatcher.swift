@@ -622,21 +622,69 @@ class MusicPlatformService {
         return result
     }
     
-    /// 简单的字符串匹配校验
+    /// 将歌手字符串处理为 Token 集合，处理分隔符和中英文混合
+    private func normalizeArtistTokens(_ text: String) -> Set<String> {
+        // 1. 繁体转简体
+        var processing = text.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? text
+        
+        // 2. 移除括号及其内容 (歌手名中的附加信息通常不影响核心匹配)
+        processing = processing.replacingOccurrences(of: "\\s*[\\(\\[（\\{][^\\)\\]）\\}]*[\\)\\]）\\}]", with: "", options: .regularExpression)
+        
+        // 3. 替换常见分隔符为为空格
+        // 包括 & / , + 、 以及 feat ft vs with 等连接词
+        let separators = ["&", "/", ",", "+", "、", "feat.", "ft.", "vs.", "with", "_", "|"]
+        for sep in separators {
+            processing = processing.replacingOccurrences(of: sep, with: " ", options: .caseInsensitive)
+        }
+        
+        // 4. 在中英文之间插入空格 (关键改进：解决 "伯爵Johnny" 连在一起无法匹配 "伯爵" 的问题)
+        // 中文 followed by English/Number
+        processing = processing.replacingOccurrences(of: "([\\u4e00-\\u9fa5])([a-zA-Z0-9])", with: "$1 $2", options: .regularExpression)
+        // English/Number followed by Chinese
+        processing = processing.replacingOccurrences(of: "([a-zA-Z0-9])([\\u4e00-\\u9fa5])", with: "$1 $2", options: .regularExpression)
+        
+        // 5. 转小写
+        processing = processing.lowercased()
+        
+        // 6. 分割并过滤
+        let tokens = processing.components(separatedBy: CharacterSet.whitespacesAndNewlines)
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) } // 去除残留标点
+            .filter { !$0.isEmpty }
+            
+        return Set(tokens)
+    }
+    
+    /// 增强的匹配校验
     private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String) -> Bool {
-        // 歌名：移除括号内容，忽略版本差异
+        // 1. 歌名匹配
+        // 保持原有的逻辑：移除括号内容，忽略标点和空格，进行包含判断
         let qTitle = normalizeString(queryTitle, removeParenthesesContent: true)
         let rTitle = normalizeString(resultTitle, removeParenthesesContent: true)
         
         // 标题匹配：只要包含即可 (且不能为空)
         let titleMatch = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle.contains(rTitle) || rTitle.contains(qTitle))
         
-        // 歌手匹配：保留括号内容，支持别名匹配 (如 "三毛" 匹配 "陈墨一(三毛)")
-        let qArtist = normalizeString(queryArtist, removeParenthesesContent: false)
-        let rArtist = normalizeString(resultArtist, removeParenthesesContent: false)
-        let artistMatch = !qArtist.isEmpty && !rArtist.isEmpty && (qArtist.contains(rArtist) || rArtist.contains(qArtist))
+        if !titleMatch { return false }
         
-        return titleMatch && artistMatch
+        // 2. 歌手匹配 (增强版 Token Set 匹配)
+        let qTokens = normalizeArtistTokens(queryArtist)
+        let rTokens = normalizeArtistTokens(resultArtist)
+        
+        // 如果没有任何 Token (比如纯符号)，回退到原始字符串包含检查
+        if qTokens.isEmpty || rTokens.isEmpty {
+            let qSimple = normalizeString(queryArtist, removeParenthesesContent: false)
+            let rSimple = normalizeString(resultArtist, removeParenthesesContent: false)
+            return !qSimple.isEmpty && !rSimple.isEmpty && (qSimple.contains(rSimple) || rSimple.contains(qSimple))
+        }
+        
+        // 只要一方是另一方的子集，即认为匹配
+        // Case 1: 用户搜 "Linkin Park" (q), 结果 "Linkin Park & Jay-Z" (r). q is subset of r. -> Match
+        // Case 2: 用户搜 "伯爵 & 唐伯虎" (q), 结果 "伯爵 Johnny/ 唐伯虎 Annie" (r). q is subset of r. -> Match
+        // Case 3: 用户搜 "Artist A feat. B" (q), 结果 "Artist A" (r). r is subset of q. -> Match
+        let match1 = qTokens.isSubset(of: rTokens)
+        let match2 = rTokens.isSubset(of: qTokens)
+        
+        return match1 || match2
     }
 
     
