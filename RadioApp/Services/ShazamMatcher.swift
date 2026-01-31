@@ -499,11 +499,12 @@ extension ShazamMatcher: SHSessionDelegate {
                         self.matchOffset = rawOffset + self.hlsStreamOffset
                         print("ACRCloud: 应用 HLS 偏移量 +\(String(format: "%.1f", self.hlsStreamOffset))s")
                     } else {
-                        // MP3 直播流：以开始录制为基准时，用户反馈快了 1s
-                        // 将之前的 +0.5s 调整为 -0.5s
-                        let mp3Correction: TimeInterval = -0.5 
+                        // MP3 直播流 (ACRCloud 特有逻辑)
+                        // 用户反馈高级识别后歌词快了 3-4 句 (约 12s)
+                        // 这可能是因为 ACRCloud 返回的时间戳定义不同（例如指向片段末尾）或者其他延迟
+                        let mp3Correction: TimeInterval = -12.0
                         self.matchOffset = rawOffset + mp3Correction
-                        print("ACRCloud: 应用 MP3 补偿 \(mp3Correction)s (以采样开始为基准)")
+                        print("ACRCloud: 应用 MP3 补偿 \(mp3Correction)s (高级识别特调)")
                     }
                     
                     // Fetch lyrics
