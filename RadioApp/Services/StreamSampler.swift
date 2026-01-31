@@ -121,15 +121,14 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             }
             
             // 计算 HLS 偏移量
-            // 假设：播放器通常落后于最新分片约 3 个片段
+            // 假设：播放器通常落后于最新分片约 2 个片段（之前是 3 个，导致歌词偏快）
             // 我们下载的是列表末尾的最新片段 (前 3 个)
             // 偏移量 = 播放器落后的片段时长总和
-            let playerLagSegments = 3  // 播放器落后的片段数
+            let playerLagSegments = 2  // 播放器落后的片段数
             let totalSegments = segmentURLs.count
             
             if totalSegments > playerLagSegments {
                 // 计算播放器落后的时长 (最后 playerLagSegments 个片段的总时长)
-                let lagStartIndex = totalSegments - playerLagSegments
                 let lagDuration = segmentDurations.suffix(playerLagSegments).reduce(0, +)
                 self.hlsSegmentOffset = lagDuration
                 print("StreamSampler: HLS 偏移量计算: 播放器落后 \(playerLagSegments) 个片段, 约 \(String(format: "%.1f", lagDuration)) 秒")
