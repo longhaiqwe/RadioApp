@@ -43,3 +43,4 @@ import_assets.py
 *.ico
 *.jpg
 *.jpeg
+*.o
