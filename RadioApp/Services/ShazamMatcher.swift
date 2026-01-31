@@ -22,6 +22,17 @@ class ShazamMatcher: NSObject, ObservableObject {
     @Published var lyrics: String? //  New lyrics property
     @Published var isFetchingLyrics = false // 歌词加载状态
     
+    // 歌词同步数据
+    @Published var matchDate: Date? // 识别成功的时间点
+    @Published var matchOffset: TimeInterval = 0 // 识别时歌曲的进度
+    
+    // 计算属性：当前歌曲的预估进度
+    var currentSongTime: TimeInterval {
+        guard let matchDate = matchDate else { return 0 }
+        let timeSinceMatch = Date().timeIntervalSince(matchDate)
+        return matchOffset + timeSinceMatch
+    }
+    
     // ACRCloud 集成
     @Published var showAdvancedRecognitionPrompt = false
     @Published var remainingCredits: Int = SubscriptionManager.shared.currentCredits
@@ -31,6 +42,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // 内部记录当前正在匹配的文件
     var currentMatchingFileURL: URL?
+    private var captureEndTime: Date? // 记录采集完成的时间，用于校准歌词同步
     
     private var session: SHSession?
     
@@ -55,7 +67,8 @@ class ShazamMatcher: NSObject, ObservableObject {
         customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
         isFetchingLyrics = false
-
+        matchDate = nil // Reset match date
+        matchOffset = 0 // Reset offset
         
         // 获取当前播放的电台 URL
         guard let station = AudioPlayerManager.shared.currentStation,
@@ -68,6 +81,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         isMatching = true
         matchingProgress = "正在采集音频..."
+        self.captureEndTime = nil // 重置
         
         // 确保 session 已初始化
         if session == nil {
@@ -84,9 +98,10 @@ class ShazamMatcher: NSObject, ObservableObject {
             if let fileURL = fileURL {
                 DispatchQueue.main.async {
                     self.matchingProgress = "正在识别..."
+                    self.captureEndTime = Date() // 记录采集完成时间
                     self.currentMatchingFileURL = fileURL // 保存 URL 供兜底使用
+                    self.matchFile(at: fileURL)
                 }
-                self.matchFile(at: fileURL)
             } else {
                 self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
                                                 userInfo: [NSLocalizedDescriptionKey: "无法获取音频数据"]))
@@ -306,17 +321,16 @@ class ShazamMatcher: NSObject, ObservableObject {
             throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
         }
         
-        class ConsumptionState {
-            var inputConsumed = false
-        }
-        let state = ConsumptionState()
+        let state = UnsafeMutablePointer<Bool>.allocate(capacity: 1)
+        state.initialize(to: false)
+        defer { state.deallocate() }
         
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if state.inputConsumed {
+            if state.pointee {
                 outStatus.pointee = .endOfStream
                 return nil
             }
-            state.inputConsumed = true
+            state.pointee = true
             outStatus.pointee = .haveData
             return inputBuffer
         }
@@ -341,6 +355,8 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.customMatchResult = nil
             self.lyrics = nil
             self.isFetchingLyrics = false
+            self.matchDate = nil // Reset match date
+            self.matchOffset = 0 // Reset offset
             self.lastError = nil
             self.isMatching = false
             self.matchingProgress = ""
@@ -361,9 +377,16 @@ extension ShazamMatcher: SHSessionDelegate {
             
             if let mediaItem = match.mediaItems.first {
                 self.lastMatch = mediaItem
+                
+                // 记录匹配时间点和偏移量
+                // 使用采集完成时间作为基准
+                self.matchDate = self.captureEndTime ?? Date()
+                self.matchOffset = mediaItem.predictedCurrentMatchOffset
+                
                 print("\n=== 🎵 Shazam 识别成功 ===")
                 print("歌曲: \(mediaItem.title ?? "未知")")
                 print("歌手: \(mediaItem.artist ?? "未知")")
+                print("进度偏移: \(String(format: "%.2f", self.matchOffset))s")
                 print("===========================\n")
                 
                 // Fetch lyrics
@@ -432,7 +455,7 @@ extension ShazamMatcher: SHSessionDelegate {
         SubscriptionManager.shared.consumeCredit()
         self.remainingCredits = SubscriptionManager.shared.currentCredits
         
-        ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist in
+        ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist, offset in
             guard let self = self else { return }
             
             DispatchQueue.main.async {
@@ -444,9 +467,15 @@ extension ShazamMatcher: SHSessionDelegate {
                     print("\n=== 🎵 ACRCloud 识别成功 ===")
                     print("歌曲: \(song)")
                     print("歌手: \(artist ?? "未知")")
+                    print("Offset: \(String(format: "%.2f", offset ?? 0))s")
                     print("===========================\n")
                     
                     self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
+                    
+                    // 对于 ACRCloud，使用返回的 offset
+                    // 时间基准依然使用采集完成时间
+                    self.matchDate = self.captureEndTime ?? Date()
+                    self.matchOffset = offset ?? 0
                     
                     // Fetch lyrics
                     self.isFetchingLyrics = true
@@ -701,3 +730,5 @@ class MusicPlatformService {
         return nil
     }
 }
+
+

@@ -21,20 +21,20 @@ class ACRCloudMatcher: NSObject, ObservableObject {
     /// 开始识别音频
     /// - Parameters:
     ///   - fileURL: 本地音频文件 URL (采样后的音频)
-    ///   - completion: 成功返回 (歌曲名, 歌手名), 失败返回 (nil, nil)
-    func match(fileURL: URL, completion: @escaping (String?, String?) -> Void) {
+    ///   - completion: 成功返回 (歌曲名, 歌手名, 播放进度秒数), 失败返回 (nil, nil, nil)
+    func match(fileURL: URL, completion: @escaping (String?, String?, TimeInterval?) -> Void) {
         // 1. 检查配置
         guard ACRCloudConfiguration.accessKey != "YOUR_ACCESS_KEY",
               ACRCloudConfiguration.accessSecret != "YOUR_ACCESS_SECRET" else {
             print("ACRCloudMatcher: 请先配置 AccessKey 和 AccessSecret")
-            completion(nil, nil)
+            completion(nil, nil, nil)
             return
         }
         
         // 2. 读取音频数据
         guard let audioData = try? Data(contentsOf: fileURL) else {
             print("ACRCloudMatcher: 无法读取音频文件")
-            completion(nil, nil)
+            completion(nil, nil, nil)
             return
         }
         
@@ -54,7 +54,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
         )
         
         guard let signature = signature else {
-            completion(nil, nil)
+            completion(nil, nil, nil)
             return
         }
         
@@ -99,12 +99,12 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                 
                 if let error = error {
                     print("ACRCloudMatcher: 请求错误 - \(error.localizedDescription)")
-                    completion(nil, nil)
+                    completion(nil, nil, nil)
                     return
                 }
                 
                 guard let data = data else {
-                    completion(nil, nil)
+                    completion(nil, nil, nil)
                     return
                 }
                 
@@ -123,7 +123,13 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 let artists = music["artists"] as? [[String: Any]]
                                 let artistName = artists?.first?["name"] as? String
                                 
-                                completion(title, artistName)
+                                // 提取播放进度 (毫秒)
+                                var offset: TimeInterval?
+                                if let playOffsetMs = music["play_offset_ms"] as? Int {
+                                    offset = TimeInterval(playOffsetMs) / 1000.0
+                                }
+                                
+                                completion(title, artistName, offset)
                                 return
                             }
                         } else {
@@ -135,7 +141,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                     print("ACRCloudMatcher: JSON 解析失败 - \(error.localizedDescription)")
                 }
                 
-                completion(nil, nil)
+                completion(nil, nil, nil)
             }
         }.resume()
     }

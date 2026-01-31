@@ -883,32 +883,11 @@ struct PlayerView: View {
     // MARK: - 歌词视图
     // MARK: - 歌词布局 (用于 Overlay)
     private var lyricsLayout: some View {
-        ScrollViewReader { proxy in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    if let lyricsText = shazamMatcher.lyrics {
-                       let lines = lyricsText.components(separatedBy: "\n")
-                       ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                           let cleanLine = line.replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
-                           
-                           if !cleanLine.isEmpty {
-                               Text(cleanLine)
-                                   .font(.system(size: 16, weight: .medium))
-                                   .foregroundColor(NeonColors.cyan.opacity(0.9))
-                                   .multilineTextAlignment(.center)
-                                   .lineLimit(1)
-                                   .minimumScaleFactor(0.4) // 歌词长句自适应缩小
-                                   .minimumScaleFactor(0.4) // 歌词长句自适应缩小
-                                   .padding(.horizontal, 16)
-                                   .padding(.vertical, 2)
-                                   .padding(.vertical, 2)
-                                   .id(index)
-                           }
-                       }
-                    }
-                }
-                .padding(.vertical, 10)
-                .padding(.bottom, 20)
+        Group {
+            if let lyricsText = shazamMatcher.lyrics {
+                LyricsView(lyrics: lyricsText, matcher: shazamMatcher)
+            } else {
+                EmptyView()
             }
         }
         .frame(height: 320) // 增大高度以覆盖封面区域
