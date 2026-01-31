@@ -461,7 +461,7 @@ extension ShazamMatcher: SHSessionDelegate {
                         }
                     }
                 } else {
-                    self.lastError = NSError(domain: "ShazamMatcher", code: -3,
+                    self.lastError = NSError(domain: "ShazamMatcher", code: -4,
                                            userInfo: [NSLocalizedDescriptionKey: "高级识别也未找到匹配歌曲"])
                     print("ShazamMatcher: ACRCloud no match found")
                 }

@@ -550,10 +550,18 @@ struct PlayerView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                 
-                Text("很遗憾，该歌曲未收录入曲库")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.6))
-                    .multilineTextAlignment(.center)
+                if let error = shazamMatcher.lastError as NSError?, error.code == -4 {
+                     Text("这首歌太神秘了，连高级识别也没能找到它的踪迹...")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                } else {
+                    Text("很遗憾，该歌曲未收录入曲库")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                }
             }
             
             // 操作按钮
