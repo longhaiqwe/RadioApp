@@ -593,14 +593,18 @@ class MusicPlatformService {
         return nil
     }
     
-    /// 字符串归一化处理：繁转简、去括号内容、去标点、去语气干扰
-    private func normalizeString(_ str: String) -> String {
+    /// 字符串归一化处理：繁转简、去括号内容(可选)、去标点、去语气干扰
+    /// - Parameter removeParenthesesContent: 是否移除括号及其内容。歌名通常移除(如"粤语版")，歌手名通常保留(如"陈墨一(三毛)")
+    private func normalizeString(_ str: String, removeParenthesesContent: Bool = true) -> String {
         // 1. 繁体转简体
         let simplified = str.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? str
         
         // 2. 去除括号及其内容 (支持英文(), 中文（）, 方括号 [])
         // 例如: "喜欢你 (粤语版)" -> "喜欢你"
-        var result = simplified.replacingOccurrences(of: "\\s*[\\(\\[（\\{][^\\)\\]）\\}]*[\\)\\]）\\}]", with: "", options: .regularExpression)
+        var result = simplified
+        if removeParenthesesContent {
+            result = result.replacingOccurrences(of: "\\s*[\\(\\[（\\{][^\\)\\]）\\}]*[\\)\\]）\\}]", with: "", options: .regularExpression)
+        }
         
         // 3. 转小写
         result = result.lowercased()
@@ -620,15 +624,16 @@ class MusicPlatformService {
     
     /// 简单的字符串匹配校验
     private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String) -> Bool {
-        let qTitle = normalizeString(queryTitle)
-        let rTitle = normalizeString(resultTitle)
+        // 歌名：移除括号内容，忽略版本差异
+        let qTitle = normalizeString(queryTitle, removeParenthesesContent: true)
+        let rTitle = normalizeString(resultTitle, removeParenthesesContent: true)
         
         // 标题匹配：只要包含即可 (且不能为空)
         let titleMatch = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle.contains(rTitle) || rTitle.contains(qTitle))
         
-        // 歌手匹配
-        let qArtist = normalizeString(queryArtist)
-        let rArtist = normalizeString(resultArtist)
+        // 歌手匹配：保留括号内容，支持别名匹配 (如 "三毛" 匹配 "陈墨一(三毛)")
+        let qArtist = normalizeString(queryArtist, removeParenthesesContent: false)
+        let rArtist = normalizeString(resultArtist, removeParenthesesContent: false)
         let artistMatch = !qArtist.isEmpty && !rArtist.isEmpty && (qArtist.contains(rArtist) || rArtist.contains(qArtist))
         
         return titleMatch && artistMatch
