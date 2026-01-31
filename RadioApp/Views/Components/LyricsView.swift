@@ -33,7 +33,15 @@ struct LyricsView: View {
                             }
                             
                             // Bottom padding
-                            Color.clear.frame(height: geometry.size.height / 2)
+                            Color.clear.frame(height: geometry.size.height / 3)
+                            
+                            // 歌词来源免责声明
+                            Text("歌词来源于第三方平台，仅供参考")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.3))
+                                .padding(.bottom, 20)
+                            
+                            Color.clear.frame(height: geometry.size.height / 6)
                         }
                         .frame(maxWidth: .infinity)
                     }

@@ -42,7 +42,8 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // 内部记录当前正在匹配的文件
     var currentMatchingFileURL: URL?
-    private var captureEndTime: Date? // 记录采集完成的时间，用于校准歌词同步
+    private var captureStartTime: Date? // 记录采集开始的时间
+    private var captureEndTime: Date? // 记录采集完成的时间
     private var isHLSStream: Bool = false // 是否是 HLS 流
     private var hlsStreamOffset: TimeInterval = 0 // HLS 动态偏移量
     
@@ -83,6 +84,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         isMatching = true
         matchingProgress = "正在采集音频..."
+        self.captureStartTime = Date() // 记录采集开始时间
         self.captureEndTime = nil // 重置
         
         // 确保 session 已初始化
@@ -383,9 +385,20 @@ extension ShazamMatcher: SHSessionDelegate {
                 self.lastMatch = mediaItem
                 
                 // 记录匹配时间点和偏移量
-                // 使用采集完成时间作为基准
-                self.matchDate = self.captureEndTime ?? Date()
-                self.matchOffset = mediaItem.predictedCurrentMatchOffset
+                // 使用采集开始时间作为基准
+                self.matchDate = self.captureStartTime ?? Date()
+                
+                let rawOffset = mediaItem.predictedCurrentMatchOffset
+                
+                if self.isHLSStream {
+                    // HLS 特有逻辑：需要加上动态片段偏移量
+                    self.matchOffset = rawOffset + self.hlsStreamOffset
+                    print("Shazam HLS: 应用偏移 +\(String(format: "%.1f", self.hlsStreamOffset))s")
+                } else {
+                    // MP3 逻辑：用户反馈快了 1s，将之前的 +0.5s 调整为 -0.5s
+                    let shazamCorrection: TimeInterval = -0.5
+                    self.matchOffset = rawOffset + shazamCorrection
+                }
                 
                 print("\n=== 🎵 Shazam 识别成功 ===")
                 print("歌曲: \(mediaItem.title ?? "未知")")
@@ -476,20 +489,21 @@ extension ShazamMatcher: SHSessionDelegate {
                     
                     self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
                     
-                    // 对于 ACRCloud，使用返回的 offset
-                    // 时间基准依然使用采集完成时间
-                    self.matchDate = self.captureEndTime ?? Date()
+                    // 对于 ACRCloud，同样使用开始采集时间作为基准
+                    self.matchDate = self.captureStartTime ?? Date()
                     let rawOffset = offset ?? 0
                     
                     // 根据流类型应用不同的偏移量校正
                     if self.isHLSStream {
-                        // HLS 流：歌词偏慢，需要加上 HLS 动态偏移量
+                        // HLS 流：加上动态偏移
                         self.matchOffset = rawOffset + self.hlsStreamOffset
                         print("ACRCloud: 应用 HLS 偏移量 +\(String(format: "%.1f", self.hlsStreamOffset))s")
                     } else {
-                        // MP3 直播流：歌词偏快，需要减去缓冲时延 (-3.5s)
-                        self.matchOffset = max(0, rawOffset - 3.5)
-                        print("ACRCloud: 应用 MP3 缓冲校正 -3.5s")
+                        // MP3 直播流：以开始录制为基准时，用户反馈快了 1s
+                        // 将之前的 +0.5s 调整为 -0.5s
+                        let mp3Correction: TimeInterval = -0.5 
+                        self.matchOffset = rawOffset + mp3Correction
+                        print("ACRCloud: 应用 MP3 补偿 \(mp3Correction)s (以采样开始为基准)")
                     }
                     
                     // Fetch lyrics
