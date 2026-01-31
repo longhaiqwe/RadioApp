@@ -20,6 +20,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     @Published var lastError: Error?
     @Published var matchingProgress: String = ""
     @Published var lyrics: String? //  New lyrics property
+    @Published var isFetchingLyrics = false // 歌词加载状态
     
     // ACRCloud 集成
     @Published var showAdvancedRecognitionPrompt = false
@@ -51,7 +52,9 @@ class ShazamMatcher: NSObject, ObservableObject {
         lastError = nil
         lastMatch = nil
         customMatchResult = nil // Reset custom match
+        customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
+        isFetchingLyrics = false
 
         
         // 获取当前播放的电台 URL
@@ -337,6 +340,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.lastMatch = nil
             self.customMatchResult = nil
             self.lyrics = nil
+            self.isFetchingLyrics = false
             self.lastError = nil
             self.isMatching = false
             self.matchingProgress = ""
@@ -363,6 +367,7 @@ extension ShazamMatcher: SHSessionDelegate {
                 print("===========================\n")
                 
                 // Fetch lyrics
+                self.isFetchingLyrics = true
                 Task {
                     let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
                         title: mediaItem.title ?? "",
@@ -370,6 +375,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     )
                     await MainActor.run {
                         self.lyrics = fetchedLyrics
+                        self.isFetchingLyrics = false
                     }
                 }
             }
@@ -443,6 +449,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
                     
                     // Fetch lyrics
+                    self.isFetchingLyrics = true
                     Task {
                         let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
                             title: song,
@@ -450,6 +457,7 @@ extension ShazamMatcher: SHSessionDelegate {
                         )
                         await MainActor.run {
                             self.lyrics = fetchedLyrics
+                            self.isFetchingLyrics = false
                         }
                     }
                 } else {
@@ -470,7 +478,11 @@ class MusicPlatformService {
     // MARK: - QQ Music
     
     /// 搜索 QQ 音乐并获取 SongMID
-    func findQQMusicID(title: String, artist: String) async -> String? {
+    /// - Parameters:
+    ///   - title: 歌曲标题
+    ///   - artist: 歌手
+    ///   - strict: 是否开启严格匹配 (用于歌词获取，防止误匹配)
+    func findQQMusicID(title: String, artist: String, strict: Bool = false) async -> String? {
         // QQ 音乐搜索 API (Mobile Client Endpoint)
         // https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w={Query}&format=json
         
@@ -492,6 +504,19 @@ class MusicPlatformService {
                let list = songObj["list"] as? [[String: Any]],
                let firstSong = list.first,
                let songmid = firstSong["songmid"] as? String {
+                
+                // 严格匹配检查
+                if strict {
+                    let resultTitle = firstSong["songname"] as? String ?? ""
+                    let singers = firstSong["singer"] as? [[String: Any]] ?? []
+                    let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
+                    
+                    if !isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultTitle, resultArtist: resultArtist) {
+                        print("QQ Music Strict Match Failed: Query('\(title)', '\(artist)') vs Result('\(resultTitle)', '\(resultArtist)')")
+                        return nil
+                    }
+                }
+                
                 return songmid
             }
         } catch {
@@ -500,6 +525,31 @@ class MusicPlatformService {
         
         return nil
     }
+    
+    /// 简单的字符串匹配校验
+    private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String) -> Bool {
+        let normalize = { (str: String) -> String in
+            return str.lowercased()
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "(", with: "")
+                .replacingOccurrences(of: ")", with: "")
+                .replacingOccurrences(of: "-", with: "")
+                .replacingOccurrences(of: ".", with: "")
+        }
+        
+        // 标题匹配：只要包含即可
+        let qTitle = normalize(queryTitle)
+        let rTitle = normalize(resultTitle)
+        let titleMatch = qTitle.contains(rTitle) || rTitle.contains(qTitle)
+        
+        // 歌手匹配
+        let qArtist = normalize(queryArtist)
+        let rArtist = normalize(resultArtist)
+        let artistMatch = qArtist.contains(rArtist) || rArtist.contains(qArtist)
+        
+        return titleMatch && artistMatch
+    }
+
     
     // MARK: - NetEase Cloud Music
     
@@ -558,7 +608,7 @@ class MusicPlatformService {
     }
     
     private func fetchQQLyrics(title: String, artist: String) async -> String? {
-        guard let songmid = await findQQMusicID(title: title, artist: artist) else { return nil }
+        guard let songmid = await findQQMusicID(title: title, artist: artist, strict: true) else { return nil }
         
         // QQ 音乐歌词接口
         // https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={songmid}&format=json&nobase64=1

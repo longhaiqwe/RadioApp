@@ -759,7 +759,17 @@ struct PlayerView: View {
             .padding(.horizontal, 32)
             
             // 2. 歌词区域 (紧接在下方)
-            if shazamMatcher.lyrics != nil {
+            if shazamMatcher.isFetchingLyrics {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.8)))
+                        .scaleEffect(0.8)
+                    Text("歌词加载中...")
+                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 14))
+                }
+                .padding(.top, 40)
+            } else if shazamMatcher.lyrics != nil {
                 lyricsLayout
                     .padding(.top, 12)
             } else {
