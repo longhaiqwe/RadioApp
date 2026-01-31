@@ -20,7 +20,7 @@ class SubscriptionManager: ObservableObject {
     // MARK: - 持久化 Key
     private let isPurchasedKey = "isPro_purchased"
     private let creditsKey = "recognition_credits"
-    private let initialCredits = 200
+    private let initialCredits = 50
     
     private init() {
         // 启动时检查购买状态

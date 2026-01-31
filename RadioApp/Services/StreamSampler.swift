@@ -339,14 +339,59 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     }
     
     /// 寻找 ADTS 同步字 (0xFF 0xFx)
+    /// 增加更严格的校验：检查 Frame Length 并验证下一帧的 Sync Word
     private func findADTSSync(in data: Data) -> Int? {
-        guard data.count > 2 else { return nil }
+        guard data.count > 10 else { return nil } // 至少需要一个头部 + 极少量数据
         
-        for i in 0..<(data.count - 1) {
+        let end = data.count - 1
+        
+        for i in 0..<end {
+            // 1. 初步匹配 Sync Word (12 bits: 0xFFF)
             if data[i] == 0xFF && (data[i+1] & 0xF0) == 0xF0 {
-                return i
+                
+                // 确保有足够数据读取头部 (至少 7 字节)
+                if i + 7 > data.count {
+                    continue
+                }
+                
+                // 2. 解析 Frame Length
+                // Frame Length 是 13 bits，从第 30 bit 开始
+                // Byte 3 (后2位) + Byte 4 (全8位) + Byte 5 (前3位)
+                let b3 = Int(data[i+3])
+                let b4 = Int(data[i+4])
+                let b5 = Int(data[i+5])
+                
+                let frameLength = ((b3 & 0x03) << 11) | (b4 << 3) | ((b5 & 0xE0) >> 5)
+                
+                if frameLength < 7 {
+                    // Frame Length 甚至小于头部长度，肯定不对
+                    continue
+                }
+                
+                // 3. 验证下一帧的 Sync Word
+                let nextIndex = i + frameLength
+                
+                // 只有当下一帧也在数据范围内时，才进行验证
+                // 如果当前帧直接结束在数据包末尾，我们也认为它是合法的（因为无法验证下一帧了，但前面数据也没问题）
+                // 但为了保险起见，我们优先寻找能验证下一帧的点。
+                // 考虑到我们采集了 100KB 数据，帧很短，肯定能找到中间的帧。
+                
+                if nextIndex + 1 < data.count {
+                    if data[nextIndex] == 0xFF && (data[nextIndex+1] & 0xF0) == 0xF0 {
+                        // 验证通过！找到了真正的帧头
+                        return i
+                    } else {
+                        // 下一帧位置不是 Sync Word，说明当前这个是误判
+                        continue
+                    }
+                } else {
+                    // 帧跨越了结尾，暂且认为是可能的（如果我们一直没找到经过验证的帧，最后没办法可能会用到这种，
+                    // 但通常流数据中间肯定有完整帧）。这里由于我们想跳过开头垃圾数据，所以只接受“双重验证”成功的。
+                    continue
+                }
             }
         }
+        
         return nil
     }
     
