@@ -23,7 +23,7 @@ struct LyricsView: View {
                                 let isActive = isLineActive(line, currentTime: currentTime)
                                 
                                 Text(line.text)
-                                    .font(.system(size: isActive ? 24 : 18, weight: isActive ? .bold : .regular))
+                                    .font(.system(size: isActive ? 22 : 16, weight: isActive ? .bold : .regular))
                                     .foregroundColor(isActive ? .white : .white.opacity(0.6))
                                     .multilineTextAlignment(.center)
                                     .scaleEffect(isActive ? 1.1 : 1.0)

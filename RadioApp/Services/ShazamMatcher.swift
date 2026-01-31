@@ -544,6 +544,7 @@ class MusicPlatformService {
     enum MatchStrictness {
         case strict     // 校歌名和歌手
         case titleOnly  // 仅校验歌名 (忽略歌手不匹配)
+        case fuzzy      // 模糊匹配 (歌名包含关系)
     }
     
     private init() {}
@@ -676,28 +677,42 @@ class MusicPlatformService {
     /// 增强的匹配校验
     private func isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String, strictness: MatchStrictness) -> Bool {
         // 1. 歌名匹配
-        // 保持原有的逻辑：移除括号内容，忽略标点和空格，进行包含判断
         let qTitle = normalizeString(queryTitle, removeParenthesesContent: true)
         let rTitle = normalizeString(resultTitle, removeParenthesesContent: true)
         
-        // 标题匹配：只要包含即可 (且不能为空)
-        var titleMatch = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle.contains(rTitle) || rTitle.contains(qTitle))
+        // 如果是模糊模式，只要有包含关系就返回 true
+        if strictness == .fuzzy {
+            let hasTitleOverlap = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle.contains(rTitle) || rTitle.contains(qTitle))
+            if hasTitleOverlap {
+                print("MusicPlatformService: 模糊匹配 (Fuzzy) 成功 - '\(qTitle)' vs '\(rTitle)'")
+                return true
+            }
+            // 尝试拼音重叠
+            let qPinyin = toPinyin(qTitle)
+            let rPinyin = toPinyin(rTitle)
+            if !qPinyin.isEmpty && !rPinyin.isEmpty && (qPinyin.contains(rPinyin) || rPinyin.contains(qPinyin)) {
+                 print("MusicPlatformService: 模糊拼音匹配成功 - '\(qPinyin)' vs '\(rPinyin)'")
+                 return true
+            }
+            return false
+        }
         
-        // 如果常规匹配失败，尝试拼音匹配 (解决繁简转换失效或异体字问题)
+        // 严格/宽松模式下：必须相等
+        var titleMatch = !qTitle.isEmpty && !rTitle.isEmpty && (qTitle == rTitle)
+        
+        // 如果文字不相等，尝试拼音等值匹配 (解决繁简转换失效或异体字问题)
         if !titleMatch && !qTitle.isEmpty && !rTitle.isEmpty {
             let qPinyin = toPinyin(qTitle)
             let rPinyin = toPinyin(rTitle)
-            if qPinyin.contains(rPinyin) || rPinyin.contains(qPinyin) {
-                print("MusicPlatformService: 拼音匹配成功 - '\(qPinyin)' vs '\(rPinyin)'")
+            if qPinyin == rPinyin {
+                print("MusicPlatformService: 拼音等值匹配成功 - '\(qPinyin)' vs '\(rPinyin)'")
                 titleMatch = true
-            } else {
-                print("MusicPlatformService: 标题匹配失败 - Text: '\(qTitle)' vs '\(rTitle)', Pinyin: '\(qPinyin)' vs '\(rPinyin)'")
             }
         }
         
         if !titleMatch { return false }
         
-        //如果是 titleOnly 模式，直接返回 true
+        // 如果是 titleOnly 模式，此时已经歌名匹配成功，直接返回 true
         if strictness == .titleOnly {
             return true
         }
@@ -714,9 +729,6 @@ class MusicPlatformService {
         }
         
         // 只要一方是另一方的子集，即认为匹配
-        // Case 1: 用户搜 "Linkin Park" (q), 结果 "Linkin Park & Jay-Z" (r). q is subset of r. -> Match
-        // Case 2: 用户搜 "伯爵 & 唐伯虎" (q), 结果 "伯爵 Johnny/ 唐伯虎 Annie" (r). q is subset of r. -> Match
-        // Case 3: 用户搜 "Artist A feat. B" (q), 结果 "Artist A" (r). r is subset of q. -> Match
         let match1 = qTokens.isSubset(of: rTokens)
         let match2 = rTokens.isSubset(of: qTokens)
         
@@ -780,11 +792,10 @@ class MusicPlatformService {
     }
     // MARK: - Lyrics Fetching
     
-    /// 获取歌词 (优先 QQ 音乐，失败则使用网易云)
     func fetchLyrics(title: String, artist: String) async -> String? {
         print("MusicPlatformService: 开始获取歌词 - Title: \(title), Artist: \(artist)")
         
-        // 策略 1: 严格匹配 (QQ -> NetEase)
+        // 阶段 1: 严格匹配 (QQ -> NetEase)
         print("MusicPlatformService: [阶段 1] 尝试严格匹配...")
         if let lyrics = await fetchQQLyrics(title: title, artist: artist, strictness: .strict) {
             print("MusicPlatformService: QQ 音乐 (Strict) 获取成功")
@@ -795,8 +806,7 @@ class MusicPlatformService {
             return lyrics
         }
         
-        // 策略 2: 宽松匹配 (仅匹配歌名) (QQ -> NetEase)
-        // 当数据库中的歌手名与搜索词差异过大时 (如 Cover vs Original，或者数据缺失)，启动兜底
+        // 阶段 2: 宽松匹配 (仅确认歌名) (QQ -> NetEase)
         print("MusicPlatformService: [阶段 2] 严格匹配失败，尝试宽松匹配 (仅校验歌名)...")
         if let lyrics = await fetchQQLyrics(title: title, artist: artist, strictness: .titleOnly) {
             print("MusicPlatformService: QQ 音乐 (TitleOnly) 获取成功")
@@ -804,6 +814,17 @@ class MusicPlatformService {
         }
         if let lyrics = await fetchNetEaseLyrics(title: title, artist: artist, strictness: .titleOnly) {
             print("MusicPlatformService: 网易云 (TitleOnly) 获取成功")
+            return lyrics
+        }
+        
+        // 阶段 3: 包含匹配 (Fuzzy) (QQ -> NetEase)
+        print("MusicPlatformService: [阶段 3] 宽松匹配失败，尝试包含匹配 (Fuzzy)...")
+        if let lyrics = await fetchQQLyrics(title: title, artist: artist, strictness: .fuzzy) {
+            print("MusicPlatformService: QQ 音乐 (Fuzzy) 获取成功")
+            return lyrics
+        }
+        if let lyrics = await fetchNetEaseLyrics(title: title, artist: artist, strictness: .fuzzy) {
+            print("MusicPlatformService: 网易云 (Fuzzy) 获取成功")
             return lyrics
         }
         
