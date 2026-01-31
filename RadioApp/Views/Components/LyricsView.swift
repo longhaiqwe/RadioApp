@@ -5,6 +5,8 @@ struct LyricsView: View {
     @ObservedObject var matcher: ShazamMatcher
     
     @State private var lyricLines: [LyricLine] = []
+    @State private var isUserScrolling = false
+    @State private var scrollResumeItem: DispatchWorkItem?
     
     var body: some View {
         GeometryReader { geometry in
@@ -45,11 +47,30 @@ struct LyricsView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { _ in
+                                isUserScrolling = true
+                                scrollResumeItem?.cancel()
+                                scrollResumeItem = nil
+                            }
+                            .onEnded { _ in
+                                let item = DispatchWorkItem {
+                                    withAnimation {
+                                        isUserScrolling = false
+                                    }
+                                }
+                                scrollResumeItem = item
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: item)
+                            }
+                    )
                     .onChange(of: context.date) { _ in
-                        // Auto-scroll
-                        if let activeLine = lyricLines.last(where: { $0.time <= currentTime }) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(activeLine.id, anchor: .center)
+                        // Auto-scroll only if user is not interacting
+                        if !isUserScrolling {
+                            if let activeLine = lyricLines.last(where: { $0.time <= currentTime }) {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    proxy.scrollTo(activeLine.id, anchor: .center)
+                                }
                             }
                         }
                     }
