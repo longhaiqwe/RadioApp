@@ -72,11 +72,25 @@ struct LyricsView: View {
                         }
                     }
                     }
-                    
-                    Text("歌词来源于第三方平台，仅供参考")
-                       .font(.caption2)
-                       .foregroundColor(.white.opacity(0.3))
-                       .padding(.bottom, 4)
+                }
+                .overlay(alignment: .bottom) {
+                    VStack(spacing: 0) {
+                        // 渐变遮罩，让歌词淡出
+                        LinearGradient(
+                            colors: [.clear, Color.black.opacity(0.8)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 40)
+                        
+                        // 免责声明（带背景色）
+                        Text("歌词来源于第三方平台，仅供参考")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.4))
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.black.opacity(0.8))
+                    }
                 }
             }
         }
