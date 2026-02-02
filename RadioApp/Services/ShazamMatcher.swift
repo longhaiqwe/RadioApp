@@ -429,8 +429,9 @@ extension ShazamMatcher: SHSessionDelegate {
                 print("进度偏移: \(String(format: "%.2f", self.matchOffset))s")
                 print("===========================\n")
                 
-                // 中文转换：先繁体转简体
+                // 中文转换：先繁体转简体，再清理 Live/Demo 后缀
                 var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(originalTitle)
+                finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                 var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(originalArtist)
                 
                 // 检查是否需要拼音转中文
@@ -543,8 +544,9 @@ extension ShazamMatcher: SHSessionDelegate {
                     print("Offset: \(String(format: "%.2f", offset ?? 0))s")
                     print("===========================\n")
                     
-                    // 中文转换：先繁体转简体，再检测拼音
+                    // 中文转换：先繁体转简体，再清理 Live/Demo 后缀
                     var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(song)
+                    finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                     var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(artist ?? "未知")
                     
                     // 检查是否需要拼音转中文
@@ -645,6 +647,28 @@ class MusicPlatformService {
         
         // 如果全是 ASCII 且长度 > 2，认为是拼音/罗马化
         return isAllASCII && text.count > 2
+    }
+    
+    /// 清理标题：移除 (Live)、(Demo)、(Remix) 等后缀
+    /// 用于提高歌词匹配成功率
+    func cleanTitle(_ title: String) -> String {
+        // 移除各种括号包裹的版本标记
+        // 支持: (Live), [Live], （Live）, - Live, etc.
+        let patterns = [
+            "\\s*[\\(\\[（]\\s*(Live|LIVE|现场|演唱会)\\s*[\\)\\]）]",
+            "\\s*[\\(\\[（]\\s*(Demo|DEMO|试听|小样)\\s*[\\)\\]）]",
+            "\\s*[\\(\\[（]\\s*(Remix|REMIX|混音)\\s*[\\)\\]）]",
+            "\\s*[\\(\\[（]\\s*(Cover|COVER|翻唱)\\s*[\\)\\]）]",
+            "\\s*[\\(\\[（]\\s*(Instrumental|伴奏)\\s*[\\)\\]）]",
+            "\\s*-\\s*(Live|LIVE|现场版?)\\s*$"
+        ]
+        
+        var result = title
+        for pattern in patterns {
+            result = result.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        }
+        
+        return result.trimmingCharacters(in: .whitespaces)
     }
     
     /// 从 QQ 音乐获取中文元数据
