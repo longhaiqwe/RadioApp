@@ -7,6 +7,7 @@ struct HomeView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
     @State private var draggingStation: Station?
+    @State private var showFeedback = false
     
     @Environment(\.scenePhase) var scenePhase
     
@@ -33,7 +34,17 @@ struct HomeView: View {
                                 
                                 Spacer()
                                 
-
+                                // 反馈入口
+                                Button(action: { showFeedback = true }) {
+                                    Image(systemName: "envelope.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(NeonColors.cyan)
+                                        .padding(10)
+                                        .background(
+                                            Circle()
+                                                .fill(.white.opacity(0.1))
+                                        )
+                                }
                             }
                             
                             Text("探索全球电台")
@@ -178,6 +189,9 @@ struct HomeView: View {
                 print("App active, retrying fetch stations...")
                 viewModel.fetchStations()
             }
+        }
+        .sheet(isPresented: $showFeedback) {
+            FeedbackView()
         }
     }
 }
