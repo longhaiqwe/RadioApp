@@ -119,9 +119,44 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                             if let metadata = json["metadata"] as? [String: Any],
                                let music = (metadata["music"] as? [[String: Any]])?.first {
                                 
-                                let title = music["title"] as? String
-                                let artists = music["artists"] as? [[String: Any]]
-                                let artistName = artists?.first?["name"] as? String
+                                // 优先从 langs 字段获取简体中文标题
+                                var title: String? = nil
+                                if let langs = music["langs"] as? [[String: Any]] {
+                                    // 查找 zh-Hans (简体中文)
+                                    if let zhHans = langs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
+                                       let name = zhHans["name"] as? String, !name.isEmpty {
+                                        title = name
+                                    }
+                                    // 如果没有简体，尝试繁体
+                                    else if let zhHant = langs.first(where: { ($0["code"] as? String) == "zh-Hant" }),
+                                            let name = zhHant["name"] as? String, !name.isEmpty {
+                                        title = name
+                                    }
+                                }
+                                // 兜底使用默认标题
+                                if title == nil {
+                                    title = music["title"] as? String
+                                }
+                                
+                                // 优先从 artists.langs 获取简体中文艺术家名
+                                var artistName: String? = nil
+                                if let artists = music["artists"] as? [[String: Any]],
+                                   let firstArtist = artists.first {
+                                    // 尝试从 langs 获取中文名
+                                    if let artistLangs = firstArtist["langs"] as? [[String: Any]] {
+                                        if let zhHans = artistLangs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
+                                           let name = zhHans["name"] as? String, !name.isEmpty {
+                                            artistName = name
+                                        } else if let zhHant = artistLangs.first(where: { ($0["code"] as? String) == "zh-Hant" }),
+                                                  let name = zhHant["name"] as? String, !name.isEmpty {
+                                            artistName = name
+                                        }
+                                    }
+                                    // 兜底使用默认 name
+                                    if artistName == nil {
+                                        artistName = firstArtist["name"] as? String
+                                    }
+                                }
                                 
                                 // 提取播放进度 (毫秒)
                                 var offset: TimeInterval?
@@ -129,6 +164,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     offset = TimeInterval(playOffsetMs) / 1000.0
                                 }
                                 
+                                print("ACRCloudMatcher: 解析结果 - 歌曲: \(title ?? "未知"), 歌手: \(artistName ?? "未知")")
                                 completion(title, artistName, offset)
                                 return
                             }

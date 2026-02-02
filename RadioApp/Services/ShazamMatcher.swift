@@ -411,6 +411,18 @@ extension ShazamMatcher: SHSessionDelegate {
                 let originalTitle = mediaItem.title ?? ""
                 let originalArtist = mediaItem.artist ?? ""
                 
+                // 详细打印 Shazam 匹配结果 (类似 ACRCloud)
+                print("\nShazamMatcher Response:")
+                print("  - title: \(mediaItem.title ?? "nil")")
+                print("  - artist: \(mediaItem.artist ?? "nil")")
+                print("  - subtitle: \(mediaItem.subtitle ?? "nil")")
+                print("  - appleMusicID: \(mediaItem.appleMusicID ?? "nil")")
+                print("  - artworkURL: \(mediaItem.artworkURL?.absoluteString ?? "nil")")
+                print("  - appleMusicURL: \(mediaItem.appleMusicURL?.absoluteString ?? "nil")")
+                print("  - webURL: \(mediaItem.webURL?.absoluteString ?? "nil")")
+                print("  - predictedCurrentMatchOffset: \(rawOffset)s")
+                print("  - matchCount: \(match.mediaItems.count)")
+                
                 print("\n=== 🎵 Shazam 识别成功 ===")
                 print("原始歌曲: \(originalTitle)")
                 print("原始歌手: \(originalArtist)")
@@ -986,11 +998,12 @@ class MusicPlatformService {
             // QQ 音乐有时返回 JSONP，需要处理 (不过这里加了 format=json)
             // 结构: lyric
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                 if let lyric = json["lyric"] as? String {
+                 if let lyric = json["lyric"] as? String,
+                    !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     // 解码 HTML 实体 (如果有)
                     return lyric
                  } else {
-                     print("MusicPlatformService: QQ 歌词 JSON 解析失败 or 无 lyric 字段. Response: \(json)")
+                     print("MusicPlatformService: QQ 歌词为空或无 lyric 字段")
                  }
             }
         } catch {
@@ -1017,10 +1030,11 @@ class MusicPlatformService {
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let lrc = json["lrc"] as? [String: Any],
-                   let lyric = lrc["lyric"] as? String {
+                   let lyric = lrc["lyric"] as? String,
+                   !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     return lyric
                 } else {
-                    print("MusicPlatformService: 网易云歌词 JSON 解析失败 or 无 lyric 字段. Response: \(json)")
+                    print("MusicPlatformService: 网易云歌词为空或无 lyric 字段")
                 }
             }
         } catch {
