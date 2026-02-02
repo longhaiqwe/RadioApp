@@ -4,7 +4,7 @@ import Combine
 import MediaPlayer
 
 @MainActor
-class AudioPlayerManager: ObservableObject {
+class AudioPlayerManager: NSObject, ObservableObject {
     static let shared = AudioPlayerManager()
     
     private var player: AVPlayer?
@@ -25,9 +25,68 @@ class AudioPlayerManager: ObservableObject {
     // @Published var currentStreamTitle: String?
     // private var metadataObserver: NSKeyValueObservation?
     
-    private init() {
+    private override init() {
+        super.init()
         setupAudioSession()
         setupRemoteCommandCenter()
+        setupInterruptionObserver()
+    }
+    
+    private func setupInterruptionObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            // Interruption began (e.g., phone call or other app playing audio)
+            print("Audio interruption began")
+            // Update UI state to paused
+            DispatchQueue.main.async {
+                self.isPlaying = false
+                self.updateNowPlayingInfo()
+            }
+            
+        case .ended:
+            // Interruption ended
+            print("Audio interruption ended")
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            
+            if options.contains(.shouldResume) {
+                // Resume playback if appropriate
+                print("Should resume playback")
+                DispatchQueue.main.async {
+                    // For auto-resume from interruption, we might want to reload stream too if it was long
+                    // But for simple interruptions, maybe just play() is fine.
+                    // Let's stick to simple play() for interruption resume to be fast,
+                    // OR reuse the logic in togglePlayPause if we want live.
+                    // Given user request "Jump out and back... restart stream", let's reload.
+                    
+                    if let station = self.currentStation {
+                        self.playStation(station)
+                    } else {
+                        self.player?.play()
+                    }
+                    
+                    self.isPlaying = true
+                    self.updateNowPlayingInfo()
+                }
+            }
+        @unknown default:
+            break
+        }
     }
     
     private func setupAudioSession() {
@@ -130,6 +189,11 @@ class AudioPlayerManager: ObservableObject {
         // 切歌时，清空之前的识别信息
         ShazamMatcher.shared.reset()
         
+        playStation(station)
+    }
+    
+    // Internal helper to start playing a station (fresh start)
+    private func playStation(_ station: Station) {
         guard let url = URL(string: station.urlResolved) else { return }
         
         let playerItem = AVPlayerItem(url: url)
@@ -161,9 +225,17 @@ class AudioPlayerManager: ObservableObject {
         if isPlaying {
             pause()
         } else {
-            player?.play()
-            isPlaying = true
-            updateNowPlayingInfo()
+            // Resume 逻辑
+            if let station = currentStation {
+                 // 强制重新加载 Stream 以确保听到最新的直播内容
+                 // 而不是恢复之前的缓存
+                 print("AudioPlayerManager: Resuming live stream (reloading)")
+                 playStation(station)
+            } else {
+                player?.play()
+                isPlaying = true
+                updateNowPlayingInfo()
+            }
         }
     }
     
