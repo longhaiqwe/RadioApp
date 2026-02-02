@@ -80,7 +80,7 @@ struct LyricsView: View {
                     Button(action: {
                         matcher.adjustLyricsBackward()
                     }) {
-                        VStack(spacing: 2) {
+                        VStack(spacing: 1) {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.1))
@@ -99,7 +99,7 @@ struct LyricsView: View {
                     Button(action: {
                         matcher.resetLyricsOffset()
                     }) {
-                        VStack(spacing: 2) {
+                        VStack(spacing: 6) {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.1))
@@ -118,7 +118,7 @@ struct LyricsView: View {
                     Button(action: {
                         matcher.adjustLyricsForward()
                     }) {
-                        VStack(spacing: 2) {
+                        VStack(spacing: 6) {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.1))

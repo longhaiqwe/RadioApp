@@ -6,7 +6,7 @@ struct PlayerView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
     @Environment(\.presentationMode) var presentationMode
-    @State private var volume: CGFloat = 0.5
+
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
     @State private var showFavoritesList = false
@@ -420,7 +420,7 @@ struct PlayerView: View {
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.5))
             
-            NeonSlider(value: $volume, trackColor: NeonColors.cyan)
+            NeonSlider(value: $playerManager.volume, trackColor: NeonColors.cyan)
             
             Image(systemName: "speaker.wave.3.fill")
                 .font(.system(size: 14))
@@ -892,7 +892,7 @@ struct PlayerView: View {
         }
         // 动态高度计算：屏幕高度 - 预留空间
         // 增加预留空间至 560，确保在 iPhone 14 Pro 等机型上不遮挡底部播放栏
-        .frame(height: max(UIScreen.main.bounds.height - 560, 200))
+        .frame(height: max(UIScreen.main.bounds.height - 500, 200))
         .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
         .background(
              RoundedRectangle(cornerRadius: 20)

@@ -10,6 +10,11 @@ class AudioPlayerManager: ObservableObject {
     private var player: AVPlayer?
     @Published var isPlaying: Bool = false
     @Published var currentStation: Station?
+    @Published var volume: CGFloat = 0.5 {
+        didSet {
+            player?.volume = Float(volume)
+        }
+    }
     
     // Playlist context
     private var playlist: [Station] = []
@@ -133,6 +138,7 @@ class AudioPlayerManager: ObservableObject {
         // 设置播放器
         if player == nil {
             player = AVPlayer(playerItem: playerItem)
+            player?.volume = Float(volume)
             player?.automaticallyWaitsToMinimizeStalling = true
         } else {
             player?.replaceCurrentItem(with: playerItem)
