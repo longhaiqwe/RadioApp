@@ -25,12 +25,23 @@ class ShazamMatcher: NSObject, ObservableObject {
     // 歌词同步数据
     @Published var matchDate: Date? // 识别成功的时间点
     @Published var matchOffset: TimeInterval = 0 // 识别时歌曲的进度
+    @Published var lyricsOffset: TimeInterval = 0 // 用户手动调整的歌词偏移量（正数=歌词慢，负数=歌词快）
     
     // 计算属性：当前歌曲的预估进度
     var currentSongTime: TimeInterval {
         guard let matchDate = matchDate else { return 0 }
         let timeSinceMatch = Date().timeIntervalSince(matchDate)
-        return matchOffset + timeSinceMatch
+        return matchOffset + timeSinceMatch - lyricsOffset
+    }
+    
+    /// 歌词后退 0.5 秒（显示更早的歌词）
+    func adjustLyricsBackward() {
+        lyricsOffset += 0.5
+    }
+    
+    /// 歌词前进 0.5 秒（显示更晚的歌词）
+    func adjustLyricsForward() {
+        lyricsOffset -= 0.5
     }
     
     // ACRCloud 集成
@@ -363,6 +374,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.isFetchingLyrics = false
             self.matchDate = nil // Reset match date
             self.matchOffset = 0 // Reset offset
+            self.lyricsOffset = 0 // Reset lyrics manual offset
             self.lastError = nil
             self.isMatching = false
             self.matchingProgress = ""

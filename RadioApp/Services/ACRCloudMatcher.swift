@@ -119,10 +119,21 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                             if let metadata = json["metadata"] as? [String: Any],
                                let music = (metadata["music"] as? [[String: Any]])?.first {
                                 
-                                // 优先从 langs 字段获取简体中文标题
+                                // 获取默认标题
+                                let defaultTitle = music["title"] as? String ?? ""
+                                
+                                // 判断默认标题是否已经是中文（包含中文字符）
+                                let containsChinese = defaultTitle.unicodeScalars.contains { scalar in
+                                    return (scalar.value >= 0x4E00 && scalar.value <= 0x9FFF) || // 基本汉字
+                                           (scalar.value >= 0x3400 && scalar.value <= 0x4DBF)    // 扩展A区
+                                }
+                                
                                 var title: String? = nil
-                                if let langs = music["langs"] as? [[String: Any]] {
-                                    // 查找 zh-Hans (简体中文)
+                                if containsChinese {
+                                    // 默认标题已是中文，直接使用
+                                    title = defaultTitle
+                                } else if let langs = music["langs"] as? [[String: Any]] {
+                                    // 尝试从 langs 获取简体中文
                                     if let zhHans = langs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
                                        let name = zhHans["name"] as? String, !name.isEmpty {
                                         title = name
@@ -133,17 +144,28 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                         title = name
                                     }
                                 }
-                                // 兜底使用默认标题
+                                // 最后兜底使用默认标题
                                 if title == nil {
-                                    title = music["title"] as? String
+                                    title = defaultTitle
                                 }
                                 
-                                // 优先从 artists.langs 获取简体中文艺术家名
+                                // 获取艺术家名
                                 var artistName: String? = nil
                                 if let artists = music["artists"] as? [[String: Any]],
                                    let firstArtist = artists.first {
-                                    // 尝试从 langs 获取中文名
-                                    if let artistLangs = firstArtist["langs"] as? [[String: Any]] {
+                                    let defaultArtist = firstArtist["name"] as? String ?? ""
+                                    
+                                    // 判断默认艺术家名是否已经是中文
+                                    let artistContainsChinese = defaultArtist.unicodeScalars.contains { scalar in
+                                        return (scalar.value >= 0x4E00 && scalar.value <= 0x9FFF) ||
+                                               (scalar.value >= 0x3400 && scalar.value <= 0x4DBF)
+                                    }
+                                    
+                                    if artistContainsChinese {
+                                        // 默认艺术家名已是中文，直接使用
+                                        artistName = defaultArtist
+                                    } else if let artistLangs = firstArtist["langs"] as? [[String: Any]] {
+                                        // 尝试从 langs 获取中文名
                                         if let zhHans = artistLangs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
                                            let name = zhHans["name"] as? String, !name.isEmpty {
                                             artistName = name
@@ -154,7 +176,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     }
                                     // 兜底使用默认 name
                                     if artistName == nil {
-                                        artistName = firstArtist["name"] as? String
+                                        artistName = defaultArtist
                                     }
                                 }
                                 

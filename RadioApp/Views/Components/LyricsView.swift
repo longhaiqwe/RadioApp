@@ -83,6 +83,45 @@ struct LyricsView: View {
                         )
                         .frame(height: 80)
                         
+                        // 歌词调整按钮区域
+                        HStack(spacing: 40) {
+                            // 后退按钮 - 歌词显示更早
+                            Button(action: {
+                                matcher.adjustLyricsBackward()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "backward.fill")
+                                        .font(.system(size: 12))
+                                    Text("0.5s")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .foregroundColor(.white.opacity(0.7))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.15))
+                                .cornerRadius(16)
+                            }
+                            
+                            // 前进按钮 - 歌词显示更晚
+                            Button(action: {
+                                matcher.adjustLyricsForward()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text("0.5s")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Image(systemName: "forward.fill")
+                                        .font(.system(size: 12))
+                                }
+                                .foregroundColor(.white.opacity(0.7))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.15))
+                                .cornerRadius(16)
+                            }
+                        }
+                        .padding(.bottom, 8)
+                        .background(Color.black.opacity(0.8))
+                        
                         // 免责声明（带背景色）
                         Text("歌词来源于第三方平台，仅供参考")
                             .font(.caption2)
