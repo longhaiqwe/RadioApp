@@ -1,11 +1,16 @@
 import SwiftUI
 import StoreKit
+import Combine
 
 /// Pro 升级页面 - 展示 ¥6 终身版购买选项
 struct ProUpgradeView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
-    
+
+    @State private var timeRemaining: String = ""
+    // 使用 Timer.publish 避免在 struct 中捕获 mutating self 的问题
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
     var body: some View {
         ZStack {
             // 背景
@@ -105,6 +110,27 @@ struct ProUpgradeView: View {
                                 Text("终身版 · 一次性付费")
                                     .font(.system(size: 14))
                                     .foregroundColor(.white.opacity(0.6))
+                                
+                                // 早鸟优惠提示
+                                VStack(spacing: 6) {
+                                    Text("当前 ¥6 为早鸟 & 春节特惠")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(NeonColors.magenta)
+                                        .padding(.top, 8)
+                                    
+                                    Text("优惠截止至 2026 年 3 月 3 日（元宵节）")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.8))
+                                    
+                                    if !timeRemaining.isEmpty {
+                                        Text("距离恢复原价仅剩：\(timeRemaining)")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(NeonColors.cyan)
+                                            .monospacedDigit()
+                                            .padding(.top, 2)
+                                    }
+                                }
+                                .padding(.top, 4)
                             } else {
                                 ProgressView()
                                     .tint(.white)
@@ -194,6 +220,42 @@ struct ProUpgradeView: View {
                         .padding(.bottom, 30)
                     }
                 }
+            }
+        }
+        .onAppear {
+            updateTimeRemaining()
+        }
+        .onReceive(timer) { _ in
+            updateTimeRemaining()
+        }
+    }
+    
+    private func updateTimeRemaining() {
+        let calendar = Calendar.current
+        var components = DateComponents()
+        components.year = 2026
+        components.month = 3
+        components.day = 4
+        components.hour = 0
+        components.minute = 0
+        components.second = 0
+        
+        guard let endDate = calendar.date(from: components) else { return }
+        let now = Date()
+        
+        // 如果现在已经过了截止日期，直接返回
+        if now >= endDate {
+            timeRemaining = ""
+            return
+        }
+        
+        let diff = calendar.dateComponents([.day, .hour, .minute, .second], from: now, to: endDate)
+        
+        if let day = diff.day, let hour = diff.hour, let minute = diff.minute, let second = diff.second {
+            if day >= 0 || hour >= 0 || minute >= 0 || second >= 0 {
+                timeRemaining = String(format: "%d天 %d小时 %d分 %d秒", day, hour, minute, second)
+            } else {
+                timeRemaining = ""
             }
         }
     }
