@@ -13,7 +13,8 @@ struct LyricsView: View {
             TimelineView(.periodic(from: .now, by: 0.5)) { context in
                 let currentTime = matcher.currentSongTime
                 
-                ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
                             // Top padding to push first line to center
@@ -23,7 +24,7 @@ struct LyricsView: View {
                                 let isActive = isLineActive(line, currentTime: currentTime)
                                 
                                 Text(line.text)
-                                    .font(.system(size: isActive ? 22 : 16, weight: isActive ? .bold : .regular))
+                                    .font(.system(size: isActive ? 18 : 16, weight: isActive ? .bold : .regular))
                                     .foregroundColor(isActive ? .white : .white.opacity(0.6))
                                     .multilineTextAlignment(.center)
                                     .scaleEffect(isActive ? 1.1 : 1.0)
@@ -37,11 +38,7 @@ struct LyricsView: View {
                             // Bottom padding
                             Color.clear.frame(height: geometry.size.height / 3)
                             
-                            // 歌词来源免责声明
-                            Text("歌词来源于第三方平台，仅供参考")
-                                .font(.caption2)
-                                .foregroundColor(.white.opacity(0.3))
-                                .padding(.bottom, 20)
+                            // 歌词来源免责声明 - Moved out
                             
                             Color.clear.frame(height: geometry.size.height / 6)
                         }
@@ -74,6 +71,12 @@ struct LyricsView: View {
                             }
                         }
                     }
+                    }
+                    
+                    Text("歌词来源于第三方平台，仅供参考")
+                       .font(.caption2)
+                       .foregroundColor(.white.opacity(0.3))
+                       .padding(.bottom, 4)
                 }
             }
         }
