@@ -136,7 +136,7 @@ struct LyricsView: View {
                 .padding(.top, 4)
                 
                 // 免责声明
-                Text("歌词来源于第三方平台，仅供参考")
+                Text("歌词来源于QQ音乐/网易云音乐，仅供参考")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.4))
                     .padding(.bottom, 2)
