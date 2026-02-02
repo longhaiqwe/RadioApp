@@ -635,10 +635,10 @@ struct PlayerView: View {
     
     // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
     private func shazamResultOverlay(match: SHMatchedMediaItem?) -> some View {
-        // 优先使用 Shazam 结果，如果没有则尝试使用 Custom 结果
-        let title = match?.title ?? shazamMatcher.customMatchResult?.title ?? "未知歌曲"
-        let artist = match?.artist ?? shazamMatcher.customMatchResult?.artist ?? "未知歌手"
-        let artworkURL = match?.artworkURL ?? shazamMatcher.customMatchResult?.artworkURL
+        // 优先使用 customMatchResult (中文转换后的结果)，如果没有则回退到 Shazam 原始结果
+        let title = shazamMatcher.customMatchResult?.title ?? match?.title ?? "未知歌曲"
+        let artist = shazamMatcher.customMatchResult?.artist ?? match?.artist ?? "未知歌手"
+        let artworkURL = shazamMatcher.customMatchResult?.artworkURL ?? match?.artworkURL
         let appleMusicURL = match?.appleMusicURL
         
         return VStack(spacing: 0) {

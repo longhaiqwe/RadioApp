@@ -408,18 +408,54 @@ extension ShazamMatcher: SHSessionDelegate {
                     self.matchOffset = rawOffset + shazamCorrection
                 }
                 
+                let originalTitle = mediaItem.title ?? ""
+                let originalArtist = mediaItem.artist ?? ""
+                
                 print("\n=== 🎵 Shazam 识别成功 ===")
-                print("歌曲: \(mediaItem.title ?? "未知")")
-                print("歌手: \(mediaItem.artist ?? "未知")")
+                print("原始歌曲: \(originalTitle)")
+                print("原始歌手: \(originalArtist)")
                 print("进度偏移: \(String(format: "%.2f", self.matchOffset))s")
                 print("===========================\n")
                 
-                // Fetch lyrics
+                // 中文转换：先繁体转简体
+                var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(originalTitle)
+                var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(originalArtist)
+                
+                // 检查是否需要拼音转中文
+                let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
+                
+                if needsChineseConversion {
+                    print("Shazam: 检测到拼音格式，尝试获取中文元数据...")
+                }
+                
+                // Fetch lyrics (同时可能需要中文转换)
                 self.isFetchingLyrics = true
                 Task {
+                    // 如果需要中文转换，先获取中文元数据
+                    if needsChineseConversion {
+                        if let chineseMeta = await MusicPlatformService.shared.fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
+                            finalTitle = chineseMeta.title
+                            finalArtist = chineseMeta.artist
+                            print("Shazam: 成功转换为中文 - 歌曲: \(finalTitle), 歌手: \(finalArtist)")
+                            
+                            // 使用 customMatchResult 存储中文结果，覆盖 lastMatch 的显示
+                            await MainActor.run {
+                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL)
+                            }
+                        } else {
+                            print("Shazam: 无法获取中文元数据，使用原始数据")
+                        }
+                    } else if finalTitle != originalTitle || finalArtist != originalArtist {
+                        // 繁简转换发生了变化，也需要更新 customMatchResult
+                        await MainActor.run {
+                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL)
+                        }
+                    }
+                    
+                    // 获取歌词
                     let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
-                        title: mediaItem.title ?? "",
-                        artist: mediaItem.artist ?? ""
+                        title: finalTitle,
+                        artist: finalArtist
                     )
                     await MainActor.run {
                         self.lyrics = fetchedLyrics
@@ -490,12 +526,21 @@ extension ShazamMatcher: SHSessionDelegate {
                 
                 if let song = song {
                     print("\n=== 🎵 ACRCloud 识别成功 ===")
-                    print("歌曲: \(song)")
-                    print("歌手: \(artist ?? "未知")")
+                    print("原始歌曲: \(song)")
+                    print("原始歌手: \(artist ?? "未知")")
                     print("Offset: \(String(format: "%.2f", offset ?? 0))s")
                     print("===========================\n")
                     
-                    self.customMatchResult = CustomMatchResult(title: song, artist: artist ?? "未知", artworkURL: nil)
+                    // 中文转换：先繁体转简体，再检测拼音
+                    var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(song)
+                    var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(artist ?? "未知")
+                    
+                    // 检查是否需要拼音转中文
+                    let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
+                    
+                    if needsChineseConversion {
+                        print("ACRCloud: 检测到拼音格式，尝试获取中文元数据...")
+                    }
                     
                     // 对于 ACRCloud，同样使用开始采集时间作为基准
                     self.matchDate = self.captureStartTime ?? Date()
@@ -508,19 +553,41 @@ extension ShazamMatcher: SHSessionDelegate {
                         print("ACRCloud: 应用 HLS 偏移量 +\(String(format: "%.1f", self.hlsStreamOffset))s")
                     } else {
                         // MP3 直播流 (ACRCloud 特有逻辑)
-                        // 用户反馈高级识别后歌词快了 3-4 句 (约 12s)
-                        // 这可能是因为 ACRCloud 返回的时间戳定义不同（例如指向片段末尾）或者其他延迟
                         let mp3Correction: TimeInterval = -12.0
                         self.matchOffset = rawOffset + mp3Correction
                         print("ACRCloud: 应用 MP3 补偿 \(mp3Correction)s (高级识别特调)")
                     }
                     
-                    // Fetch lyrics
+                    // Fetch lyrics (同时可能需要中文转换)
                     self.isFetchingLyrics = true
                     Task {
+                        // 如果需要中文转换，先获取中文元数据
+                        if needsChineseConversion {
+                            if let chineseMeta = await MusicPlatformService.shared.fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
+                                finalTitle = chineseMeta.title
+                                finalArtist = chineseMeta.artist
+                                print("ACRCloud: 成功转换为中文 - 歌曲: \(finalTitle), 歌手: \(finalArtist)")
+                                
+                                // 更新 UI 显示为中文
+                                await MainActor.run {
+                                    self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: nil)
+                                }
+                            } else {
+                                print("ACRCloud: 无法获取中文元数据，使用原始数据")
+                            }
+                        }
+                        
+                        // 先设置初始结果（如果还没设置）
+                        await MainActor.run {
+                            if self.customMatchResult == nil {
+                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: nil)
+                            }
+                        }
+                        
+                        // 获取歌词
                         let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
-                            title: song,
-                            artist: artist ?? ""
+                            title: finalTitle,
+                            artist: finalArtist
                         )
                         await MainActor.run {
                             self.lyrics = fetchedLyrics
@@ -548,6 +615,69 @@ class MusicPlatformService {
     }
     
     private init() {}
+    
+    // MARK: - 中文元数据转换 (ACRCloud 拼音/繁体 -> 简体中文)
+    
+    /// 繁体转简体
+    func toSimplifiedChinese(_ text: String) -> String {
+        return text.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? text
+    }
+    
+    /// 检测是否为拼音或罗马化格式 (只含 ASCII 字符)
+    func isPinyinOrRomanized(_ text: String) -> Bool {
+        // 如果字符串为空，返回 false
+        guard !text.isEmpty else { return false }
+        
+        // 检查是否只包含 ASCII 字符 (英文字母、数字、空格、标点)
+        let isAllASCII = text.unicodeScalars.allSatisfy { $0.isASCII }
+        
+        // 如果全是 ASCII 且长度 > 2，认为是拼音/罗马化
+        return isAllASCII && text.count > 2
+    }
+    
+    /// 从 QQ 音乐获取中文元数据
+    /// - Parameters:
+    ///   - title: 原始歌曲名 (可能是拼音)
+    ///   - artist: 原始艺术家名 (可能是罗马化)
+    /// - Returns: 搜索到的中文 (歌曲名, 艺术家名)，失败返回 nil
+    func fetchChineseMetadata(title: String, artist: String) async -> (title: String, artist: String)? {
+        print("MusicPlatformService: 开始转换中文元数据 - Title: \(title), Artist: \(artist)")
+        
+        // 使用 QQ 音乐搜索 API
+        let query = "\(title) \(artist)"
+        
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=1&w=\(encodedQuery)&format=json") else {
+            return nil
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let dataObj = json["data"] as? [String: Any],
+               let songObj = dataObj["song"] as? [String: Any],
+               let list = songObj["list"] as? [[String: Any]],
+               let firstSong = list.first {
+                
+                let resultTitle = firstSong["songname"] as? String ?? ""
+                let singers = firstSong["singer"] as? [[String: Any]] ?? []
+                let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                
+                // 确保搜索结果包含中文
+                if !resultTitle.isEmpty && !isPinyinOrRomanized(resultTitle) {
+                    print("MusicPlatformService: 成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
+                    return (resultTitle, resultArtist)
+                } else {
+                    print("MusicPlatformService: 搜索结果仍非中文，放弃转换")
+                }
+            }
+        } catch {
+            print("MusicPlatformService: 中文元数据查询失败 - \(error)")
+        }
+        
+        return nil
+    }
     
     // MARK: - QQ Music
     
