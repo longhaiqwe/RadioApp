@@ -42,9 +42,10 @@ class LRCParser {
                         let totalTime = (minutes * 60) + seconds + millis
                         let text = String(line[textRange]).trimmingCharacters(in: .whitespacesAndNewlines)
                         
-                        // Ignore empty lines unless you want them as spacers. Usually empty text means instrumental or break.
-                        // We will include them but maybe UI can decide how to render.
-                        lines.append(LyricLine(time: totalTime, text: text))
+                        // 过滤掉空行，只保留有歌词内容的行
+                        if !text.isEmpty {
+                            lines.append(LyricLine(time: totalTime, text: text))
+                        }
                     }
                 }
             } catch {

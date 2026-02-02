@@ -81,7 +81,7 @@ struct LyricsView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: 40)
+                        .frame(height: 80)
                         
                         // 免责声明（带背景色）
                         Text("歌词来源于第三方平台，仅供参考")
