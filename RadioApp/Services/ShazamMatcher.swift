@@ -44,6 +44,11 @@ class ShazamMatcher: NSObject, ObservableObject {
         lyricsOffset -= 0.5
     }
     
+    /// 重置歌词偏移量
+    func resetLyricsOffset() {
+        lyricsOffset = 0
+    }
+    
     // ACRCloud 集成
     @Published var showAdvancedRecognitionPrompt = false
     @Published var remainingCredits: Int = SubscriptionManager.shared.currentCredits

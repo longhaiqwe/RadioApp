@@ -890,7 +890,9 @@ struct PlayerView: View {
                 EmptyView()
             }
         }
-        .frame(height: 320) // 增大高度以覆盖封面区域
+        // 动态高度计算：屏幕高度 - 预留空间
+        // 增加预留空间至 560，确保在 iPhone 14 Pro 等机型上不遮挡底部播放栏
+        .frame(height: max(UIScreen.main.bounds.height - 560, 200))
         .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
         .background(
              RoundedRectangle(cornerRadius: 20)
