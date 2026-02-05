@@ -40,6 +40,9 @@ class RadioService {
         "http://all.api.radio-browser.info/json"
     ]
     
+    // Blocked keywords for App Store compliance (Guideline 5.2.3)
+    private let blockedKeywords = ["CCTV", "CGTN", "卫视", "凤凰卫视", "VOA", "RFA", "伴音", "新闻联播", "国际新闻"]
+    
     // The current active base URL
     private var activeBaseURL: String = "https://de1.api.radio-browser.info/json"
     private var isServerResolved = false
@@ -120,7 +123,7 @@ class RadioService {
         
         let (data, _) = try await URLSession.shared.data(for: request)
         let stations = try JSONDecoder().decode([Station].self, from: data)
-        return stations
+        return self.filterBlockedStations(stations)
     }
     
     /// Fetch top stations (defaulting to China)
@@ -229,5 +232,22 @@ class RadioService {
         let (data, _) = try await URLSession.shared.data(from: url)
         let tags = try JSONDecoder().decode([Tag].self, from: data)
         return tags
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Filter out stations containing blocked keywords
+    private func filterBlockedStations(_ stations: [Station]) -> [Station] {
+         return stations.filter { station in
+             let name = station.name.uppercased()
+             let tags = station.tags.uppercased()
+             
+             for keyword in blockedKeywords {
+                 if name.contains(keyword) || tags.contains(keyword) {
+                     return false
+                 }
+             }
+             return true
+         }
     }
 }
