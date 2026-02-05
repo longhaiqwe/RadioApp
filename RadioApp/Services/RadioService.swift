@@ -126,15 +126,38 @@ class RadioService {
         return self.filterBlockedStations(stations)
     }
     
-    /// Fetch top stations (defaulting to China)
+    /// Fetch top stations (prioritizing Music, excluding News)
     func fetchTopStations(limit: Int = 20) async throws -> [Station] {
-        // We can just use advanced search for this too!
+        // We utilize advanced search to fetch more candidates first
         var filter = StationFilter()
         filter.countryCode = "CN"
         filter.order = "clickcount"
         filter.reverse = true
-        filter.limit = 100 // Increased default limit
-        return try await advancedSearch(filter: filter)
+        filter.limit = 100 // Fetch more to filter client-side
+        
+        let stations = try await advancedSearch(filter: filter)
+        
+        // Filter logic:
+        // 1. MUST have one of "musicTags" in tags OR tags is empty (sometimes pure music stations have no tags, risky? let's require tags for safety)
+        // 2. Apply global blocklist (already done in advancedSearch)
+        
+        let musicTags = ["music", "pop", "hits", "rock", "jazz", "classical", "音乐", "流行", "top40", "dance", "rnb", "lofi"]
+        
+        let filtered = stations.filter { station in
+            let tags = station.tags.lowercased()
+            // let name = station.name.lowercased()
+            
+            // Positive Selection: Must contain at least one music tag
+            for tag in musicTags {
+                if tags.contains(tag) { return true }
+            }
+            
+            return false // Reject if no music tag matches
+        }
+        
+        // Sort: Music stations first? Or just rely on clickcount?
+        // Let's just return the top N from the safe list
+        return Array(filtered.prefix(limit))
     }
     
     // MARK: - Convenience / Smart Search
