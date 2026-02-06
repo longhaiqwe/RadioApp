@@ -186,8 +186,43 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     offset = TimeInterval(playOffsetMs) / 1000.0
                                 }
                                 
-                                print("ACRCloudMatcher: 解析结果 - 歌曲: \(title ?? "未知"), 歌手: \(artistName ?? "未知")")
-                                completion(title, artistName, offset)
+                                print("ACRCloudMatcher: 初步解析结果 - 歌曲: \(title ?? "未知"), 歌手: \(artistName ?? "未知")")
+                                
+                                // 转为非可选类型处理
+                                var finalTitle = title ?? ""
+                                var finalArtist = artistName ?? ""
+                                
+                                // 启动 Task 进行中文元数据修正
+                                Task {
+                                    // 1. 中文转换：先繁体转简体
+                                    finalTitle = MusicPlatformService.shared.toSimplifiedChinese(finalTitle)
+                                    finalArtist = MusicPlatformService.shared.toSimplifiedChinese(finalArtist)
+                                    
+                                    // 2. 清理标题 (移除 Live/Demo 等)
+                                    finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
+                                    
+                                    // 3. 检查是否需要拼音转中文
+                                    // 只要标题或歌手名是拼音/罗马化，就尝试搜索
+                                    let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle) ||
+                                                                 MusicPlatformService.shared.isPinyinOrRomanized(finalArtist)
+                                    
+                                    if needsChineseConversion {
+                                        print("ACRCloudMatcher: 检测到拼音/英文格式，尝试获取中文元数据...")
+                                        if let chineseMeta = await MusicPlatformService.shared.fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
+                                            finalTitle = chineseMeta.title
+                                            finalArtist = chineseMeta.artist
+                                            print("ACRCloudMatcher: 成功转换为中文 - 歌曲: \(finalTitle), 歌手: \(finalArtist)")
+                                        } else {
+                                            print("ACRCloudMatcher: 无法获取中文元数据，保持原值")
+                                        }
+                                    }
+                                    
+                                    // 4. 返回最终结果
+                                    DispatchQueue.main.async {
+                                        print("ACRCloudMatcher: 最终返回 - 歌曲: \(finalTitle), 歌手: \(finalArtist)")
+                                        completion(finalTitle, finalArtist, offset)
+                                    }
+                                }
                                 return
                             }
                         } else {
