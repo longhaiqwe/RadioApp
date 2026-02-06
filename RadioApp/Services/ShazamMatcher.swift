@@ -63,6 +63,9 @@ class ShazamMatcher: NSObject, ObservableObject {
     private var isHLSStream: Bool = false // 是否是 HLS 流
     private var hlsStreamOffset: TimeInterval = 0 // HLS 动态偏移量
     
+    // 锁屏触发标志 (用于自动降级到 ACRCloud)
+    var isLockScreenTriggered = false
+    
     private var session: SHSession?
     
     override init() {
@@ -76,8 +79,11 @@ class ShazamMatcher: NSObject, ObservableObject {
     // MARK: - 主入口：开始识别
     
     /// 从当前播放的电台识别歌曲
-    func startMatching() {
+    /// - Parameter fromLockScreen: 是否来自锁屏触发
+    func startMatching(fromLockScreen: Bool = false) {
         guard !isMatching else { return }
+        
+        self.isLockScreenTriggered = fromLockScreen
         
         // 立即清除之前的状态，确保 UI 正确响应
         lastError = nil
@@ -140,6 +146,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.isMatching = false
             self.matchingProgress = ""
             self.lastError = error
+            self.isLockScreenTriggered = false
             print("ShazamMatcher: Error - \(error.localizedDescription)")
         }
     }
@@ -148,6 +155,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     func stopMatching() {
         StreamSampler.shared.cancel()
         isMatching = false
+        isLockScreenTriggered = false
         matchingProgress = ""
     }
     
@@ -482,6 +490,13 @@ extension ShazamMatcher: SHSessionDelegate {
                         }
                     }
                     
+                    // 确保 customMatchResult 始终被设置 (即使没有转换)
+                    await MainActor.run {
+                        if self.customMatchResult == nil {
+                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL)
+                        }
+                    }
+                    
                     // 获取歌词
                     let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
                         title: finalTitle,
@@ -505,16 +520,26 @@ extension ShazamMatcher: SHSessionDelegate {
             if ACRCloudConfiguration.accessKey != "YOUR_ACCESS_KEY" {
                 print("ShazamMatcher: Shazam 识别失败，准备显示高级识别提示...")
                 
-                // 仅对 Pro 用户或有配额的用户显示
+                // 仅对 Pro 用户或有配额的用户显示/自动执行
                 if SubscriptionManager.shared.isPro && SubscriptionManager.shared.currentCredits > 0 {
-                    self.isMatching = false
-                    self.showAdvancedRecognitionPrompt = true
-                    // 保持识别文件 URL，以备后续使用
-                    return // 挂起，等待用户在 UI 上的操作
+                    
+                    if self.isLockScreenTriggered {
+                        // 锁屏模式下，直接自动尝试 ACRCloud
+                        print("ShazamMatcher: 锁屏模式，自动切换到 ACRCloud 高级识别...")
+                        self.startAdvancedMatching()
+                        return
+                    } else {
+                        // 在应用内，显示提示
+                        self.isMatching = false
+                        self.showAdvancedRecognitionPrompt = true
+                        // 保持识别文件 URL，以备后续使用
+                        return // 挂起，等待用户在 UI 上的操作
+                    }
                 }
             }
             
             self.isMatching = false
+            self.isLockScreenTriggered = false
             self.matchingProgress = ""
             self.currentMatchingFileURL = nil
             
@@ -535,6 +560,7 @@ extension ShazamMatcher: SHSessionDelegate {
         guard let fileURL = self.currentMatchingFileURL, 
               SubscriptionManager.shared.currentCredits > 0 else {
             self.showAdvancedRecognitionPrompt = false
+            self.isLockScreenTriggered = false
             return
         }
         
