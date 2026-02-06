@@ -752,6 +752,29 @@ struct PlayerView: View {
                             .clipShape(Circle())
                     }
                 }
+                
+                // 4. 高级识别入口 (手动触发 - 当普通识别不准确时)
+                if subscriptionManager.isPro && subscriptionManager.currentCredits > 0 {
+                    Button(action: {
+                        shazamMatcher.startAdvancedMatching()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12))
+                            Text("不准确？试试高级识别")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundColor(NeonColors.cyan)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(
+                            Capsule()
+                                .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                                .background(NeonColors.cyan.opacity(0.1))
+                        )
+                    }
+                    .padding(.top, 4)
+                }
             }
             .padding(.vertical, 20)
             .padding(.horizontal, 16)
@@ -891,8 +914,8 @@ struct PlayerView: View {
             }
         }
         // 动态高度计算：屏幕高度 - 预留空间
-        // 增加预留空间至 560，确保在 iPhone 14 Pro 等机型上不遮挡底部播放栏
-        .frame(height: max(UIScreen.main.bounds.height - 500, 200))
+        // 增加预留空间至 550，确保在 iPhone 14 Pro 等机型上不遮挡底部播放栏
+        .frame(height: max(UIScreen.main.bounds.height - 550, 200))
         .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
         .background(
              RoundedRectangle(cornerRadius: 20)

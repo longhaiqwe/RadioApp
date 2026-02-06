@@ -542,6 +542,10 @@ extension ShazamMatcher: SHSessionDelegate {
         self.isMatching = true
         self.matchingProgress = "正在进行高级识别..."
         
+        // Reset previous match results to update UI to matching state
+        self.lastMatch = nil
+        self.customMatchResult = nil
+        
         // 消耗 1 次配额
         SubscriptionManager.shared.consumeCredit()
         self.remainingCredits = SubscriptionManager.shared.currentCredits
