@@ -215,6 +215,20 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     return simplified == str
                                 }
                                 
+                                // 0. 预先遍历所有结果，寻找最早的发行日期
+                                var earliestReleaseDate: Date? = nil
+                                for music in musicList {
+                                    let meta = extractMeta(from: music)
+                                    if let date = meta.releaseDate {
+                                        if earliestReleaseDate == nil || date < earliestReleaseDate! {
+                                            earliestReleaseDate = date
+                                        }
+                                    }
+                                }
+                                if let earliest = earliestReleaseDate {
+                                    print("ACRCloudMatcher: 在所有匹配结果中找到最早发行日期: \(earliest)")
+                                }
+                                
                                 // 遍历所有记录，按优先级选择
                                 // 优先级: 简体中文+有效歌手 > 繁体中文+有效歌手 > 简体中文 > 繁体中文 > 兜底第一条
                                 var selectedTitle: String = ""
@@ -296,7 +310,8 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 var finalTitle = selectedTitle
                                 var finalArtist = selectedArtist
                                 let offset = selectedOffset
-                                let releaseDate = selectedReleaseDate
+                                // 使用最早的发行日期 (如果存在)，否则使用选定条目的日期
+                                let releaseDate = earliestReleaseDate ?? selectedReleaseDate
                                 
                                 // 启动 Task 进行中文元数据修正
                                 Task {
