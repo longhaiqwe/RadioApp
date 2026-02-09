@@ -921,11 +921,19 @@ class MusicPlatformService {
     /// - Parameter removeParenthesesContent: 是否移除括号及其内容。歌名通常移除(如"粤语版")，歌手名通常保留(如"陈墨一(三毛)")
     private func normalizeString(_ str: String, removeParenthesesContent: Bool = true) -> String {
         // 1. 繁体转简体
-        let simplified = str.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? str
+        var result = str.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? str
         
-        // 2. 去除括号及其内容 (支持英文(), 中文（）, 方括号 [])
+        // 2. 特殊字符映射 (处理繁简转换无法覆盖的异体字)
+        // "妳" 是女性专用的"你"，不在标准繁简转换中
+        let specialMappings: [Character: Character] = [
+            "妳": "你",
+            "祂": "他",
+            "牠": "它"
+        ]
+        result = String(result.map { specialMappings[$0] ?? $0 })
+        
+        // 3. 去除括号及其内容 (支持英文(), 中文（）, 方括号 [])
         // 例如: "喜欢你 (粤语版)" -> "喜欢你"
-        var result = simplified
         if removeParenthesesContent {
             result = result.replacingOccurrences(of: "\\s*[\\(\\[（\\{][^\\)\\]）\\}]*[\\)\\]）\\}]", with: "", options: .regularExpression)
         }
