@@ -133,13 +133,13 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     // 默认标题已是中文，直接使用
                                     title = defaultTitle
                                 } else if let langs = music["langs"] as? [[String: Any]] {
-                                    // 尝试从 langs 获取简体中文
-                                    if let zhHans = langs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
+                                    // 尝试从 langs 获取简体中文 (大小写不敏感匹配)
+                                    if let zhHans = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" }),
                                        let name = zhHans["name"] as? String, !name.isEmpty {
                                         title = name
                                     }
                                     // 如果没有简体，尝试繁体
-                                    else if let zhHant = langs.first(where: { ($0["code"] as? String) == "zh-Hant" }),
+                                    else if let zhHant = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hant" }),
                                             let name = zhHant["name"] as? String, !name.isEmpty {
                                         title = name
                                     }
@@ -165,11 +165,11 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                         // 默认艺术家名已是中文，直接使用
                                         artistName = defaultArtist
                                     } else if let artistLangs = firstArtist["langs"] as? [[String: Any]] {
-                                        // 尝试从 langs 获取中文名
-                                        if let zhHans = artistLangs.first(where: { ($0["code"] as? String) == "zh-Hans" }),
+                                        // 尝试从 langs 获取中文名 (大小写不敏感匹配)
+                                        if let zhHans = artistLangs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" }),
                                            let name = zhHans["name"] as? String, !name.isEmpty {
                                             artistName = name
-                                        } else if let zhHant = artistLangs.first(where: { ($0["code"] as? String) == "zh-Hant" }),
+                                        } else if let zhHant = artistLangs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hant" }),
                                                   let name = zhHant["name"] as? String, !name.isEmpty {
                                             artistName = name
                                         }
