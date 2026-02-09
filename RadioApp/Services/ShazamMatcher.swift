@@ -1212,12 +1212,23 @@ class MusicPlatformService {
             let (data, _) = try await URLSession.shared.data(from: url)
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // 检查是否因为海外 IP 被限制
+                if let abroad = json["abroad"] as? Bool, abroad {
+                    print("MusicPlatformService: 网易云检测到海外 IP (abroad: true)，歌词可能被加密或为空")
+                }
+                
+                // 检查是否有歌词
                 if let lrc = json["lrc"] as? [String: Any],
                    let lyric = lrc["lyric"] as? String,
                    !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     return lyric
                 } else {
-                    print("MusicPlatformService: 网易云歌词为空或无 lyric 字段")
+                    // 详细记录失败原因
+                    let nolyric = json["nolyric"] as? Bool ?? false
+                    let uncollected = json["uncollected"] as? Bool ?? false
+                    let lyricContent = (json["lrc"] as? [String: Any])?["lyric"] as? String ?? "nil"
+                    
+                    print("MusicPlatformService: 网易云歌词为空或无 lyric 字段 - nolyric: \(nolyric), uncollected: \(uncollected), content: '\(lyricContent)'")
                 }
             }
         } catch {

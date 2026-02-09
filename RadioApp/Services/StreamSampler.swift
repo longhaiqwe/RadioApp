@@ -15,17 +15,15 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
     private var hlsSegmentOffset: TimeInterval = 0
     
     // 采样配置
-    // 采样配置
-    private let targetDuration: TimeInterval = 10.0  // 超时时长（秒）：网络差时的兜底等待时间
-    private let successDuration: TimeInterval = 6.0  // 成功时长（秒）：只要数据量达到这个时长（约 96KB），就认为足够识别并立即停止
+    private let targetDuration: TimeInterval = 15.0  // 超时时长（秒）：网络差时的兜底等待时间 (增加到 15s)
+    private let successDuration: TimeInterval = 12.0  // 成功时长（秒）：Shazam 推荐 12s，只要数据量达到这个时长就停止
     private let estimatedBitrate = 128 * 1024 / 8    // 128kbps (约 16KB/s)
     
     // 目标字节数：基于“成功时长”计算
-    // 逻辑：如果网速快，几秒钟下够了 96KB 就停；如果网速慢，最多等 10s 超时
     private var targetBytes: Int { Int(successDuration) * estimatedBitrate }
     
     // HLS 配置
-    private let hlsSegmentsToDownload = 3  // 下载几个 ts 片段（如果单个片段太短，需要多下几个）
+    private var hlsSegmentsToDownload = 3  // 默认下载几个 ts 片段 (会被动态计算覆盖)
     
     private var tempFileURL: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("stream_sample.mp3")
@@ -121,24 +119,44 @@ class StreamSampler: NSObject, URLSessionDataDelegate {
             }
             
             // 计算 HLS 偏移量
-            // 假设：播放器通常落后于最新分片约 2 个片段（之前是 3 个，导致歌词偏快）
-            // 我们下载的是列表末尾的最新片段 (前 3 个)
-            // 偏移量 = 播放器落后的片段时长总和
-            let playerLagSegments = 2  // 播放器落后的片段数
+            // 假设：播放器通常落后于最新分片约 2 个片段
+            let playerLagSegments = 2
             let totalSegments = segmentURLs.count
             
             if totalSegments > playerLagSegments {
-                // 计算播放器落后的时长 (最后 playerLagSegments 个片段的总时长)
                 let lagDuration = segmentDurations.suffix(playerLagSegments).reduce(0, +)
                 self.hlsSegmentOffset = lagDuration
                 print("StreamSampler: HLS 偏移量计算: 播放器落后 \(playerLagSegments) 个片段, 约 \(String(format: "%.1f", lagDuration)) 秒")
             } else {
-                // 片段太少，使用默认值
                 self.hlsSegmentOffset = 10.0
                 print("StreamSampler: HLS 片段较少，使用默认偏移量 10s")
             }
             
-            print("StreamSampler: 找到 \(segmentURLs.count) 个片段，开始下载前 \(min(self.hlsSegmentsToDownload, segmentURLs.count)) 个...")
+            // --- 动态计算需要下载的切片数量 ---
+            // 目标：下载总时长 >= successDuration (12s)
+            var accumulatedDuration: TimeInterval = 0
+            var segmentsNeeded = 0
+            
+            // 从最新的片段开始往回数，或者从列表头开始数？
+            // downloadSegments 使用 segmentURLs.prefix，说明是从列表头（最早/当前播放点）开始下载
+            // 通常 m3u8 live list 包含的是当前窗口的片段，播放器从某个位置开始播放
+            // 这里我们简化处理：假设 segmentURLs 是按播放顺序排列的，我们从第一个可用的开始下载
+            
+            for duration in segmentDurations {
+                accumulatedDuration += duration
+                segmentsNeeded += 1
+                if accumulatedDuration >= self.successDuration {
+                    break
+                }
+            }
+            
+            // 安全限制：最少 3 个，最多 20 个
+            let finalSegmentCount = max(3, min(segmentsNeeded, 20, segmentURLs.count))
+            
+            print("StreamSampler: 动态切片计算: 单片约 \(String(format: "%.1f", segmentDurations.first ?? 0))s, 目标 12s, 决定下载 \(finalSegmentCount) 个片段 (累积 \(String(format: "%.1f", accumulatedDuration))s)")
+            
+            // 更新要下载的数量
+            self.hlsSegmentsToDownload = finalSegmentCount
             
             // 检测片段文件类型 (默认 ts，如果是 aac/mp3 则使用对应后缀)
             let firstSegment = segmentURLs.first!
