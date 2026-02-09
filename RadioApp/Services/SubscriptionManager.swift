@@ -22,17 +22,27 @@ class SubscriptionManager: ObservableObject {
     private let creditsKey = "recognition_credits"
     private let initialCredits = 50
     
+    // MARK: - iCloud Key-Value 存储
+    private let iCloudStore = NSUbiquitousKeyValueStore.default
+    
     private init() {
         // 启动时检查购买状态
         let purchased = UserDefaults.standard.bool(forKey: isPurchasedKey)
         isPro = purchased
         
-        // 加载配额 (如果是 Pro 但没有配额记录，则初始化)
-        if purchased {
-            if UserDefaults.standard.object(forKey: creditsKey) == nil {
-                UserDefaults.standard.set(initialCredits, forKey: creditsKey)
-            }
-        }
+        // 从 iCloud 同步配额到本地（如果有）
+        syncCreditsFromiCloud()
+        
+        // 监听 iCloud 变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(iCloudDidChangeExternally),
+            name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: iCloudStore
+        )
+        
+        // 开始同步
+        iCloudStore.synchronize()
         
         // 异步加载产品和验证购买
         Task {
@@ -42,6 +52,46 @@ class SubscriptionManager: ObservableObject {
         
         // 监听交易更新
         listenForTransactions()
+    }
+    
+    // MARK: - iCloud 同步
+    
+    /// 从 iCloud 同步配额
+    private func syncCreditsFromiCloud() {
+        let iCloudCredits = iCloudStore.longLong(forKey: creditsKey)
+        let localCredits = UserDefaults.standard.integer(forKey: creditsKey)
+        
+        if iCloudCredits > 0 {
+            // iCloud 有值，使用 iCloud 的值
+            UserDefaults.standard.set(Int(iCloudCredits), forKey: creditsKey)
+            print("SubscriptionManager: 从 iCloud 同步配额: \(iCloudCredits)")
+        } else if localCredits > 0 {
+            // iCloud 没有值但本地有，上传到 iCloud
+            iCloudStore.set(Int64(localCredits), forKey: creditsKey)
+            iCloudStore.synchronize()
+            print("SubscriptionManager: 上传本地配额到 iCloud: \(localCredits)")
+        }
+    }
+    
+    /// iCloud 外部变化通知
+    @objc private func iCloudDidChangeExternally(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonRaw = userInfo[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int else {
+            return
+        }
+        
+        let changedKeys = userInfo[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
+        
+        if changedKeys.contains(creditsKey) {
+            let newCredits = iCloudStore.longLong(forKey: creditsKey)
+            UserDefaults.standard.set(Int(newCredits), forKey: creditsKey)
+            
+            DispatchQueue.main.async {
+                self.objectWillChange.send()
+            }
+            
+            print("SubscriptionManager: iCloud 配额变化 (reason: \(reasonRaw)): \(newCredits)")
+        }
     }
     
     // MARK: - 加载产品信息
@@ -123,6 +173,9 @@ class SubscriptionManager: ObservableObject {
             try await AppStore.sync()
             await updatePurchasedProducts()
             
+            // 恢复购买后同步 iCloud 配额
+            syncCreditsFromiCloud()
+            
             if isPro {
                 print("SubscriptionManager: 恢复购买成功")
             } else {
@@ -182,13 +235,40 @@ class SubscriptionManager: ObservableObject {
             isPro = true
             UserDefaults.standard.set(true, forKey: isPurchasedKey)
             
-            // 首次解锁赠送配额
-            if UserDefaults.standard.object(forKey: creditsKey) == nil {
+            // 首次解锁赠送配额（配额为 nil 或 0 时都初始化）
+            // 优先检查 iCloud，再检查本地
+            let iCloudCredits = iCloudStore.longLong(forKey: creditsKey)
+            let localCredits = UserDefaults.standard.integer(forKey: creditsKey)
+            
+            if iCloudCredits > 0 {
+                // iCloud 有配额，同步到本地
+                UserDefaults.standard.set(Int(iCloudCredits), forKey: creditsKey)
+                print("SubscriptionManager: Pro 已解锁，从 iCloud 恢复 \(iCloudCredits) 次配额")
+            } else if localCredits > 0 {
+                // 本地有配额，上传到 iCloud
+                iCloudStore.set(Int64(localCredits), forKey: creditsKey)
+                iCloudStore.synchronize()
+                print("SubscriptionManager: Pro 已解锁，保留现有 \(localCredits) 次配额")
+            } else {
+                // 两边都没有，初始化
                 UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+                iCloudStore.set(Int64(initialCredits), forKey: creditsKey)
+                iCloudStore.synchronize()
+                print("SubscriptionManager: Pro 已解锁，初始化 \(initialCredits) 次高级识别配额!")
             }
-            print("SubscriptionManager: Pro 已解锁，初始化 \(initialCredits) 次高级识别配额!")
         }
     }
+    
+    #if DEBUG
+    /// 调试用：重置高级识别配额
+    func resetCredits() {
+        UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+        iCloudStore.set(Int64(initialCredits), forKey: creditsKey)
+        iCloudStore.synchronize()
+        self.objectWillChange.send()
+        print("SubscriptionManager: [DEBUG] 配额已重置为 \(initialCredits)")
+    }
+    #endif
     
     // MARK: - 配额管理
     
@@ -201,7 +281,11 @@ class SubscriptionManager: ObservableObject {
     func consumeCredit() {
         let current = currentCredits
         if current > 0 {
-            UserDefaults.standard.set(current - 1, forKey: creditsKey)
+            let newCredits = current - 1
+            // 同时更新本地和 iCloud
+            UserDefaults.standard.set(newCredits, forKey: creditsKey)
+            iCloudStore.set(Int64(newCredits), forKey: creditsKey)
+            iCloudStore.synchronize()
             self.objectWillChange.send()
         }
     }
