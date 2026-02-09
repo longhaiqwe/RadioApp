@@ -679,6 +679,17 @@ class MusicPlatformService {
     
     // MARK: - 中文元数据转换 (ACRCloud 拼音/繁体 -> 简体中文)
     
+    /// 检查是否为衍生版本 (伴奏、DJ、Remix 等)
+    private func isDerivative(_ title: String) -> Bool {
+        let keywords = ["伴奏", "Instrumental", "Inst.", "Off Vocal", "DJ", "Remix", "Club Mix"]
+        for keyword in keywords {
+            if title.localizedCaseInsensitiveContains(keyword) {
+                return true
+            }
+        }
+        return false
+    }
+    
     /// 繁体转简体
     func toSimplifiedChinese(_ text: String) -> String {
         return text.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? text
@@ -745,8 +756,9 @@ class MusicPlatformService {
     private func fetchChineseMetadataFromQQ(title: String, artist: String) async -> (title: String, artist: String)? {
         let query = "\(title) \(artist)"
         
+        // n=5 扩大搜索范围，避免首条是伴奏
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=1&w=\(encodedQuery)&format=json") else {
+              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=5&w=\(encodedQuery)&format=json") else {
             return nil
         }
         
@@ -756,45 +768,63 @@ class MusicPlatformService {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let dataObj = json["data"] as? [String: Any],
                let songObj = dataObj["song"] as? [String: Any],
-               let list = songObj["list"] as? [[String: Any]],
-               let firstSong = list.first {
+               let list = songObj["list"] as? [[String: Any]] {
                 
-                let resultTitle = firstSong["songname"] as? String ?? ""
-                let singers = firstSong["singer"] as? [[String: Any]] ?? []
-                let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                
-                // 确保搜索结果包含中文
-                if !resultTitle.isEmpty && !isPinyinOrRomanized(resultTitle) {
-                    // 验证 1: 拼音匹配 - 确保歌名正确
-                    let queryTitlePinyin = toPinyin(title)
-                    let resultTitlePinyin = toPinyin(resultTitle)
-                    
-                    guard queryTitlePinyin == resultTitlePinyin else {
-                        print("MusicPlatformService: QQ 音乐搜索结果拼音不匹配 - '\(queryTitlePinyin)' vs '\(resultTitlePinyin)'")
-                        return nil
-                    }
-                    
-                    // 验证 2: 歌手匹配 - 如果原歌手已是中文，需要验证歌手一致
-                    if !isPinyinOrRomanized(artist) {
-                        // 原歌手是中文，验证歌手是否匹配
-                        let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
-                        let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                // 辅助函数：查找最佳匹配
+                func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
+                    for (index, song) in list.enumerated() {
+                        let resultTitle = song["songname"] as? String ?? ""
+                        if resultTitle.isEmpty { continue }
                         
-                        // 检查是否有包含关系（允许部分匹配，如 "张学友" 匹配 "张学友 陈慧娴"）
-                        let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) || 
-                                          resultArtistNormalized.contains(queryArtistNormalized)
+                        // 如果不允许衍生版本，且当前是衍生版本，跳过
+                        if !allowDerivative && isDerivative(resultTitle) { continue }
                         
-                        guard artistMatch else {
-                            print("MusicPlatformService: QQ 音乐搜索结果歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
-                            return nil
+                        let singers = song["singer"] as? [[String: Any]] ?? []
+                        let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                        
+                        // 确保搜索结果包含中文
+                        if !isPinyinOrRomanized(resultTitle) {
+                            // 验证 1: 拼音匹配 - 确保歌名正确
+                            let queryTitlePinyin = toPinyin(title)
+                            let resultTitlePinyin = toPinyin(resultTitle)
+                            
+                            guard queryTitlePinyin == resultTitlePinyin else {
+                                // print("MusicPlatformService: QQ 音乐结果 #\(index) 拼音不匹配 - '\(queryTitlePinyin)' vs '\(resultTitlePinyin)'")
+                                continue
+                            }
+                            
+                            // 验证 2: 歌手匹配 - 如果原歌手已是中文，需要验证歌手一致
+                            if !isPinyinOrRomanized(artist) {
+                                let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                                let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                                
+                                // 检查是否有包含关系（允许部分匹配，如 "张学友" 匹配 "张学友 陈慧娴"）
+                                let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
+                                                  resultArtistNormalized.contains(queryArtistNormalized)
+                                
+                                guard artistMatch else {
+                                    // print("MusicPlatformService: QQ 音乐结果 #\(index) 歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
+                                    continue
+                                }
+                            }
+                            
+                            print("MusicPlatformService: QQ 音乐成功获取中文元数据 (Idx: \(index), Derivative: \(allowDerivative)) - Title: \(resultTitle), Artist: \(resultArtist)")
+                            return (resultTitle, resultArtist)
                         }
                     }
-                    
-                    print("MusicPlatformService: QQ 音乐成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
-                    return (resultTitle, resultArtist)
-                } else {
-                    print("MusicPlatformService: QQ 音乐搜索结果仍非中文")
+                    return nil
                 }
+                
+                // 第一轮：优先找非衍生版本
+                if let match = findBestMatch(allowDerivative: false) { return match }
+                
+                // 第二轮：兜底找任意匹配
+                if let match = findBestMatch(allowDerivative: true) {
+                    print("MusicPlatformService: QQ 音乐仅找到衍生版本作为中文元数据")
+                    return match
+                }
+                
+                print("MusicPlatformService: QQ 音乐前 5 个结果均不匹配")
             }
         } catch {
             print("MusicPlatformService: QQ 音乐中文元数据查询失败 - \(error)")
@@ -807,8 +837,9 @@ class MusicPlatformService {
     private func fetchChineseMetadataFromNetEase(title: String, artist: String) async -> (title: String, artist: String)? {
         let query = "\(title) \(artist)"
         
+        // limit=5 扩大搜索范围
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=1") else {
+              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=5") else {
             return nil
         }
         
@@ -822,42 +853,49 @@ class MusicPlatformService {
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let result = json["result"] as? [String: Any],
-               let songs = result["songs"] as? [[String: Any]],
-               let firstSong = songs.first {
+               let songs = result["songs"] as? [[String: Any]] {
                 
-                let resultTitle = firstSong["name"] as? String ?? ""
-                let singers = firstSong["artists"] as? [[String: Any]] ?? []
-                let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                
-                // 确保搜索结果包含中文
-                if !resultTitle.isEmpty && !isPinyinOrRomanized(resultTitle) {
-                    // 额外验证：使用拼音匹配确认歌曲正确
-                    let queryTitlePinyin = toPinyin(title)
-                    let resultTitlePinyin = toPinyin(resultTitle)
-                    
-                    if queryTitlePinyin == resultTitlePinyin {
-                        // 验证 2: 歌手匹配 - 如果原歌手已是中文，需要验证歌手一致
-                        if !isPinyinOrRomanized(artist) {
-                            let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
-                            let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
+                    for (index, song) in songs.enumerated() {
+                        let resultTitle = song["name"] as? String ?? ""
+                        if resultTitle.isEmpty { continue }
+                        
+                        if !allowDerivative && isDerivative(resultTitle) { continue }
+                        
+                        let singers = song["artists"] as? [[String: Any]] ?? []
+                        let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                        
+                        // 确保搜索结果包含中文
+                        if !isPinyinOrRomanized(resultTitle) {
+                            // 额外验证：使用拼音匹配确认歌曲正确
+                            let queryTitlePinyin = toPinyin(title)
+                            let resultTitlePinyin = toPinyin(resultTitle)
                             
-                            let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) || 
-                                              resultArtistNormalized.contains(queryArtistNormalized)
-                            
-                            guard artistMatch else {
-                                print("MusicPlatformService: 网易云搜索结果歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
-                                return nil
+                            if queryTitlePinyin == resultTitlePinyin {
+                                // 验证 2: 歌手匹配
+                                if !isPinyinOrRomanized(artist) {
+                                    let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                                    let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                                    
+                                    let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
+                                                      resultArtistNormalized.contains(queryArtistNormalized)
+                                    
+                                    guard artistMatch else {
+                                        // print("MusicPlatformService: 网易云结果 #\(index) 歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
+                                        continue
+                                    }
+                                }
+                                
+                                print("MusicPlatformService: 网易云成功获取中文元数据 (Idx: \(index)) - Title: \(resultTitle), Artist: \(resultArtist)")
+                                return (resultTitle, resultArtist)
                             }
                         }
-                        
-                        print("MusicPlatformService: 网易云成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
-                        return (resultTitle, resultArtist)
-                    } else {
-                        print("MusicPlatformService: 网易云搜索结果拼音不匹配 - '\(queryTitlePinyin)' vs '\(resultTitlePinyin)'")
                     }
-                } else {
-                    print("MusicPlatformService: 网易云搜索结果仍非中文")
+                    return nil
                 }
+                
+                if let match = findBestMatch(allowDerivative: false) { return match }
+                if let match = findBestMatch(allowDerivative: true) { return match }
             }
         } catch {
             print("MusicPlatformService: 网易云中文元数据查询失败 - \(error)")
@@ -877,8 +915,9 @@ class MusicPlatformService {
         let query = "\(title) \(artist)"
         print("MusicPlatformService: QQ Music 搜索 Query: \(query), Strictness: \(strictness)")
         
+        // n=5
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=1&w=\(encodedQuery)&format=json") else {
+              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=5&w=\(encodedQuery)&format=json") else {
             return nil
         }
         
@@ -890,23 +929,36 @@ class MusicPlatformService {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let dataObj = json["data"] as? [String: Any],
                let songObj = dataObj["song"] as? [String: Any],
-               let list = songObj["list"] as? [[String: Any]],
-               let firstSong = list.first,
-               let songmid = firstSong["songmid"] as? String {
+               let list = songObj["list"] as? [[String: Any]] {
                 
-                print("MusicPlatformService: QQ Music 找到 SongMID: \(songmid), Title: \(firstSong["songname"] ?? ""), Artist: \(firstSong["singer"] ?? "")")
-                
-                let resultTitle = firstSong["songname"] as? String ?? ""
-                let singers = firstSong["singer"] as? [[String: Any]] ?? []
-                let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
-                
-                if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultTitle, resultArtist: resultArtist, strictness: strictness) {
-                    print("MusicPlatformService: QQ Music 匹配成功")
-                    return songmid
-                } else {
-                    print("QQ Music Match Failed: Query('\(title)', '\(artist)') vs Result('\(resultTitle)', '\(resultArtist)')")
+                func findBestMatch(allowDerivative: Bool) -> String? {
+                    for (index, song) in list.enumerated() {
+                        guard let songmid = song["songmid"] as? String else { continue }
+                        let resultTitle = song["songname"] as? String ?? ""
+                        let singers = song["singer"] as? [[String: Any]] ?? []
+                        let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
+                        
+                        // 优先过滤衍生版本
+                        if !allowDerivative && isDerivative(resultTitle) { continue }
+                        
+                        if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultTitle, resultArtist: resultArtist, strictness: strictness) {
+                            print("MusicPlatformService: QQ Music 匹配成功 (Idx: \(index), matchesDerivative: \(isDerivative(resultTitle)))")
+                            return songmid
+                        }
+                    }
                     return nil
                 }
+                
+                // 第一轮：严格寻找非衍生版本
+                if let mid = findBestMatch(allowDerivative: false) { return mid }
+                
+                // 第二轮：找不到非衍生版本，接受衍生版本
+                if let mid = findBestMatch(allowDerivative: true) {
+                    print("MusicPlatformService: QQ Music 最终选择了衍生版本")
+                    return mid
+                }
+                
+                print("QQ Music Match Failed: Query('\(title)', '\(artist)') - Scanned \(list.count) results")
             } else {
                 print("MusicPlatformService: QQ Music 搜索未找到结果或解析失败")
             }
@@ -925,10 +977,12 @@ class MusicPlatformService {
         
         // 2. 特殊字符映射 (处理繁简转换无法覆盖的异体字)
         // "妳" 是女性专用的"你"，不在标准繁简转换中
+        // "著" 在繁体中常对应简体的 "着" (如: 等著 -> 等着)
         let specialMappings: [Character: Character] = [
             "妳": "你",
             "祂": "他",
-            "牠": "它"
+            "牠": "它",
+            "著": "着"
         ]
         result = String(result.map { specialMappings[$0] ?? $0 })
         
@@ -1071,8 +1125,9 @@ class MusicPlatformService {
         let query = "\(title) \(artist)"
         print("MusicPlatformService: NetEase 搜索 Query: \(query), Strictness: \(strictness)")
         
+        // limit=5
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=1") else {
+              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=5") else {
             return nil
         }
         
@@ -1085,27 +1140,32 @@ class MusicPlatformService {
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
             
-            // 尝试解析 JSON
-            // 结构: result -> songs -> [0] -> id
-            // 注意：如果在海外 IP，此接口可能返回 "abroad":true 和加密 result，导致解析失败。
-            // 但用户在中国环境下应该能正常获取 JSON。
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let result = json["result"] as? [String: Any],
-               let songs = result["songs"] as? [[String: Any]],
-               let firstSong = songs.first,
-               let id = firstSong["id"] as? Int,
-               let resultName = firstSong["name"] as? String {
+               let songs = result["songs"] as? [[String: Any]] {
                 
-                let singers = firstSong["artists"] as? [[String: Any]] ?? []
-                let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
-                
-                if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultName, resultArtist: resultArtist, strictness: strictness) {
-                    print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(resultName) ✓ 匹配")
-                    return String(id)
-                } else {
-                    print("MusicPlatformService: NetEase 搜索结果不匹配 - Query: '\(title)' vs Result: '\(resultName)', Artist: '\(resultArtist)' ✗")
+                func findBestMatch(allowDerivative: Bool) -> String? {
+                    for (index, song) in songs.enumerated() {
+                        guard let id = song["id"] as? Int,
+                              let resultName = song["name"] as? String else { continue }
+                        
+                        if !allowDerivative && isDerivative(resultName) { continue }
+                        
+                        let singers = song["artists"] as? [[String: Any]] ?? []
+                        let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
+                        
+                        if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultName, resultArtist: resultArtist, strictness: strictness) {
+                            print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(resultName) ✓ 匹配 (Idx: \(index))")
+                            return String(id)
+                        }
+                    }
                     return nil
                 }
+                
+                if let id = findBestMatch(allowDerivative: false) { return id }
+                if let id = findBestMatch(allowDerivative: true) { return id }
+                
+                print("MusicPlatformService: NetEase 搜索结果不匹配")
             } else {
                  print("MusicPlatformService: NetEase 搜索未找到结果或解析失败")
             }
