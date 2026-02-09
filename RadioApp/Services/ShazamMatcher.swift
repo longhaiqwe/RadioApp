@@ -718,7 +718,7 @@ class MusicPlatformService {
         return result.trimmingCharacters(in: .whitespaces)
     }
     
-    /// 从 QQ 音乐获取中文元数据
+    /// 从 QQ 音乐/网易云音乐获取中文元数据
     /// - Parameters:
     ///   - title: 原始歌曲名 (可能是拼音)
     ///   - artist: 原始艺术家名 (可能是罗马化)
@@ -726,7 +726,23 @@ class MusicPlatformService {
     func fetchChineseMetadata(title: String, artist: String) async -> (title: String, artist: String)? {
         print("MusicPlatformService: 开始转换中文元数据 - Title: \(title), Artist: \(artist)")
         
-        // 使用 QQ 音乐搜索 API
+        // 阶段 1: 尝试 QQ 音乐
+        if let result = await fetchChineseMetadataFromQQ(title: title, artist: artist) {
+            return result
+        }
+        
+        // 阶段 2: QQ 音乐失败，尝试网易云音乐
+        print("MusicPlatformService: QQ 音乐获取中文元数据失败，尝试网易云...")
+        if let result = await fetchChineseMetadataFromNetEase(title: title, artist: artist) {
+            return result
+        }
+        
+        print("MusicPlatformService: 所有平台均未获取到中文元数据")
+        return nil
+    }
+    
+    /// 从 QQ 音乐获取中文元数据
+    private func fetchChineseMetadataFromQQ(title: String, artist: String) async -> (title: String, artist: String)? {
         let query = "\(title) \(artist)"
         
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
@@ -749,14 +765,102 @@ class MusicPlatformService {
                 
                 // 确保搜索结果包含中文
                 if !resultTitle.isEmpty && !isPinyinOrRomanized(resultTitle) {
-                    print("MusicPlatformService: 成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
+                    // 验证 1: 拼音匹配 - 确保歌名正确
+                    let queryTitlePinyin = toPinyin(title)
+                    let resultTitlePinyin = toPinyin(resultTitle)
+                    
+                    guard queryTitlePinyin == resultTitlePinyin else {
+                        print("MusicPlatformService: QQ 音乐搜索结果拼音不匹配 - '\(queryTitlePinyin)' vs '\(resultTitlePinyin)'")
+                        return nil
+                    }
+                    
+                    // 验证 2: 歌手匹配 - 如果原歌手已是中文，需要验证歌手一致
+                    if !isPinyinOrRomanized(artist) {
+                        // 原歌手是中文，验证歌手是否匹配
+                        let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                        let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                        
+                        // 检查是否有包含关系（允许部分匹配，如 "张学友" 匹配 "张学友 陈慧娴"）
+                        let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) || 
+                                          resultArtistNormalized.contains(queryArtistNormalized)
+                        
+                        guard artistMatch else {
+                            print("MusicPlatformService: QQ 音乐搜索结果歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
+                            return nil
+                        }
+                    }
+                    
+                    print("MusicPlatformService: QQ 音乐成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
                     return (resultTitle, resultArtist)
                 } else {
-                    print("MusicPlatformService: 搜索结果仍非中文，放弃转换")
+                    print("MusicPlatformService: QQ 音乐搜索结果仍非中文")
                 }
             }
         } catch {
-            print("MusicPlatformService: 中文元数据查询失败 - \(error)")
+            print("MusicPlatformService: QQ 音乐中文元数据查询失败 - \(error)")
+        }
+        
+        return nil
+    }
+    
+    /// 从网易云音乐获取中文元数据
+    private func fetchChineseMetadataFromNetEase(title: String, artist: String) async -> (title: String, artist: String)? {
+        let query = "\(title) \(artist)"
+        
+        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=1") else {
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let result = json["result"] as? [String: Any],
+               let songs = result["songs"] as? [[String: Any]],
+               let firstSong = songs.first {
+                
+                let resultTitle = firstSong["name"] as? String ?? ""
+                let singers = firstSong["artists"] as? [[String: Any]] ?? []
+                let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                
+                // 确保搜索结果包含中文
+                if !resultTitle.isEmpty && !isPinyinOrRomanized(resultTitle) {
+                    // 额外验证：使用拼音匹配确认歌曲正确
+                    let queryTitlePinyin = toPinyin(title)
+                    let resultTitlePinyin = toPinyin(resultTitle)
+                    
+                    if queryTitlePinyin == resultTitlePinyin {
+                        // 验证 2: 歌手匹配 - 如果原歌手已是中文，需要验证歌手一致
+                        if !isPinyinOrRomanized(artist) {
+                            let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                            let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+                            
+                            let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) || 
+                                              resultArtistNormalized.contains(queryArtistNormalized)
+                            
+                            guard artistMatch else {
+                                print("MusicPlatformService: 网易云搜索结果歌手不匹配 - '\(artist)' vs '\(resultArtist)'")
+                                return nil
+                            }
+                        }
+                        
+                        print("MusicPlatformService: 网易云成功获取中文元数据 - Title: \(resultTitle), Artist: \(resultArtist)")
+                        return (resultTitle, resultArtist)
+                    } else {
+                        print("MusicPlatformService: 网易云搜索结果拼音不匹配 - '\(queryTitlePinyin)' vs '\(resultTitlePinyin)'")
+                    }
+                } else {
+                    print("MusicPlatformService: 网易云搜索结果仍非中文")
+                }
+            }
+        } catch {
+            print("MusicPlatformService: 网易云中文元数据查询失败 - \(error)")
         }
         
         return nil
