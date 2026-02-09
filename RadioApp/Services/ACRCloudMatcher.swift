@@ -178,24 +178,82 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     return (title, artist, offset)
                                 }
                                 
-                                // 遍历所有记录，优先选择包含中文标题的记录
+                                // 辅助函数：检查歌手是否有效（排除合辑等无意义歌手）
+                                func isValidArtist(_ artist: String) -> Bool {
+                                    let invalidArtists = ["various artists", "群星", "原声带", "soundtrack", "ost"]
+                                    let lowerArtist = artist.lowercased()
+                                    return !invalidArtists.contains(where: { lowerArtist.contains($0) })
+                                }
+                                
+                                // 辅助函数：检查是否包含简体中文（非繁体）
+                                func isSimplifiedChinese(_ str: String) -> Bool {
+                                    guard containsChinese(str) else { return false }
+                                    // 转换为简体后与原字符串比较，相同则为简体
+                                    let simplified = str.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? str
+                                    return simplified == str
+                                }
+                                
+                                // 遍历所有记录，按优先级选择
+                                // 优先级: 简体中文+有效歌手 > 繁体中文+有效歌手 > 简体中文 > 繁体中文 > 兜底第一条
                                 var selectedTitle: String = ""
                                 var selectedArtist: String = ""
                                 var selectedOffset: TimeInterval? = nil
                                 
-                                // 第一遍：寻找标题已经是中文的记录
+                                // 第一遍：寻找简体中文标题 + 有效歌手
                                 for music in musicList {
                                     let meta = extractMeta(from: music)
-                                    if containsChinese(meta.title) {
+                                    if isSimplifiedChinese(meta.title) && isValidArtist(meta.artist) {
                                         selectedTitle = meta.title
                                         selectedArtist = meta.artist
                                         selectedOffset = meta.offset
-                                        print("ACRCloudMatcher: 找到中文标题记录 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
+                                        print("ACRCloudMatcher: 找到简体中文标题+有效歌手 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                         break
                                     }
                                 }
                                 
-                                // 如果没找到中文标题的记录，使用第一条
+                                // 第二遍：寻找繁体中文标题 + 有效歌手
+                                if selectedTitle.isEmpty {
+                                    for music in musicList {
+                                        let meta = extractMeta(from: music)
+                                        if containsChinese(meta.title) && isValidArtist(meta.artist) {
+                                            selectedTitle = meta.title
+                                            selectedArtist = meta.artist
+                                            selectedOffset = meta.offset
+                                            print("ACRCloudMatcher: 找到繁体中文标题+有效歌手 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
+                                            break
+                                        }
+                                    }
+                                }
+                                
+                                // 第三遍：寻找简体中文标题（放宽歌手条件）
+                                if selectedTitle.isEmpty {
+                                    for music in musicList {
+                                        let meta = extractMeta(from: music)
+                                        if isSimplifiedChinese(meta.title) {
+                                            selectedTitle = meta.title
+                                            selectedArtist = meta.artist
+                                            selectedOffset = meta.offset
+                                            print("ACRCloudMatcher: 找到简体中文标题 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
+                                            break
+                                        }
+                                    }
+                                }
+                                
+                                // 第四遍：寻找繁体中文标题
+                                if selectedTitle.isEmpty {
+                                    for music in musicList {
+                                        let meta = extractMeta(from: music)
+                                        if containsChinese(meta.title) {
+                                            selectedTitle = meta.title
+                                            selectedArtist = meta.artist
+                                            selectedOffset = meta.offset
+                                            print("ACRCloudMatcher: 找到繁体中文标题 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
+                                            break
+                                        }
+                                    }
+                                }
+                                
+                                // 最后兜底：使用第一条
                                 if selectedTitle.isEmpty {
                                     let meta = extractMeta(from: musicList[0])
                                     selectedTitle = meta.title
