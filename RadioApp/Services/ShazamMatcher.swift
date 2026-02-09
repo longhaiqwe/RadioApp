@@ -34,14 +34,14 @@ class ShazamMatcher: NSObject, ObservableObject {
         return matchOffset + timeSinceMatch - lyricsOffset
     }
     
-    /// 歌词后退 0.5 秒（显示更早的歌词）
+    /// 歌词后退 1 秒（显示更早的歌词）
     func adjustLyricsBackward() {
-        lyricsOffset += 0.5
+        lyricsOffset += 1.0
     }
     
-    /// 歌词前进 0.5 秒（显示更晚的歌词）
+    /// 歌词前进 1 秒（显示更晚的歌词）
     func adjustLyricsForward() {
-        lyricsOffset -= 0.5
+        lyricsOffset -= 1.0
     }
     
     /// 重置歌词偏移量

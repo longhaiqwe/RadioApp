@@ -89,7 +89,7 @@ struct LyricsView: View {
                                     .font(.system(size: 18, weight: .medium))
                                     .foregroundColor(.white)
                             }
-                            Text("-0.5s")
+                            Text("-1s")
                                 .font(.caption2)
                                 .foregroundColor(.white.opacity(0.7))
                         }
@@ -127,7 +127,7 @@ struct LyricsView: View {
                                     .font(.system(size: 18, weight: .medium))
                                     .foregroundColor(.white)
                             }
-                            Text("+0.5s")
+                            Text("+1s")
                                 .font(.caption2)
                                 .foregroundColor(.white.opacity(0.7))
                         }
