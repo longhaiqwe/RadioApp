@@ -117,80 +117,99 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                            let code = status["code"] as? Int, code == 0 {
                             
                             if let metadata = json["metadata"] as? [String: Any],
-                               let music = (metadata["music"] as? [[String: Any]])?.first {
+                               let musicList = metadata["music"] as? [[String: Any]], !musicList.isEmpty {
                                 
-                                // 获取默认标题
-                                let defaultTitle = music["title"] as? String ?? ""
-                                
-                                // 判断默认标题是否已经是中文（包含中文字符）
-                                let containsChinese = defaultTitle.unicodeScalars.contains { scalar in
-                                    return (scalar.value >= 0x4E00 && scalar.value <= 0x9FFF) || // 基本汉字
-                                           (scalar.value >= 0x3400 && scalar.value <= 0x4DBF)    // 扩展A区
-                                }
-                                
-                                var title: String? = nil
-                                if containsChinese {
-                                    // 默认标题已是中文，直接使用
-                                    title = defaultTitle
-                                } else if let langs = music["langs"] as? [[String: Any]] {
-                                    // 尝试从 langs 获取简体中文 (大小写不敏感匹配)
-                                    if let zhHans = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" }),
-                                       let name = zhHans["name"] as? String, !name.isEmpty {
-                                        title = name
-                                    }
-                                    // 如果没有简体，尝试繁体
-                                    else if let zhHant = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hant" }),
-                                            let name = zhHant["name"] as? String, !name.isEmpty {
-                                        title = name
-                                    }
-                                }
-                                // 最后兜底使用默认标题
-                                if title == nil {
-                                    title = defaultTitle
-                                }
-                                
-                                // 获取艺术家名
-                                var artistName: String? = nil
-                                if let artists = music["artists"] as? [[String: Any]],
-                                   let firstArtist = artists.first {
-                                    let defaultArtist = firstArtist["name"] as? String ?? ""
-                                    
-                                    // 判断默认艺术家名是否已经是中文
-                                    let artistContainsChinese = defaultArtist.unicodeScalars.contains { scalar in
+                                // 辅助函数：检查字符串是否包含中文
+                                func containsChinese(_ str: String) -> Bool {
+                                    return str.unicodeScalars.contains { scalar in
                                         return (scalar.value >= 0x4E00 && scalar.value <= 0x9FFF) ||
                                                (scalar.value >= 0x3400 && scalar.value <= 0x4DBF)
                                     }
+                                }
+                                
+                                // 辅助函数：从 langs 数组中获取中文名
+                                func getChineseFromLangs(_ langs: [[String: Any]]?) -> String? {
+                                    guard let langs = langs else { return nil }
+                                    // 优先简体中文
+                                    if let zhHans = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" }),
+                                       let name = zhHans["name"] as? String, !name.isEmpty {
+                                        return name
+                                    }
+                                    // 其次繁体中文
+                                    if let zhHant = langs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hant" }),
+                                       let name = zhHant["name"] as? String, !name.isEmpty {
+                                        return name
+                                    }
+                                    return nil
+                                }
+                                
+                                // 辅助函数：从单条 music 记录中提取标题和歌手
+                                func extractMeta(from music: [String: Any]) -> (title: String, artist: String, offset: TimeInterval?) {
+                                    // 提取标题
+                                    let defaultTitle = music["title"] as? String ?? ""
+                                    var title: String
+                                    if containsChinese(defaultTitle) {
+                                        title = defaultTitle
+                                    } else if let chineseTitle = getChineseFromLangs(music["langs"] as? [[String: Any]]) {
+                                        title = chineseTitle
+                                    } else {
+                                        title = defaultTitle
+                                    }
                                     
-                                    if artistContainsChinese {
-                                        // 默认艺术家名已是中文，直接使用
-                                        artistName = defaultArtist
-                                    } else if let artistLangs = firstArtist["langs"] as? [[String: Any]] {
-                                        // 尝试从 langs 获取中文名 (大小写不敏感匹配)
-                                        if let zhHans = artistLangs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" }),
-                                           let name = zhHans["name"] as? String, !name.isEmpty {
-                                            artistName = name
-                                        } else if let zhHant = artistLangs.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hant" }),
-                                                  let name = zhHant["name"] as? String, !name.isEmpty {
-                                            artistName = name
+                                    // 提取歌手
+                                    var artist = ""
+                                    if let artists = music["artists"] as? [[String: Any]], let firstArtist = artists.first {
+                                        let defaultArtist = firstArtist["name"] as? String ?? ""
+                                        if containsChinese(defaultArtist) {
+                                            artist = defaultArtist
+                                        } else if let chineseArtist = getChineseFromLangs(firstArtist["langs"] as? [[String: Any]]) {
+                                            artist = chineseArtist
+                                        } else {
+                                            artist = defaultArtist
                                         }
                                     }
-                                    // 兜底使用默认 name
-                                    if artistName == nil {
-                                        artistName = defaultArtist
+                                    
+                                    // 提取播放进度
+                                    var offset: TimeInterval? = nil
+                                    if let playOffsetMs = music["play_offset_ms"] as? Int {
+                                        offset = TimeInterval(playOffsetMs) / 1000.0
+                                    }
+                                    
+                                    return (title, artist, offset)
+                                }
+                                
+                                // 遍历所有记录，优先选择包含中文标题的记录
+                                var selectedTitle: String = ""
+                                var selectedArtist: String = ""
+                                var selectedOffset: TimeInterval? = nil
+                                
+                                // 第一遍：寻找标题已经是中文的记录
+                                for music in musicList {
+                                    let meta = extractMeta(from: music)
+                                    if containsChinese(meta.title) {
+                                        selectedTitle = meta.title
+                                        selectedArtist = meta.artist
+                                        selectedOffset = meta.offset
+                                        print("ACRCloudMatcher: 找到中文标题记录 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
+                                        break
                                     }
                                 }
                                 
-                                // 提取播放进度 (毫秒)
-                                var offset: TimeInterval?
-                                if let playOffsetMs = music["play_offset_ms"] as? Int {
-                                    offset = TimeInterval(playOffsetMs) / 1000.0
+                                // 如果没找到中文标题的记录，使用第一条
+                                if selectedTitle.isEmpty {
+                                    let meta = extractMeta(from: musicList[0])
+                                    selectedTitle = meta.title
+                                    selectedArtist = meta.artist
+                                    selectedOffset = meta.offset
+                                    print("ACRCloudMatcher: 未找到中文标题，使用第一条记录 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                 }
                                 
-                                print("ACRCloudMatcher: 初步解析结果 - 歌曲: \(title ?? "未知"), 歌手: \(artistName ?? "未知")")
+                                print("ACRCloudMatcher: 初步解析结果 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                 
-                                // 转为非可选类型处理
-                                var finalTitle = title ?? ""
-                                var finalArtist = artistName ?? ""
+                                // 转为可变变量处理
+                                var finalTitle = selectedTitle
+                                var finalArtist = selectedArtist
+                                let offset = selectedOffset
                                 
                                 // 启动 Task 进行中文元数据修正
                                 Task {
