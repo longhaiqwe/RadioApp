@@ -145,12 +145,21 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 
                                 // 辅助函数：从单条 music 记录中提取标题和歌手
                                 func extractMeta(from music: [String: Any]) -> (title: String, artist: String, offset: TimeInterval?) {
+                                    // 辅助：仅获取简体中文
+                                    func getSimplified(_ langs: [[String: Any]]?) -> String? {
+                                        return langs?.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" })?["name"] as? String
+                                    }
+                                    
                                     // 提取标题
                                     let defaultTitle = music["title"] as? String ?? ""
                                     var title: String
-                                    if containsChinese(defaultTitle) {
+                                    let langs = music["langs"] as? [[String: Any]]
+                                    
+                                    if let simplifiedTitle = getSimplified(langs), !simplifiedTitle.isEmpty {
+                                        title = simplifiedTitle
+                                    } else if containsChinese(defaultTitle) {
                                         title = defaultTitle
-                                    } else if let chineseTitle = getChineseFromLangs(music["langs"] as? [[String: Any]]) {
+                                    } else if let chineseTitle = getChineseFromLangs(langs) {
                                         title = chineseTitle
                                     } else {
                                         title = defaultTitle
@@ -160,9 +169,13 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     var artist = ""
                                     if let artists = music["artists"] as? [[String: Any]], let firstArtist = artists.first {
                                         let defaultArtist = firstArtist["name"] as? String ?? ""
-                                        if containsChinese(defaultArtist) {
+                                        let artistLangs = firstArtist["langs"] as? [[String: Any]]
+                                        
+                                        if let simplifiedArtist = getSimplified(artistLangs), !simplifiedArtist.isEmpty {
+                                            artist = simplifiedArtist
+                                        } else if containsChinese(defaultArtist) {
                                             artist = defaultArtist
-                                        } else if let chineseArtist = getChineseFromLangs(firstArtist["langs"] as? [[String: Any]]) {
+                                        } else if let chineseArtist = getChineseFromLangs(artistLangs) {
                                             artist = chineseArtist
                                         } else {
                                             artist = defaultArtist

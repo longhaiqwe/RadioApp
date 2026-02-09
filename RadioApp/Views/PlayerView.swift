@@ -827,9 +827,9 @@ struct PlayerView: View {
         // 1. 尝试获取 Song ID
         var songId: String? = nil
         if platform == "netease" {
-            songId = await MusicPlatformService.shared.findNetEaseID(title: title, artist: artist)
+            songId = await MusicPlatformService.shared.findNetEaseIDs(title: title, artist: artist).first
         } else if platform == "qq" {
-            songId = await MusicPlatformService.shared.findQQMusicID(title: title, artist: artist)
+            songId = await MusicPlatformService.shared.findQQMusicIDs(title: title, artist: artist).first
         }
         
         // 2. 构建 URL

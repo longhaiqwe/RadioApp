@@ -692,7 +692,9 @@ class MusicPlatformService {
     
     /// 繁体转简体
     func toSimplifiedChinese(_ text: String) -> String {
-        return text.applyingTransform(StringTransform("Any-Hans"), reverse: false) ?? text
+        let mutableString = NSMutableString(string: text)
+        CFStringTransform(mutableString, nil, "Hant-Hans" as CFString, false)
+        return mutableString as String
     }
     
     /// 检测是否为拼音或罗马化格式 (只含 ASCII 字符)
@@ -906,8 +908,8 @@ class MusicPlatformService {
     
     // MARK: - QQ Music
     
-    /// 搜索 QQ 音乐并获取 SongMID
-    func findQQMusicID(title: String, artist: String, strictness: MatchStrictness = .strict) async -> String? {
+    /// 搜索 QQ 音乐并获取 SongMID 列表
+    func findQQMusicIDs(title: String, artist: String, strictness: MatchStrictness = .strict) async -> [String] {
         // QQ 音乐搜索 API (Mobile Client Endpoint)
         // https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w={Query}&format=json
         
@@ -918,7 +920,7 @@ class MusicPlatformService {
         // n=5
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=5&w=\(encodedQuery)&format=json") else {
-            return nil
+            return []
         }
         
         do {
@@ -931,7 +933,10 @@ class MusicPlatformService {
                let songObj = dataObj["song"] as? [String: Any],
                let list = songObj["list"] as? [[String: Any]] {
                 
-                func findBestMatch(allowDerivative: Bool) -> String? {
+                var candidates: [String] = []
+                
+                // 辅助函数：查找最佳匹配
+                func collectMatches(allowDerivative: Bool) {
                     for (index, song) in list.enumerated() {
                         guard let songmid = song["songmid"] as? String else { continue }
                         let resultTitle = song["songname"] as? String ?? ""
@@ -941,21 +946,25 @@ class MusicPlatformService {
                         // 优先过滤衍生版本
                         if !allowDerivative && isDerivative(resultTitle) { continue }
                         
+                        // 如果已经添加过，跳过
+                        if candidates.contains(songmid) { continue }
+                        
                         if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultTitle, resultArtist: resultArtist, strictness: strictness) {
                             print("MusicPlatformService: QQ Music 匹配成功 (Idx: \(index), matchesDerivative: \(isDerivative(resultTitle)))")
-                            return songmid
+                            candidates.append(songmid)
                         }
                     }
-                    return nil
                 }
                 
                 // 第一轮：严格寻找非衍生版本
-                if let mid = findBestMatch(allowDerivative: false) { return mid }
+                collectMatches(allowDerivative: false)
                 
-                // 第二轮：找不到非衍生版本，接受衍生版本
-                if let mid = findBestMatch(allowDerivative: true) {
-                    print("MusicPlatformService: QQ Music 最终选择了衍生版本")
-                    return mid
+                // 第二轮：接受衍生版本 (如果第一轮没有找到足够的候选，或者为了兜底)
+                // 逻辑变更：我们总是收集所有匹配项，优先非衍生
+                collectMatches(allowDerivative: true)
+                
+                if !candidates.isEmpty {
+                    return candidates
                 }
                 
                 print("QQ Music Match Failed: Query('\(title)', '\(artist)') - Scanned \(list.count) results")
@@ -966,7 +975,7 @@ class MusicPlatformService {
             print("QQ Music Search Error: \(error)")
         }
         
-        return nil
+        return []
     }
     
     /// 字符串归一化处理：繁转简、去括号内容(可选)、去标点、去语气干扰
@@ -1117,8 +1126,8 @@ class MusicPlatformService {
     
     // MARK: - NetEase Cloud Music
     
-    /// 搜索网易云音乐并获取 SongID
-    func findNetEaseID(title: String, artist: String, strictness: MatchStrictness = .strict) async -> String? {
+    /// 搜索网易云音乐并获取 SongID 列表
+    func findNetEaseIDs(title: String, artist: String, strictness: MatchStrictness = .strict) async -> [String] {
         // 网易云搜索 API (Legacy Endpoint)
         // http://music.163.com/api/search/get/web?s={Query}&type=1&offset=0&total=true&limit=1
         
@@ -1128,7 +1137,7 @@ class MusicPlatformService {
         // limit=5
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=5") else {
-            return nil
+            return []
         }
         
         var request = URLRequest(url: url)
@@ -1144,26 +1153,35 @@ class MusicPlatformService {
                let result = json["result"] as? [String: Any],
                let songs = result["songs"] as? [[String: Any]] {
                 
-                func findBestMatch(allowDerivative: Bool) -> String? {
+                var candidates: [String] = []
+                
+                func collectMatches(allowDerivative: Bool) {
                     for (index, song) in songs.enumerated() {
                         guard let id = song["id"] as? Int,
                               let resultName = song["name"] as? String else { continue }
+                        let idStr = String(id)
                         
                         if !allowDerivative && isDerivative(resultName) { continue }
+                        
+                        // 如果已经添加过，跳过
+                        if candidates.contains(idStr) { continue }
                         
                         let singers = song["artists"] as? [[String: Any]] ?? []
                         let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
                         
                         if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultName, resultArtist: resultArtist, strictness: strictness) {
                             print("MusicPlatformService: NetEase 找到 ID: \(id), Name: \(resultName) ✓ 匹配 (Idx: \(index))")
-                            return String(id)
+                            candidates.append(idStr)
                         }
                     }
-                    return nil
                 }
                 
-                if let id = findBestMatch(allowDerivative: false) { return id }
-                if let id = findBestMatch(allowDerivative: true) { return id }
+                collectMatches(allowDerivative: false)
+                collectMatches(allowDerivative: true)
+                
+                if !candidates.isEmpty {
+                    return candidates
+                }
                 
                 print("MusicPlatformService: NetEase 搜索结果不匹配")
             } else {
@@ -1173,7 +1191,7 @@ class MusicPlatformService {
             print("NetEase Search Error: \(error)")
         }
         
-        return nil
+        return []
     }
     // MARK: - Lyrics Fetching
     
@@ -1218,83 +1236,94 @@ class MusicPlatformService {
     }
     
     private func fetchQQLyrics(title: String, artist: String, strictness: MatchStrictness) async -> String? {
-        guard let songmid = await findQQMusicID(title: title, artist: artist, strictness: strictness) else {
-            return nil
-        }
+        let songmids = await findQQMusicIDs(title: title, artist: artist, strictness: strictness)
+        guard !songmids.isEmpty else { return nil }
         
-        // QQ 音乐歌词接口
-        // https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={songmid}&format=json&nobase64=1
-        // 注意：QQ 音乐接口通常需要 Referer 和特定的 Header，且可能需要登录 cookie。
-        // 这里尝试公开接口，如果失败则返回 nil
-        
-        let urlString = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&format=json&nobase64=1"
-        guard let url = URL(string: urlString) else { return nil }
-        
-        // print("MusicPlatformService: 请求 QQ 歌词 URL: \(urlString)")
-        
-        var request = URLRequest(url: url)
-        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+        // 遍历所有候选 ID
+        for songmid in songmids {
+            // QQ 音乐歌词接口
+            // https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={songmid}&format=json&nobase64=1
             
-            // QQ 音乐有时返回 JSONP，需要处理 (不过这里加了 format=json)
-            // 结构: lyric
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                 if let lyric = json["lyric"] as? String,
-                    !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    // 解码 HTML 实体 (如果有)
-                    return lyric
-                 } else {
-                     print("MusicPlatformService: QQ 歌词为空或无 lyric 字段")
-                 }
+            let urlString = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&format=json&nobase64=1"
+            guard let url = URL(string: urlString) else { continue }
+            
+            // print("MusicPlatformService: 请求 QQ 歌词 URL: \(urlString)")
+            
+            var request = URLRequest(url: url)
+            request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(for: request)
+                
+                // QQ 音乐有时返回 JSONP，需要处理 (不过这里加了 format=json)
+                // 结构: lyric
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                     // 检查错误码
+                     if let retcode = json["retcode"] as? Int, retcode < 0 {
+                         print("MusicPlatformService: QQ 歌词获取失败 (SongMID: \(songmid), Code: \(retcode)) - 尝试下一个候选")
+                         continue
+                     }
+                    
+                     if let lyric = json["lyric"] as? String,
+                        !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // 解码 HTML 实体 (如果有)
+                        print("MusicPlatformService: QQ 歌词获取成功 (SongMID: \(songmid))")
+                        return lyric
+                     } else {
+                         // print("MusicPlatformService: QQ 歌词为空或无 lyric 字段 (SongMID: \(songmid))")
+                     }
+                }
+            } catch {
+                print("QQ Music Lyrics Error: \(error)")
             }
-        } catch {
-            print("QQ Music Lyrics Error: \(error)")
         }
         
+        print("MusicPlatformService: QQ 音乐所有候选均未返回有效歌词")
         return nil
     }
     
     private func fetchNetEaseLyrics(title: String, artist: String, strictness: MatchStrictness) async -> String? {
-        guard let id = await findNetEaseID(title: title, artist: artist, strictness: strictness) else {
-            return nil
-        }
+        let ids = await findNetEaseIDs(title: title, artist: artist, strictness: strictness)
+        guard !ids.isEmpty else { return nil }
         
-        // 网易云歌词接口
-        // http://music.163.com/api/song/lyric?id={id}&lv=1&kv=1&tv=-1
-        let urlString = "http://music.163.com/api/song/lyric?id=\(id)&lv=1&kv=1&tv=-1"
-        guard let url = URL(string: urlString) else { return nil }
-        
-        // print("MusicPlatformService: 请求网易云歌词 URL: \(urlString)")
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+        for id in ids {
+            // 网易云歌词接口
+            // http://music.163.com/api/song/lyric?id={id}&lv=1&kv=1&tv=-1
+            let urlString = "http://music.163.com/api/song/lyric?id=\(id)&lv=1&kv=1&tv=-1"
+            guard let url = URL(string: urlString) else { continue }
             
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                // 检查是否因为海外 IP 被限制
-                if let abroad = json["abroad"] as? Bool, abroad {
-                    print("MusicPlatformService: 网易云检测到海外 IP (abroad: true)，歌词可能被加密或为空")
-                }
+            // print("MusicPlatformService: 请求网易云歌词 URL: \(urlString)")
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
                 
-                // 检查是否有歌词
-                if let lrc = json["lrc"] as? [String: Any],
-                   let lyric = lrc["lyric"] as? String,
-                   !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    return lyric
-                } else {
-                    // 详细记录失败原因
-                    let nolyric = json["nolyric"] as? Bool ?? false
-                    let uncollected = json["uncollected"] as? Bool ?? false
-                    let lyricContent = (json["lrc"] as? [String: Any])?["lyric"] as? String ?? "nil"
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // 检查是否因为海外 IP 被限制
+                    if let abroad = json["abroad"] as? Bool, abroad {
+                        // print("MusicPlatformService: 网易云检测到海外 IP (abroad: true)，歌词可能被加密或为空")
+                    }
                     
-                    print("MusicPlatformService: 网易云歌词为空或无 lyric 字段 - nolyric: \(nolyric), uncollected: \(uncollected), content: '\(lyricContent)'")
+                    // 检查是否有歌词
+                    if let lrc = json["lrc"] as? [String: Any],
+                       let lyric = lrc["lyric"] as? String,
+                       !lyric.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        print("MusicPlatformService: 网易云歌词获取成功 (ID: \(id))")
+                        return lyric
+                    } else {
+                        // 详细记录失败原因
+                        let nolyric = json["nolyric"] as? Bool ?? false
+                        let uncollected = json["uncollected"] as? Bool ?? false
+                        // let lyricContent = (json["lrc"] as? [String: Any])?["lyric"] as? String ?? "nil"
+                        
+                        // print("MusicPlatformService: 网易云歌词为空或无 lyric 字段 (ID: \(id)) - nolyric: \(nolyric), uncollected: \(uncollected)")
+                    }
                 }
+            } catch {
+                print("NetEase Lyrics Error: \(error)")
             }
-        } catch {
-            print("NetEase Lyrics Error: \(error)")
         }
         
+        print("MusicPlatformService: 网易云所有候选均未返回有效歌词")
         return nil
     }
 }
