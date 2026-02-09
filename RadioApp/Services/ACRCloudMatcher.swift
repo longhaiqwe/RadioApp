@@ -21,20 +21,20 @@ class ACRCloudMatcher: NSObject, ObservableObject {
     /// 开始识别音频
     /// - Parameters:
     ///   - fileURL: 本地音频文件 URL (采样后的音频)
-    ///   - completion: 成功返回 (歌曲名, 歌手名, 播放进度秒数), 失败返回 (nil, nil, nil)
-    func match(fileURL: URL, completion: @escaping (String?, String?, TimeInterval?) -> Void) {
+    ///   - completion: 成功返回 (歌曲名, 歌手名, 播放进度秒数, 发行日期), 失败返回 (nil, nil, nil, nil)
+    func match(fileURL: URL, completion: @escaping (String?, String?, TimeInterval?, Date?) -> Void) {
         // 1. 检查配置
         guard ACRCloudConfiguration.accessKey != "YOUR_ACCESS_KEY",
               ACRCloudConfiguration.accessSecret != "YOUR_ACCESS_SECRET" else {
             print("ACRCloudMatcher: 请先配置 AccessKey 和 AccessSecret")
-            completion(nil, nil, nil)
+            completion(nil, nil, nil, nil)
             return
         }
         
         // 2. 读取音频数据
         guard let audioData = try? Data(contentsOf: fileURL) else {
             print("ACRCloudMatcher: 无法读取音频文件")
-            completion(nil, nil, nil)
+            completion(nil, nil, nil, nil)
             return
         }
         
@@ -54,7 +54,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
         )
         
         guard let signature = signature else {
-            completion(nil, nil, nil)
+            completion(nil, nil, nil, nil)
             return
         }
         
@@ -99,12 +99,12 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                 
                 if let error = error {
                     print("ACRCloudMatcher: 请求错误 - \(error.localizedDescription)")
-                    completion(nil, nil, nil)
+                    completion(nil, nil, nil, nil)
                     return
                 }
                 
                 guard let data = data else {
-                    completion(nil, nil, nil)
+                    completion(nil, nil, nil, nil)
                     return
                 }
                 
@@ -144,7 +144,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 }
                                 
                                 // 辅助函数：从单条 music 记录中提取标题和歌手
-                                func extractMeta(from music: [String: Any]) -> (title: String, artist: String, offset: TimeInterval?) {
+                                func extractMeta(from music: [String: Any]) -> (title: String, artist: String, offset: TimeInterval?, releaseDate: Date?) {
                                     // 辅助：仅获取简体中文
                                     func getSimplified(_ langs: [[String: Any]]?) -> String? {
                                         return langs?.first(where: { ($0["code"] as? String)?.lowercased() == "zh-hans" })?["name"] as? String
@@ -188,7 +188,16 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                         offset = TimeInterval(playOffsetMs) / 1000.0
                                     }
                                     
-                                    return (title, artist, offset)
+                                    // 提取发行日期 (格式: "YYYY-MM-DD")
+                                    var releaseDate: Date? = nil
+                                    if let releaseDateStr = music["release_date"] as? String {
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "yyyy-MM-dd"
+                                        formatter.locale = Locale(identifier: "en_US_POSIX")
+                                        releaseDate = formatter.date(from: releaseDateStr)
+                                    }
+                                    
+                                    return (title, artist, offset, releaseDate)
                                 }
                                 
                                 // 辅助函数：检查歌手是否有效（排除合辑等无意义歌手）
@@ -211,6 +220,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 var selectedTitle: String = ""
                                 var selectedArtist: String = ""
                                 var selectedOffset: TimeInterval? = nil
+                                var selectedReleaseDate: Date? = nil
                                 
                                 // 第一遍：寻找简体中文标题 + 有效歌手
                                 for music in musicList {
@@ -219,6 +229,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                         selectedTitle = meta.title
                                         selectedArtist = meta.artist
                                         selectedOffset = meta.offset
+                                        selectedReleaseDate = meta.releaseDate
                                         print("ACRCloudMatcher: 找到简体中文标题+有效歌手 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                         break
                                     }
@@ -232,6 +243,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                             selectedTitle = meta.title
                                             selectedArtist = meta.artist
                                             selectedOffset = meta.offset
+                                            selectedReleaseDate = meta.releaseDate
                                             print("ACRCloudMatcher: 找到繁体中文标题+有效歌手 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                             break
                                         }
@@ -246,6 +258,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                             selectedTitle = meta.title
                                             selectedArtist = meta.artist
                                             selectedOffset = meta.offset
+                                            selectedReleaseDate = meta.releaseDate
                                             print("ACRCloudMatcher: 找到简体中文标题 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                             break
                                         }
@@ -260,6 +273,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                             selectedTitle = meta.title
                                             selectedArtist = meta.artist
                                             selectedOffset = meta.offset
+                                            selectedReleaseDate = meta.releaseDate
                                             print("ACRCloudMatcher: 找到繁体中文标题 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                             break
                                         }
@@ -272,6 +286,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     selectedTitle = meta.title
                                     selectedArtist = meta.artist
                                     selectedOffset = meta.offset
+                                    selectedReleaseDate = meta.releaseDate
                                     print("ACRCloudMatcher: 未找到中文标题，使用第一条记录 - 歌曲: \(selectedTitle), 歌手: \(selectedArtist)")
                                 }
                                 
@@ -281,6 +296,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                 var finalTitle = selectedTitle
                                 var finalArtist = selectedArtist
                                 let offset = selectedOffset
+                                let releaseDate = selectedReleaseDate
                                 
                                 // 启动 Task 进行中文元数据修正
                                 Task {
@@ -310,7 +326,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                                     // 4. 返回最终结果
                                     DispatchQueue.main.async {
                                         print("ACRCloudMatcher: 最终返回 - 歌曲: \(finalTitle), 歌手: \(finalArtist)")
-                                        completion(finalTitle, finalArtist, offset)
+                                        completion(finalTitle, finalArtist, offset, releaseDate)
                                     }
                                 }
                                 return
@@ -324,7 +340,7 @@ class ACRCloudMatcher: NSObject, ObservableObject {
                     print("ACRCloudMatcher: JSON 解析失败 - \(error.localizedDescription)")
                 }
                 
-                completion(nil, nil, nil)
+                completion(nil, nil, nil, nil)
             }
         }.resume()
     }

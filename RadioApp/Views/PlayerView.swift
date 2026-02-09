@@ -686,6 +686,11 @@ struct PlayerView: View {
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
+                        
+                        // 时光机标签
+                        if let releaseDate = shazamMatcher.customMatchResult?.releaseDate {
+                            TimeMachineTagView(releaseDate: releaseDate)
+                        }
                     }
                 }
                 .padding(.horizontal, 8)
