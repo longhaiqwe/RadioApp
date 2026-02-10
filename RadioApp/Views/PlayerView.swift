@@ -637,7 +637,16 @@ struct PlayerView: View {
     private func shazamResultOverlay(match: SHMatchedMediaItem?) -> some View {
         // 优先使用 customMatchResult (中文转换后的结果)，如果没有则回退到 Shazam 原始结果
         let title = shazamMatcher.customMatchResult?.title ?? match?.title ?? "未知歌曲"
-        let artist = shazamMatcher.customMatchResult?.artist ?? match?.artist ?? "未知歌手"
+        let artistName = shazamMatcher.customMatchResult?.artist ?? match?.artist ?? "未知歌手"
+        let album = shazamMatcher.customMatchResult?.album
+        
+        // 构建显示文本：歌手 | 专辑
+        let displayArtist: String
+        if let album = album, !album.isEmpty {
+            displayArtist = "\(artistName) | \(album)"
+        } else {
+            displayArtist = artistName
+        }
         let artworkURL = shazamMatcher.customMatchResult?.artworkURL ?? match?.artworkURL
         let appleMusicURL = match?.appleMusicURL
         
@@ -681,7 +690,7 @@ struct PlayerView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.5) // 自适应缩小
                         
-                        Text(artist)
+                        Text(displayArtist)
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
@@ -707,7 +716,7 @@ struct PlayerView: View {
                     // 网易云音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "netease", title: title, artist: artist)
+                            await openMusicApp(platform: "netease", title: title, artist: artistName)
                         }
                     }) {
                         ZStack {
@@ -723,7 +732,7 @@ struct PlayerView: View {
                     // QQ音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "qq", title: title, artist: artist)
+                            await openMusicApp(platform: "qq", title: title, artist: artistName)
                         }
                     }) {
                         ZStack {

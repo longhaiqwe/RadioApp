@@ -2,10 +2,12 @@ import Foundation
 import Combine
 import ShazamKit
 import AVFoundation
+import MusicKit
 
 struct CustomMatchResult {
     let title: String
     let artist: String
+    let album: String? // Added
     let artworkURL: URL?
     let releaseDate: Date? // 发行日期，用于时光机功能
 }
@@ -437,10 +439,17 @@ extension ShazamMatcher: SHSessionDelegate {
                 let originalTitle = mediaItem.title ?? ""
                 let originalArtist = mediaItem.artist ?? ""
                 
+                // 尝试提取 album
+                var albumTitle: String? = nil
+                if let songs = mediaItem.songs.first {
+                    albumTitle = songs.albumTitle
+                }
+                
                 // 详细打印 Shazam 匹配结果 (类似 ACRCloud)
                 print("\nShazamMatcher Response:")
                 print("  - title: \(mediaItem.title ?? "nil")")
                 print("  - artist: \(mediaItem.artist ?? "nil")")
+                print("  - album: \(albumTitle ?? "nil")")
                 print("  - subtitle: \(mediaItem.subtitle ?? "nil")")
                 print("  - appleMusicID: \(mediaItem.appleMusicID ?? "nil")")
                 print("  - artworkURL: \(mediaItem.artworkURL?.absoluteString ?? "nil")")
@@ -470,6 +479,7 @@ extension ShazamMatcher: SHSessionDelegate {
                 var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(originalTitle)
                 finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                 var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(originalArtist)
+                let finalAlbum = MusicPlatformService.shared.toSimplifiedChinese(albumTitle ?? "")
                 
                 // 检查是否需要拼音转中文
                 let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
@@ -478,7 +488,6 @@ extension ShazamMatcher: SHSessionDelegate {
                     print("Shazam: 检测到拼音格式，尝试获取中文元数据...")
                 }
                 
-                // Fetch lyrics (同时可能需要中文转换)
                 // Fetch lyrics (同时可能需要中文转换)
                 self.isFetchingLyrics = true
                 Task {
@@ -500,25 +509,24 @@ extension ShazamMatcher: SHSessionDelegate {
                             
                             // 使用 customMatchResult 存储中文结果，覆盖 lastMatch 的显示
                             await MainActor.run {
-                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
+                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
                             }
                         } else {
                             print("Shazam: 无法获取中文元数据，使用原始数据")
                         }
-                    } else if finalTitle != originalTitle || finalArtist != originalArtist {
+                    } else if finalTitle != originalTitle || finalArtist != originalArtist || (albumTitle != nil && finalAlbum != albumTitle) {
                         // 繁简转换发生了变化，也需要更新 customMatchResult
                         await MainActor.run {
-                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
+                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
                         }
                     }
                     
                     // 确保 customMatchResult 始终被设置 (即使没有转换)
                     // 注意：如果之前已经设置过（比如上面两个分支），这里可能会重复设置，但为了确保 releaseDate 更新，再设置一次也无妨
-                    // 但更好的做法是检查 releaseDate 是否变化，或者只在 nil 时设置
                     await MainActor.run {
                         // 如果当前结果的 releaseDate 为 nil，但我们需要更新它
                         if self.customMatchResult == nil || (self.customMatchResult?.releaseDate == nil && finalReleaseDate != nil) {
-                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
+                            self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
                         }
                     }
                     
@@ -601,7 +609,7 @@ extension ShazamMatcher: SHSessionDelegate {
         SubscriptionManager.shared.consumeCredit()
         self.remainingCredits = SubscriptionManager.shared.currentCredits
         
-        ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist, offset, releaseDate in
+        ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist, album, offset, releaseDate in
             guard let self = self else { return }
             
             DispatchQueue.main.async {
@@ -613,6 +621,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     print("\n=== 🎵 ACRCloud 识别成功 ===")
                     print("原始歌曲: \(song)")
                     print("原始歌手: \(artist ?? "未知")")
+                    print("原始专辑: \(album ?? "未知")")
                     print("Offset: \(String(format: "%.2f", offset ?? 0))s")
                     print("===========================\n")
                     
@@ -620,6 +629,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(song)
                     finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                     var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(artist ?? "未知")
+                    let finalAlbum = MusicPlatformService.shared.toSimplifiedChinese(album ?? "")
                     
                     // 检查是否需要拼音转中文
                     let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
@@ -656,7 +666,7 @@ extension ShazamMatcher: SHSessionDelegate {
                                 
                                 // 更新 UI 显示为中文
                                 await MainActor.run {
-                                    self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: nil, releaseDate: releaseDate)
+                                    self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: nil, releaseDate: releaseDate)
                                 }
                             } else {
                                 print("ACRCloud: 无法获取中文元数据，使用原始数据")
@@ -666,7 +676,7 @@ extension ShazamMatcher: SHSessionDelegate {
                         // 先设置初始结果（如果还没设置）
                         await MainActor.run {
                             if self.customMatchResult == nil {
-                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, artworkURL: nil, releaseDate: releaseDate)
+                                self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: nil, releaseDate: releaseDate)
                             }
                         }
                         
