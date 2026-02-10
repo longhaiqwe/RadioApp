@@ -113,7 +113,7 @@ struct ProUpgradeView: View {
                                 
                                 // 早鸟优惠提示
                                 VStack(spacing: 6) {
-                                    Text("当前 ¥6 为早鸟 & 春节特惠")
+                                    Text("当前 ¥6 为早鸟 & 春节特惠，原价 ¥18")
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundColor(NeonColors.magenta)
                                         .padding(.top, 8)
