@@ -768,7 +768,8 @@ struct PlayerView: View {
                 }
                 
                 // 4. 高级识别入口 (手动触发 - 当普通识别不准确时)
-                if subscriptionManager.isPro && subscriptionManager.currentCredits > 0 {
+                // match != nil 说明是 Shazam 普通识别的结果，才展示此入口；如果 match 为 nil 则说明已经是高级识别结果
+                if match != nil && subscriptionManager.isPro && subscriptionManager.currentCredits > 0 {
                     Button(action: {
                         shazamMatcher.startAdvancedMatching()
                     }) {
