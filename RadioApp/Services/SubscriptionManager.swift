@@ -20,6 +20,7 @@ class SubscriptionManager: ObservableObject {
     // MARK: - 持久化 Key
     private let isPurchasedKey = "isPro_purchased"
     private let creditsKey = "recognition_credits"
+    private let lastTransactionIDKey = "last_transaction_id"
     private let initialCredits = 50
     
     // MARK: - iCloud Key-Value 存储
@@ -134,7 +135,7 @@ class SubscriptionManager: ObservableObject {
                 switch verification {
                 case .verified(let transaction):
                     // 交易有效，解锁 Pro
-                    await unlockPro()
+                    await unlockPro(transaction: transaction)
                     await transaction.finish()
                     print("SubscriptionManager: 购买成功!")
                     
@@ -216,7 +217,7 @@ class SubscriptionManager: ObservableObject {
                     if transaction.productID == Self.proLifetimeProductID {
                         await MainActor.run {
                             Task {
-                                await self.unlockPro()
+                                await self.unlockPro(transaction: transaction)
                             }
                         }
                         await transaction.finish()
@@ -230,31 +231,49 @@ class SubscriptionManager: ObservableObject {
     
     // MARK: - 解锁 Pro
     
-    private func unlockPro() async {
-        if !isPro {
+    private func unlockPro(transaction: Transaction? = nil) async {
+        // 检查是否是新交易（不同的 transaction ID）
+        let lastTxID = UserDefaults.standard.string(forKey: lastTransactionIDKey)
+        let currentTxID = transaction.map { "\($0.id)" }
+        let isNewTransaction = currentTxID != nil && currentTxID != lastTxID
+        
+        if !isPro || isNewTransaction {
             isPro = true
             UserDefaults.standard.set(true, forKey: isPurchasedKey)
             
-            // 首次解锁赠送配额（配额为 nil 或 0 时都初始化）
-            // 优先检查 iCloud，再检查本地
-            let iCloudCredits = iCloudStore.longLong(forKey: creditsKey)
-            let localCredits = UserDefaults.standard.integer(forKey: creditsKey)
+            // 记录交易 ID
+            if let txID = currentTxID {
+                UserDefaults.standard.set(txID, forKey: lastTransactionIDKey)
+            }
             
-            if iCloudCredits > 0 {
-                // iCloud 有配额，同步到本地
-                UserDefaults.standard.set(Int(iCloudCredits), forKey: creditsKey)
-                print("SubscriptionManager: Pro 已解锁，从 iCloud 恢复 \(iCloudCredits) 次配额")
-            } else if localCredits > 0 {
-                // 本地有配额，上传到 iCloud
-                iCloudStore.set(Int64(localCredits), forKey: creditsKey)
-                iCloudStore.synchronize()
-                print("SubscriptionManager: Pro 已解锁，保留现有 \(localCredits) 次配额")
-            } else {
-                // 两边都没有，初始化
+            if isNewTransaction {
+                // 新购买交易，重新初始化配额为 50
                 UserDefaults.standard.set(initialCredits, forKey: creditsKey)
                 iCloudStore.set(Int64(initialCredits), forKey: creditsKey)
                 iCloudStore.synchronize()
-                print("SubscriptionManager: Pro 已解锁，初始化 \(initialCredits) 次高级识别配额!")
+                self.objectWillChange.send()
+                print("SubscriptionManager: 新购买交易 (txID: \(currentTxID ?? "?")), 初始化 \(initialCredits) 次高级识别配额!")
+            } else {
+                // 恢复购买或 App 启动验证，保持现有配额
+                let iCloudCredits = iCloudStore.longLong(forKey: creditsKey)
+                let localCredits = UserDefaults.standard.integer(forKey: creditsKey)
+                
+                if iCloudCredits > 0 {
+                    // iCloud 有配额，同步到本地
+                    UserDefaults.standard.set(Int(iCloudCredits), forKey: creditsKey)
+                    print("SubscriptionManager: Pro 已解锁，从 iCloud 恢复 \(iCloudCredits) 次配额")
+                } else if localCredits > 0 {
+                    // 本地有配额，上传到 iCloud
+                    iCloudStore.set(Int64(localCredits), forKey: creditsKey)
+                    iCloudStore.synchronize()
+                    print("SubscriptionManager: Pro 已解锁，保留现有 \(localCredits) 次配额")
+                } else {
+                    // 两边都没有，初始化
+                    UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+                    iCloudStore.set(Int64(initialCredits), forKey: creditsKey)
+                    iCloudStore.synchronize()
+                    print("SubscriptionManager: Pro 已解锁，初始化 \(initialCredits) 次高级识别配额!")
+                }
             }
         }
     }
