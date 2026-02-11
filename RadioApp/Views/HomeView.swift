@@ -95,7 +95,8 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                         
                         // MARK: - 收藏区域
-                        if !favoritesManager.favoriteStations.isEmpty {
+                        let visibleFavorites = favoritesManager.favoriteStations.filter { !stationBlockManager.isBlocked($0) }
+                        if !visibleFavorites.isEmpty {
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
                                     Image(systemName: "heart.fill")
@@ -106,7 +107,7 @@ struct HomeView: View {
                                     
                                     Spacer()
                                     
-                                    Text("\(favoritesManager.favoriteStations.count)")
+                                    Text("\(visibleFavorites.count)")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(NeonColors.cyan)
                                         .padding(.horizontal, 10)
@@ -120,13 +121,13 @@ struct HomeView: View {
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 16) {
-                                        ForEach(favoritesManager.favoriteStations) { station in
+                                        ForEach(visibleFavorites) { station in
                                             NeonStationCard(
                                                 station: station,
                                                 isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
                                             )
                                             .onTapGesture {
-                                                playerManager.play(station: station, in: favoritesManager.favoriteStations, title: "我的收藏")
+                                                playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
                                             }
                                             .contextMenu {
                                                 Button(role: .destructive) {

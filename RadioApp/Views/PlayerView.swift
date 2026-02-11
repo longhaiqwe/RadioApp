@@ -91,10 +91,10 @@ struct PlayerView: View {
             ActionSheet(
                 title: Text("操作"),
                 buttons: [
-                    .destructive(Text("屏蔽此电台 (不再显示)")) {
+                    .default(Text("屏蔽此电台")) {
                         blockCurrentStation()
                     },
-                    .default(Text("举报并屏蔽 (发送邮件)")) {
+                    .default(Text("屏蔽并举报")) {
                         reportStation()
                     },
                     .cancel()
