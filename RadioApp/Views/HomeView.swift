@@ -174,7 +174,7 @@ struct HomeView: View {
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 16) {
-                                    ForEach(viewModel.stations.filter { !StationBlockManager.shared.isBlocked($0) }) { station in
+                                    ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
                                         NeonStationCard(
                                             station: station,
                                             isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
