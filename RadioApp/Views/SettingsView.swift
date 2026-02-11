@@ -136,14 +136,9 @@ struct BlockedStationsView: View {
                     .foregroundColor(.gray)
             } else {
                 ForEach(Array(blockManager.blockedUUIDs).sorted(), id: \.self) { uuid in
-                    VStack(alignment: .leading) {
-                        Text(blockManager.blockedStationNames[uuid] ?? "未知电台")
-                            .font(.body)
-                            .foregroundColor(.white)
-                        Text("UUID: \(uuid)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
+                    Text(blockManager.blockedStationNames[uuid] ?? "未知电台")
+                        .font(.body)
+                        .foregroundColor(.primary)
                 }
                 .onDelete { indexSet in
                      // 支持解除屏蔽（可选）
@@ -159,5 +154,8 @@ struct BlockedStationsView: View {
         }
         .navigationTitle("已屏蔽电台")
         .background(NeonColors.darkBg)
+        .onAppear {
+            blockManager.fetchMissingStationNames()
+        }
     }
 }

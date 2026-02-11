@@ -146,6 +146,55 @@ class StationBlockManager: ObservableObject {
         print("Online Blacklist Updated: \(uuids.count) UUIDs, \(keywords.count) Keywords")
     }
     
+    // MARK: - Fetch Missing Names
+    
+    /// 获取缺失名称的已屏蔽电台信息
+    func fetchMissingStationNames() {
+        print("[BlockManager] fetchMissingStationNames called")
+        print("[BlockManager] localBlockedUUIDs: \(localBlockedUUIDs)")
+        print("[BlockManager] blockedStationNames: \(blockedStationNames)")
+        
+        let missingUUIDs = localBlockedUUIDs.filter { blockedStationNames[$0] == nil || blockedStationNames[$0]?.isEmpty == true }
+        print("[BlockManager] missingUUIDs: \(missingUUIDs)")
+        guard !missingUUIDs.isEmpty else {
+            print("[BlockManager] No missing UUIDs, all names present")
+            return
+        }
+        
+        let baseURL = "https://de1.api.radio-browser.info/json"
+        
+        for uuid in missingUUIDs {
+            let urlStr = "\(baseURL)/stations/byuuid/\(uuid)"
+            print("[BlockManager] Fetching name for UUID: \(uuid), URL: \(urlStr)")
+            guard let url = URL(string: urlStr) else { continue }
+            
+            URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+                if let error = error {
+                    print("[BlockManager] Error fetching \(uuid): \(error)")
+                    return
+                }
+                guard let data = data else {
+                    print("[BlockManager] No data for \(uuid)")
+                    return
+                }
+                
+                print("[BlockManager] Response for \(uuid): \(String(data: data, encoding: .utf8)?.prefix(200) ?? "nil")")
+                
+                if let stations = try? JSONDecoder().decode([Station].self, from: data),
+                   let station = stations.first, !station.name.isEmpty {
+                    print("[BlockManager] Got name for \(uuid): \(station.name)")
+                    DispatchQueue.main.async {
+                        self?.blockedStationNames[uuid] = station.name
+                        self?.saveLocal()
+                        self?.objectWillChange.send()
+                    }
+                } else {
+                    print("[BlockManager] Failed to decode station for \(uuid)")
+                }
+            }.resume()
+        }
+    }
+    
     // MARK: - Reporting
     
     struct StationReport: Encodable {
