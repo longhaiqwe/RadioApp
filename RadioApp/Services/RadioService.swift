@@ -40,14 +40,23 @@ class RadioService {
         "http://all.api.radio-browser.info/json"
     ]
     
+    // Cache key for persisting the best server across launches
+    private let kBestServerKey = "radio_best_server_url"
+    
     // App Store compliance filtering is now handled by StationBlockManager (Local + Online)
     
-    // The current active base URL
-    private var activeBaseURL: String = "https://de1.api.radio-browser.info/json"
-    private var isServerResolved = false
+    // The current active base URL — initialized from cache or default, updated in background
+    private var activeBaseURL: String
     
     private init() {
-        // Start server discovery in background
+        // 1. 优先从缓存读取上次的最优服务器，实现"秒开"
+        if let cached = UserDefaults.standard.string(forKey: kBestServerKey), !cached.isEmpty {
+            self.activeBaseURL = cached
+        } else {
+            self.activeBaseURL = "https://de1.api.radio-browser.info/json"
+        }
+        
+        // 2. 后台静默更新最优服务器，不阻塞任何请求
         Task {
             await resolveBestServer()
         }
@@ -89,24 +98,19 @@ class RadioService {
         
         if let best = resolvedURL {
             self.activeBaseURL = best
+            // 缓存最优服务器，下次冷启动直接使用
+            UserDefaults.standard.set(best, forKey: kBestServerKey)
         }
-        
-        // IMPORTANT: Mark resolved true regardless of success/fail to prevent infinite retries during search
-        self.isServerResolved = true
     }
     
-    // ensure we have a good server before making requests (optional, usually strict)
-    private func ensureServer() async {
-        if !isServerResolved {
-            await resolveBestServer()
-        }
-    }
+    // ensureServer is no longer needed — we use an optimistic strategy:
+    // init() loads the cached/default server immediately, background task updates it.
     
     // MARK: - Core API Methods
     
     /// Advanced search using the generic /search endpoint
     func advancedSearch(filter: StationFilter) async throws -> [Station] {
-        await ensureServer()
+        // 乐观策略：直接使用当前 activeBaseURL，不等待服务器解析
         
         guard let url = URL(string: "\(activeBaseURL)/stations/search") else {
             throw URLError(.badURL)
@@ -245,7 +249,7 @@ class RadioService {
     
     /// Fetch top tags (styles) from the API
     func fetchTopTags(limit: Int = 100) async throws -> [Tag] {
-        await ensureServer()
+        // 乐观策略：直接使用当前 activeBaseURL
         
         guard let url = URL(string: "\(activeBaseURL)/tags?order=stationcount&reverse=true&limit=\(limit)") else {
             throw URLError(.badURL)

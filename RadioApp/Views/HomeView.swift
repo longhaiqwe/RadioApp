@@ -196,13 +196,13 @@ struct HomeView: View {
             .navigationBarHidden(true)
         }
         .onAppear {
-            if viewModel.stations.isEmpty {
-                viewModel.fetchStations()
-            }
+            // 每次出现都尝试静默更新 (L3)
+            // 此时 L1/L2 数据已经在 init 中加载完成，UI 应该是有内容的
+             viewModel.fetchStations()
         }
         .onChange(of: scenePhase) { newPhase in
-            if newPhase == .active && viewModel.stations.isEmpty {
-                print("App active, retrying fetch stations...")
+            if newPhase == .active {
+                // App 回到前台，检查更新
                 viewModel.fetchStations()
             }
         }
@@ -217,17 +217,102 @@ struct HomeView: View {
 
 class HomeViewModel: ObservableObject {
     @Published var stations: [Station] = []
+    @Published var isLoading = false
     
+    private let kCachedTopStationsKey = "home_top_stations_cache"
+    
+    init() {
+        loadInitialData()
+    }
+    
+    // L1 -> L2 加载策略
+    private func loadInitialData() {
+        // 1. 尝试读取缓存 (L1)
+        if let cached = loadFromCache() {
+            print("Loaded \(cached.count) stations from cache")
+            self.stations = cached
+            return
+        }
+        
+        // 2. 尝试读取预置数据 (L2)
+        print("No cache found, loading preset data")
+        if let preset = loadFromPreset() {
+            print("Loaded \(preset.count) stations from preset")
+            self.stations = preset
+        }
+    }
+    
+    // L3: 网络更新
     func fetchStations() {
+        // 如果当前是空的（极端情况），显示 loading
+        if stations.isEmpty {
+            isLoading = true
+        }
+        
         Task {
             do {
-                let stations = try await RadioService.shared.fetchTopStations()
-                DispatchQueue.main.async {
-                    self.stations = stations
+                print("Fetching fresh data from network...")
+                let fetchedStations = try await RadioService.shared.fetchTopStations()
+                
+                await MainActor.run {
+                    // 只有当数据有变化时才更新，避免 UI 闪烁 (简单判断数量或首个ID)
+                    if self.stations.map(\.id) != fetchedStations.map(\.id) {
+                        self.stations = fetchedStations
+                        self.saveToCache(fetchedStations)
+                        print("Network update success: \(fetchedStations.count) stations")
+                    } else {
+                         print("Network data matches local data, skipping update")
+                    }
+                    self.isLoading = false
                 }
             } catch {
                 print("Error fetching stations: \(error)")
+                await MainActor.run {
+                    self.isLoading = false
+                }
             }
+        }
+    }
+    
+    // MARK: - Cache & Preset
+    
+    private func loadFromCache() -> [Station]? {
+        guard let data = UserDefaults.standard.data(forKey: kCachedTopStationsKey) else { return nil }
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode([Station].self, from: data)
+        } catch {
+            print("Failed to decode cache: \(error)")
+            return nil
+        }
+    }
+    
+    private func saveToCache(_ stations: [Station]) {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(stations)
+            UserDefaults.standard.set(data, forKey: kCachedTopStationsKey)
+        } catch {
+            print("Failed to encode cache: \(error)")
+        }
+    }
+    
+    private func loadFromPreset() -> [Station]? {
+        let jsonString = PresetStationData.jsonString
+        guard let data = jsonString.data(using: .utf8) else { return nil }
+        
+        do {
+            let decoder = JSONDecoder()
+            // Preset data might miss some optional fields, but Station struct uses specific coding keys
+            // We need to ensure the JSON matches the Struct.
+            // Our generated JSON should be compatible.
+            let stations = try decoder.decode([Station].self, from: data)
+            return stations
+        } catch {
+            print("Failed to decode preset: \(error)")
+            // Fallback for debugging (print first 500 chars)
+            print("Preset JSON start: \(jsonString.prefix(500))")
+            return nil
         }
     }
 }
