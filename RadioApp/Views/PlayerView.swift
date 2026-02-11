@@ -136,30 +136,9 @@ struct PlayerView: View {
         // 2. 上报到 Supabase
         StationBlockManager.shared.reportStation(station: station, reason: "用户举报")
 
-        // 3. 停止播放
+        // 3. 停止播放并退出
         playerManager.stop()
         presentationMode.wrappedValue.dismiss()
-        
-        // 4. 发送邮件
-        let subject = "举报电台: \(station.name)"
-        let body = """
-        我想举报以下电台：
-        名称: \(station.name)
-        UUID: \(station.stationuuid)
-        URL: \(station.url)
-        
-        原因: 内容违规 / 无法播放 / 其它
-        """
-        
-        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let email = "longhaiqwe@gmail.com"
-        
-        if let url = URL(string: "mailto:\(email)?subject=\(encodedSubject)&body=\(encodedBody)") {
-            if UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
-            }
-        }
     }
 
     // MARK: - 背景
