@@ -289,6 +289,14 @@ class AudioPlayerManager: NSObject, ObservableObject {
         updateNowPlayingInfo()
     }
     
+    func stop() {
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentStation = nil
+        updateNowPlayingInfo()
+    }
+    
     func togglePlayPause() {
         if isPlaying {
             pause()

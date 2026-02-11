@@ -40,8 +40,7 @@ class RadioService {
         "http://all.api.radio-browser.info/json"
     ]
     
-    // Blocked keywords for App Store compliance (Guideline 5.2.3)
-    private let blockedKeywords = ["CCTV", "CGTN", "卫视", "凤凰卫视", "VOA", "RFA", "伴音", "新闻联播", "国际新闻"]
+    // App Store compliance filtering is now handled by StationBlockManager (Local + Online)
     
     // The current active base URL
     private var activeBaseURL: String = "https://de1.api.radio-browser.info/json"
@@ -259,18 +258,11 @@ class RadioService {
     
     // MARK: - Helper Methods
     
-    /// Filter out stations containing blocked keywords
+    /// Filter out stations containing blocked keywords OR hidden by user (Local + Online)
     private func filterBlockedStations(_ stations: [Station]) -> [Station] {
-         return stations.filter { station in
-             let name = station.name.uppercased()
-             let tags = station.tags.uppercased()
-             
-             for keyword in blockedKeywords {
-                 if name.contains(keyword) || tags.contains(keyword) {
-                     return false
-                 }
-             }
-             return true
-         }
+        return stations.filter { station in
+            // Unified check for Local Block, Online Block, and Keywords
+            !StationBlockManager.shared.isBlocked(station)
+        }
     }
 }

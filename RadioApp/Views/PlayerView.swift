@@ -15,6 +15,7 @@ struct PlayerView: View {
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
     @State private var showLyrics = false // Lyrics Toggle State
     @State private var showProUpgrade = false // Pro 升级弹窗
+    @State private var showReportActionSheet = false // 举报/屏蔽菜单
     
     var body: some View {
         ZStack {
@@ -86,9 +87,81 @@ struct PlayerView: View {
                 Spacer()
             }
             .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching || shazamMatcher.showAdvancedRecognitionPrompt)
+        .actionSheet(isPresented: $showReportActionSheet) {
+            ActionSheet(
+                title: Text("操作"),
+                buttons: [
+                    .destructive(Text("屏蔽此电台 (不再显示)")) {
+                        blockCurrentStation()
+                    },
+                    .default(Text("举报并屏蔽 (发送邮件)")) {
+                        reportStation()
+                    },
+                    .cancel()
+                ]
+            )
+        }
+    }
+}
+    
+    // MARK: - 更多菜单按钮
+    private var menuButton: some View {
+        Button(action: {
+            showReportActionSheet = true
+        }) {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 24))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 44, height: 44)
         }
     }
     
+    // MARK: - 屏蔽/举报逻辑
+    private func blockCurrentStation() {
+        guard let station = playerManager.currentStation else { return }
+        // 1. 本地屏蔽
+        StationBlockManager.shared.block(station: station)
+        
+        // 2. 停止播放并退出
+        playerManager.stop()
+        presentationMode.wrappedValue.dismiss()
+    }
+    
+    private func reportStation() {
+        guard let station = playerManager.currentStation else { return }
+        
+        // 1. 本地屏蔽
+        StationBlockManager.shared.block(station: station)
+        
+        // 2. 上报到 Supabase
+        StationBlockManager.shared.reportStation(station: station, reason: "用户举报")
+
+        // 3. 停止播放
+        playerManager.stop()
+        presentationMode.wrappedValue.dismiss()
+        
+        // 4. 发送邮件
+        let subject = "举报电台: \(station.name)"
+        let body = """
+        我想举报以下电台：
+        名称: \(station.name)
+        UUID: \(station.stationuuid)
+        URL: \(station.url)
+        
+        原因: 内容违规 / 无法播放 / 其它
+        """
+        
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let email = "longhaiqwe@gmail.com"
+        
+        if let url = URL(string: "mailto:\(email)?subject=\(encodedSubject)&body=\(encodedBody)") {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
     // MARK: - 背景
     private var playerBackground: some View {
         ZStack {
@@ -172,8 +245,8 @@ struct PlayerView: View {
             
             Spacer()
             
-            // 占位，保持左右对称
-            Color.clear.frame(width: 44, height: 44)
+            // 菜单按钮
+            menuButton
         }
         .padding(.horizontal, 20)
     }
@@ -323,12 +396,27 @@ struct PlayerView: View {
     // MARK: - 电台信息
     private var stationInfo: some View {
         VStack(spacing: 16) {
-            Text(playerManager.currentStation?.name ?? "未选择电台")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.horizontal, 20)
+            HStack(alignment: .center, spacing: 8) {
+                Text(playerManager.currentStation?.name ?? "未选择电台")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                
+                // 举报/屏蔽按钮 (放在电台名称旁边)
+                if playerManager.currentStation != nil {
+                    Button(action: {
+                        showReportActionSheet = true
+                    }) {
+                        Image(systemName: "exclamationmark.shield")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(8)
+                            .background(Circle().fill(Color.white.opacity(0.1)))
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
             
             Text(playerManager.currentStation?.tags ?? "")
                 .font(.system(size: 15))

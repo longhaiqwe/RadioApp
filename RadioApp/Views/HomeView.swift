@@ -6,8 +6,10 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
+    @ObservedObject var stationBlockManager = StationBlockManager.shared
     @State private var draggingStation: Station?
     @State private var showFeedback = false
+    @State private var showSettings = false
     
     @Environment(\.scenePhase) var scenePhase
     
@@ -33,6 +35,19 @@ struct HomeView: View {
                                     )
                                 
                                 Spacer()
+                                
+                                // 设置入口
+                                Button(action: { showSettings = true }) {
+                                    Image(systemName: "gearshape.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(NeonColors.cyan)
+                                        .padding(10)
+                                        .background(
+                                            Circle()
+                                                .fill(.white.opacity(0.1))
+                                        )
+                                }
+                                .padding(.trailing, 8)
                                 
                                 // 反馈入口
                                 Button(action: { showFeedback = true }) {
@@ -158,7 +173,7 @@ struct HomeView: View {
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 16) {
-                                    ForEach(viewModel.stations) { station in
+                                    ForEach(viewModel.stations.filter { !StationBlockManager.shared.isBlocked($0) }) { station in
                                         NeonStationCard(
                                             station: station,
                                             isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
@@ -192,6 +207,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showFeedback) {
             FeedbackView()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 }
