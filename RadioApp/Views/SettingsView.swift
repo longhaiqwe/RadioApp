@@ -2,28 +2,28 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
-    
+
     var body: some View {
         NavigationView {
             ZStack {
                 NeonColors.darkBg.ignoresSafeArea()
-                
+
                 List {
                     Section(header: Text("法律与合规").foregroundColor(NeonColors.cyan)) {
                         NavigationLink(destination: EULAView()) {
                             Label("服务条款 (EULA)", systemImage: "doc.text")
                         }
-                        
+
                         NavigationLink(destination: PrivacyPolicyView()) {
                             Label("隐私政策", systemImage: "hand.raised")
                         }
-                        
+
                         // 简单的管理入口（可选，查看已屏蔽电台）
                         NavigationLink(destination: BlockedStationsView()) {
                             Label("已屏蔽电台", systemImage: "slash.circle")
                         }
                     }
-                    
+
                     Section(header: Text("关于").foregroundColor(NeonColors.cyan)) {
                         HStack {
                             Text("版本")
@@ -61,7 +61,7 @@ struct EULAView: View {
                 Text("最终用户许可协议 (EULA)")
                     .font(.title2.bold())
                     .foregroundColor(.white)
-                
+
                 Text("""
                 1. 内容来源说明
                 本应用（拾音FM）是一款电台发现工具，接入 Radio Browser 社区数据库。本应用不托管、不上传、不分发任何音频流媒体内容。所有电台链接均来自公共网络。
@@ -71,14 +71,20 @@ struct EULAView: View {
 
                 3. 过滤与举报机制
                 为保障您的体验与合规：
-                - 我们已内置关键词过滤系统，自动屏蔽已知违规电台。
-                - **举报与屏蔽**：如果您发现任何不当内容，请点击播放页面的“举报/屏蔽”按钮。该电台将立即从您的应用中隐藏（加入本地黑名单）。
-                - 我们会定期审查举报信息，并更新全局黑名单。
+                - 我们已内置关键词过滤系统，自动屏蔽已知违规电台（包括但不限于：CCTV、卫视、新闻联播等）。
+                - **举报与屏蔽**：如果您发现任何不当内容，请点击播放页面的"举报/屏蔽"按钮。该电台将立即从您的应用中隐藏（加入本地黑名单）。
+                - **版权投诉响应**：我们承诺在收到版权投诉后 24 小时内审核并更新全局黑名单。如需投诉，请通过应用内反馈功能或 GitHub Issues 联系我们。
 
                 4. 免责声明
-                用户需自行承担使用第三方音频流的风险。应用开发者不对第三方电台内容的合法性、准确性或可用性承担责任。
+                用户需自行承担使用第三方音频流的风险。应用开发者不对第三方电台内容的合法性、准确性或可用性承担责任。我们对以下内容不承担任何责任：
+                - 第三方电台内容的版权问题
+                - 电台内容中可能包含的不当信息
+                - 电台播放的稳定性或可用性
 
-                5. 同意条款
+                5. 服务条款变更
+                我们保留随时更新本协议的权利。重大变更将通过应用内通知的方式告知用户。继续使用本应用即表示您接受更新后的条款。
+
+                6. 同意条款
                 下载并使用本应用即表示您同意本协议。
                 """)
                 .font(.body)
@@ -99,14 +105,14 @@ struct PrivacyPolicyView: View {
                 Text("隐私政策")
                     .font(.title2.bold())
                     .foregroundColor(.white)
-                
+
                 Text("""
                 1. 数据收集
                 本应用尊重您的隐私。我们不收集您的个人身份信息。
-                
+
                 2. 本地数据
                 您的收藏列表、屏蔽列表和偏好设置仅存储在您的设备本地（UserDefaults/CoreData），不会上传至任何服务器。
-                
+
                 3. 第三方服务
                 - **Radio Browser**: 为了获取电台列表，应用会向 Radio Browser API 发送匿名请求。
                 - **ShazamKit**: 音乐识别功能由 Apple ShazamKit 提供，音频指纹处理在设备端或通过 Apple 安全服务器进行，我们无法获取您的原始音频数据。
@@ -128,7 +134,7 @@ struct PrivacyPolicyView: View {
 
 struct BlockedStationsView: View {
     @ObservedObject var blockManager = StationBlockManager.shared
-    
+
     var body: some View {
         List {
             if blockManager.blockedUUIDs.isEmpty {

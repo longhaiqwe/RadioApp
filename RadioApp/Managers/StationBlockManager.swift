@@ -219,7 +219,7 @@ class StationBlockManager: ObservableObject {
         request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.setValue("return=minimal,resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
         
         do {
             request.httpBody = try JSONEncoder().encode(report)
