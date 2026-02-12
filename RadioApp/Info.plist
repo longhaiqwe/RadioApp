@@ -16,5 +16,7 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>保存分享卡片到相册</string>
 </dict>
 </plist>

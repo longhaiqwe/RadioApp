@@ -19,6 +19,7 @@ struct PlayerView: View {
     @State private var showReportButtonActionSheet = false // 底部举报按钮弹出状态
     @State private var showSleepTimerSheet = false // 定时关闭菜单
     @State private var activeActionSheet: ActionSheetConfig? = nil // 当前激活的自定义 ActionSheet
+    @State private var isGeneratingShareCard = false // 分享卡片生成中
     
     var body: some View {
         ZStack {
@@ -903,12 +904,44 @@ struct PlayerView: View {
                             }
                         }
                     }
-                    // 分割线
-                    if appleMusicURL != nil || loadingPlatform != nil || true { // 确保有图标时显示分割线，这里简单处理
-                        Rectangle()
-                            .fill(Color.white.opacity(0.1))
-                            .frame(width: 1, height: 24)
+                    
+                    // 分享按钮
+                    Button(action: {
+                        guard !isGeneratingShareCard else { return }
+                        Task {
+                            await shareCurrentSong(
+                                title: title,
+                                artist: artistName,
+                                album: album,
+                                artworkURL: artworkURL,
+                                stationName: playerManager.currentStation?.name
+                            )
+                        }
+                    }) {
+                        ZStack {
+                            if isGeneratingShareCard {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: NeonColors.cyan))
+                                    .scaleEffect(0.7)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(NeonColors.cyan)
+                            }
+                        }
+                        .frame(width: 40, height: 40)
+                        .background(NeonColors.cyan.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(NeonColors.cyan.opacity(0.2), lineWidth: 1)
+                        )
                     }
+                    
+                    // 分割线
+                    Rectangle()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 1, height: 24)
 
                     // 关闭按钮
                     Button(action: {
@@ -1074,7 +1107,20 @@ struct PlayerView: View {
         return rawQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
     }
     
-
+    // MARK: - 分享当前歌曲
+    private func shareCurrentSong(title: String, artist: String, album: String?, artworkURL: URL?, stationName: String?) async {
+        isGeneratingShareCard = true
+        defer { isGeneratingShareCard = false }
+        
+        await ShareCardGenerator.generateAndShare(
+            title: title,
+            artist: artist,
+            album: album,
+            artworkURL: artworkURL,
+            stationName: stationName,
+            timestamp: Date()
+        )
+    }
 
     
     // MARK: - 歌词视图

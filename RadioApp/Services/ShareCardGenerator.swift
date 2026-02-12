@@ -1,0 +1,166 @@
+import SwiftUI
+import CoreImage.CIFilterBuiltins
+import UIKit
+
+// MARK: - 分享卡片生成器
+/// 负责将 ShareCardView 渲染为图片，并提供系统分享功能
+@MainActor
+class ShareCardGenerator {
+    
+    /// App Store 链接（用于二维码）
+    static let appStoreURL = "https://apps.apple.com/app/id6740043165"
+    
+    // MARK: - 生成分享卡片图片
+    
+    /// 生成分享卡片的 UIImage
+    /// - Parameters:
+    ///   - title: 歌曲名
+    ///   - artist: 歌手名
+    ///   - album: 专辑名（可选）
+    ///   - artworkImage: 封面图片（预加载的 UIImage）
+    ///   - stationName: 电台名称（可选）
+    ///   - timestamp: 识别时间
+    /// - Returns: 渲染后的 UIImage，失败时返回 nil
+    static func generateImage(
+        title: String,
+        artist: String,
+        album: String? = nil,
+        artworkImage: UIImage? = nil,
+        stationName: String? = nil,
+        timestamp: Date = Date()
+    ) -> UIImage? {
+        let cardView = ShareCardView(
+            title: title,
+            artist: artist,
+            album: album,
+            artworkImage: artworkImage,
+            stationName: stationName,
+            timestamp: timestamp,
+            qrCodeURL: appStoreURL
+        )
+        
+        let renderer = ImageRenderer(content: cardView)
+        renderer.scale = UIScreen.main.scale // Retina 分辨率
+        renderer.proposedSize = ProposedViewSize(width: 360, height: nil) // 固定宽度
+        
+        return renderer.uiImage
+    }
+    
+    // MARK: - 生成二维码
+    
+    /// 使用 CoreImage 生成二维码图片
+    /// - Parameter string: 二维码内容（URL 字符串）
+    /// - Returns: 生成的二维码 UIImage
+    static func generateQRCode(from string: String) -> UIImage? {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        
+        guard let ciImage = filter.outputImage else { return nil }
+        
+        // 放大二维码到合适尺寸（原始输出很小）
+        let scale: CGFloat = 10
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
+        let scaledImage = ciImage.transformed(by: transform)
+        
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
+        
+        return UIImage(cgImage: cgImage)
+    }
+    
+    // MARK: - 预加载封面图
+    
+    /// 异步下载封面图片（ImageRenderer 不支持 AsyncImage）
+    /// - Parameter url: 封面图 URL
+    /// - Returns: 下载后的 UIImage
+    static func preloadArtwork(from url: URL?) async -> UIImage? {
+        guard let url = url else { return nil }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return UIImage(data: data)
+        } catch {
+            print("ShareCardGenerator: 封面图下载失败 - \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    // MARK: - 分享图片
+    
+    /// 通过系统分享面板分享图片
+    /// - Parameter image: 要分享的图片
+    static func shareImage(_ image: UIImage) {
+        let activityVC = UIActivityViewController(
+            activityItems: [image],
+            applicationActivities: nil
+        )
+        
+        // 获取当前最上层 ViewController
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootVC = windowScene.windows.first?.rootViewController else {
+            print("ShareCardGenerator: 无法获取 rootViewController")
+            return
+        }
+        
+        // 递归找到最上层的 presented VC
+        var topVC = rootVC
+        while let presented = topVC.presentedViewController {
+            topVC = presented
+        }
+        
+        // iPad 适配（UIActivityViewController 需要 popover）
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topVC.view
+            popover.sourceRect = CGRect(
+                x: topVC.view.bounds.midX,
+                y: topVC.view.bounds.midY,
+                width: 0, height: 0
+            )
+            popover.permittedArrowDirections = []
+        }
+        
+        topVC.present(activityVC, animated: true)
+    }
+    
+    // MARK: - 一键生成并分享
+    
+    /// 完整的分享流程：预加载封面 → 生成卡片 → 弹出分享面板
+    /// - Parameters:
+    ///   - title: 歌曲名
+    ///   - artist: 歌手名
+    ///   - album: 专辑名
+    ///   - artworkURL: 封面图 URL
+    ///   - stationName: 电台名
+    ///   - timestamp: 识别时间
+    /// - Returns: 是否成功
+    @discardableResult
+    static func generateAndShare(
+        title: String,
+        artist: String,
+        album: String? = nil,
+        artworkURL: URL? = nil,
+        stationName: String? = nil,
+        timestamp: Date = Date()
+    ) async -> Bool {
+        // 1. 预加载封面
+        let artworkImage = await preloadArtwork(from: artworkURL)
+        
+        // 2. 生成卡片图片
+        guard let cardImage = generateImage(
+            title: title,
+            artist: artist,
+            album: album,
+            artworkImage: artworkImage,
+            stationName: stationName,
+            timestamp: timestamp
+        ) else {
+            print("ShareCardGenerator: 卡片图片生成失败")
+            return false
+        }
+        
+        // 3. 弹出分享面板
+        shareImage(cardImage)
+        return true
+    }
+}

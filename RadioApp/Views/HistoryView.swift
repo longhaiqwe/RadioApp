@@ -155,6 +155,16 @@ struct HistoryListView: View {
                                 Label("删除", systemImage: "trash")
                             }
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                Task {
+                                    await shareSong(song)
+                                }
+                            } label: {
+                                Label("分享", systemImage: "square.and.arrow.up")
+                            }
+                            .tint(NeonColors.cyan)
+                        }
                 }
             }
             .listStyle(.plain)
@@ -167,6 +177,18 @@ struct HistoryListView: View {
             modelContext.delete(song)
             try? modelContext.save()
         }
+    }
+    
+    @MainActor
+    private func shareSong(_ song: RecognizedSong) async {
+        await ShareCardGenerator.generateAndShare(
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            artworkURL: song.artworkURL,
+            stationName: song.stationName,
+            timestamp: song.timestamp
+        )
     }
 }
 
