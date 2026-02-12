@@ -16,6 +16,9 @@ struct PlayerView: View {
     @State private var showLyrics = false // Lyrics Toggle State
     @State private var showProUpgrade = false // Pro 升级弹窗
     @State private var showReportActionSheet = false // 举报/屏蔽菜单
+    @State private var showSleepTimerSheet = false // 定时关闭菜单
+    @State private var showCustomTimerPicker = false // 自定义时间选择器
+    @State private var customTimerDuration: TimeInterval = 60 * 60 // 默认 1 小时
     
     var body: some View {
         ZStack {
@@ -87,22 +90,121 @@ struct PlayerView: View {
                 Spacer()
             }
             .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching || shazamMatcher.showAdvancedRecognitionPrompt)
-        .actionSheet(isPresented: $showReportActionSheet) {
-            ActionSheet(
-                title: Text("操作"),
-                buttons: [
-                    .default(Text("屏蔽此电台")) {
-                        blockCurrentStation()
-                    },
-                    .default(Text("屏蔽并举报")) {
-                        reportStation()
-                    },
-                    .cancel()
-                ]
-            )
+
         }
     }
-}
+    
+    // MARK: - 睡眠定时器按钮
+    private var sleepTimerButton: some View {
+        Button(action: {
+            showSleepTimerSheet = true
+        }) {
+            if let endTime = playerManager.sleepTimerEndTime {
+                // 倒计时状态：胶囊样式
+                HStack(spacing: 2) {
+                    Image(systemName: "moon.fill")
+                        .font(.system(size: 12))
+                    Text(endTime, style: .timer)
+                        .font(.system(size: 12).monospacedDigit())
+                }
+                .foregroundColor(NeonColors.cyan)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(NeonColors.cyan.opacity(0.1))
+                        .overlay(
+                            Capsule().stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            } else {
+                // 默认状态：圆形按钮（匹配屏蔽按钮风格）
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(8)
+                    .background(Circle().fill(Color.white.opacity(0.1)))
+            }
+        }
+        .actionSheet(isPresented: $showSleepTimerSheet) {
+            ActionSheet(
+                title: Text("定时关闭"),
+                message: Text("即使睡着了，音乐也会自动停止"),
+                buttons: [
+                    .default(Text("10 秒 (测试)")) { playerManager.startSleepTimer(duration: 10) },
+                    .default(Text("15 分钟")) { playerManager.startSleepTimer(duration: 15 * 60) },
+                    .default(Text("30 分钟")) { playerManager.startSleepTimer(duration: 30 * 60) },
+                    .default(Text("60 分钟")) { playerManager.startSleepTimer(duration: 60 * 60) },
+                    .default(Text("90 分钟")) { playerManager.startSleepTimer(duration: 90 * 60) },
+                    .default(Text("自定义...")) { 
+                        // 延迟一下以避免 ActionSheet 冲突
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showCustomTimerPicker = true 
+                        }
+                    },
+                    playerManager.sleepTimerEndTime != nil ? .destructive(Text("关闭定时")) { playerManager.cancelSleepTimer() } : nil,
+                    .cancel()
+                ].compactMap { $0 }
+            )
+        }
+        .sheet(isPresented: $showCustomTimerPicker) {
+            NavigationView {
+                VStack {
+                    HStack {
+                        Picker("小时", selection: Binding(
+                            get: { Int(customTimerDuration) / 3600 },
+                            set: { newValue in
+                                let minutes = (Int(customTimerDuration) % 3600) / 60
+                                customTimerDuration = TimeInterval(newValue * 3600 + minutes * 60)
+                            }
+                        )) {
+                            ForEach(0..<24) { hour in
+                                Text("\(hour) 小时").tag(hour)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(width: 100)
+                        
+                        Picker("分钟", selection: Binding(
+                            get: { (Int(customTimerDuration) % 3600) / 60 },
+                            set: { newValue in
+                                let hours = Int(customTimerDuration) / 3600
+                                customTimerDuration = TimeInterval(hours * 3600 + newValue * 60)
+                            }
+                        )) {
+                            ForEach(0..<60) { minute in
+                                Text("\(minute) 分钟").tag(minute)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                        .frame(width: 100)
+                    }
+                    .padding()
+                    
+                    Text("将在 \(Int(customTimerDuration) / 3600) 小时 \((Int(customTimerDuration) % 3600) / 60) 分钟后停止播放并退出应用")
+                        .foregroundColor(.gray)
+                        .padding()
+                    
+                    Spacer()
+                }
+                .navigationTitle("定时关闭")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") {
+                            showCustomTimerPicker = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("开始") {
+                            playerManager.startSleepTimer(duration: customTimerDuration)
+                            showCustomTimerPicker = false
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     // MARK: - 更多菜单按钮
     private var menuButton: some View {
@@ -113,6 +215,20 @@ struct PlayerView: View {
                 .font(.system(size: 24))
                 .foregroundColor(.white.opacity(0.8))
                 .frame(width: 44, height: 44)
+        }
+        .actionSheet(isPresented: $showReportActionSheet) {
+            ActionSheet(
+                title: Text("更多操作"),
+                buttons: [
+                    .default(Text("屏蔽此电台")) {
+                        blockCurrentStation()
+                    },
+                    .default(Text("屏蔽并举报")) {
+                        reportStation()
+                    },
+                    .cancel()
+                ]
+            )
         }
     }
     
@@ -223,6 +339,7 @@ struct PlayerView: View {
                 .padding(.top, 10) // 视觉微调：稍微下移
             
             Spacer()
+            
             
             // 菜单按钮
             menuButton
@@ -382,16 +499,20 @@ struct PlayerView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                 
-                // 举报/屏蔽按钮 (放在电台名称旁边)
+                
+                // 1. 睡眠定时器按钮
+                sleepTimerButton
+                
+                // 2. 举报/屏蔽按钮 (放在电台名称旁边)
                 if playerManager.currentStation != nil {
                     Button(action: {
                         showReportActionSheet = true
                     }) {
                         Image(systemName: "exclamationmark.shield")
                             .font(.system(size: 18))
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(NeonColors.red.opacity(0.9)) // 提醒色
                             .padding(8)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
+                            .background(Circle().fill(NeonColors.red.opacity(0.15)))
                     }
                 }
             }

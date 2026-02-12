@@ -12,6 +12,7 @@ struct NeonColors {
     static let warmPink = Color(hex: "FF5E78")
     static let mint = Color(hex: "00F5D4")
     static let gold = Color(hex: "FFD23F")
+    static let red = Color(hex: "FF3B30")
     
     // 背景色
     static let darkBg = Color(hex: "0A0A0F")

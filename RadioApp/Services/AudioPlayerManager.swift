@@ -21,6 +21,10 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var playlistTitle: String = "播放列表"
     @Published var playlistStations: [Station] = [] // Expose playlist for UI binding if needed, or just access current property
     
+    // Sleep Timer
+    private var sleepTimer: Timer?
+    @Published var sleepTimerEndTime: Date?
+    
     // Live Metadata (ICY) - Removed due to low accuracy
     // @Published var currentStreamTitle: String?
     // private var metadataObserver: NSKeyValueObservation?
@@ -402,5 +406,35 @@ class AudioPlayerManager: NSObject, ObservableObject {
              currentInfo[MPMediaItemPropertyTitle] = newTitle
              MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
         }
+        }
+    
+    // MARK: - Sleep Timer
+    
+    func startSleepTimer(duration: TimeInterval) {
+        cancelSleepTimer()
+        
+        // Ensure strictly on MainActor
+        Task { @MainActor in
+            let endTime = Date().addingTimeInterval(duration)
+            self.sleepTimerEndTime = endTime
+            
+            // Scheduling timer on main run loop
+            self.sleepTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    // 停止播放
+                    self?.stop()
+                    self?.cancelSleepTimer() // Clean up state
+                    
+                    // 彻底退出应用
+                    exit(0)
+                }
+            }
+        }
+    }
+    
+    func cancelSleepTimer() {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepTimerEndTime = nil
     }
 }
