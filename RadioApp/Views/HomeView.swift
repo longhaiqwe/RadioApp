@@ -37,7 +37,7 @@ struct HomeView: View {
 
                                 
                                 // 随便听听入口 (Placed next to title)
-                                Button(action: {
+                                NeonRandomButton {
                                     let generator = UIImpactFeedbackGenerator(style: .medium)
                                     generator.impactOccurred()
                                     
@@ -57,23 +57,6 @@ struct HomeView: View {
                                             print("Random station fetch failed: \(error)")
                                         }
                                     }
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "shuffle")
-                                            .font(.system(size: 14, weight: .bold))
-                                        Text("随便听听")
-                                            .font(.system(size: 14, weight: .bold))
-                                    }
-                                    .foregroundColor(NeonColors.cyan)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        Capsule()
-                                            .fill(NeonColors.cyan.opacity(0.15))
-                                            .overlay(
-                                                Capsule().stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
                                 }
                                 .padding(.leading, 8) // Add some spacing from title
                                 
@@ -452,6 +435,74 @@ struct StationDropDelegate: DropDelegate {
         if fromIndex != toIndex {
             withAnimation {
                 favoritesManager.moveFavorite(from: IndexSet(integer: fromIndex), to: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            }
+        }
+    }
+}
+
+// MARK: - 随便听听按钮 (高级版)
+struct NeonRandomButton: View {
+    let action: () -> Void
+    @State private var isHovered = false
+    @State private var rotation: Double = 0
+    
+    var body: some View {
+        Button(action: {
+            // 点击时的旋转动画
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                rotation += 360
+            }
+            action()
+        }) {
+            Image(systemName: "shuffle")
+                .font(.system(size: 16, weight: .bold))
+                .rotationEffect(.degrees(rotation))
+                .foregroundColor(.white)
+                .frame(width: 36, height: 36)
+                .background(
+                    ZStack {
+                        // 背景渐变
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [NeonColors.purple, NeonColors.magenta],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .opacity(0.8)
+                        
+                        // 玻璃光泽
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.2), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .padding(1)
+                        
+                        // 边框发光
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.6), .clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    }
+                )
+                // 外发光
+                .shadow(color: NeonColors.magenta.opacity(0.5), radius: isHovered ? 12 : 6, x: 0, y: 3)
+                .scaleEffect(isHovered ? 1.05 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle()) // 避免默认点击效果影响自定义动画
+        .onHover { hover in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isHovered = hover
             }
         }
     }

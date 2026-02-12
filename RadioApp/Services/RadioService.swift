@@ -168,19 +168,36 @@ class RadioService {
     func fetchRandomStation(excluding excludedId: String? = nil) async throws -> Station? {
         var filter = StationFilter()
         filter.countryCode = "CN"
-        filter.tag = "music" // Ensure it's music (safer than any random station)
+        // Remove strict server-side tag="music" to get a broader pool
         filter.order = "random"
-        filter.limit = 10 // Increase limit to ensure we have alternatives
+        filter.limit = 100 // Fetch a large pool to filter client-side
         
+        // 1. Fetch candidates (server-side shuffled)
         let stations = try await advancedSearch(filter: filter)
         
-        // Filter blocked AND excluded
+        // 2. Client-side filtering
+        // Reuse common music/radio tags to ensure quality/relevance
+        let musicTags = ["music", "pop", "hits", "rock", "jazz", "classical", "音乐", "流行", "top40", "dance", "rnb", "lofi", "radio", "fm", "电台", "之声", "资讯", "新闻"]
+        
         let candidates = filterBlockedStations(stations).filter { station in
-            guard let excluded = excludedId else { return true }
-            return station.id != excluded
+            // Exclude current station
+            if let excluded = excludedId, station.id == excluded { return false }
+            
+            let tags = station.tags.lowercased()
+            let name = station.name.lowercased()
+            
+            // Broad match: checks tags OR name for keywords
+            for keyword in musicTags {
+                if tags.contains(keyword) || name.contains(keyword) { return true }
+            }
+            
+            // Fallback: if no tags but name is long enough (likely a real station name), keep it for variety
+            // This helps discover stations that might not have perfect tags
+            return !tags.isEmpty || name.count > 2
         }
         
-        return candidates.first
+        // 3. Pick one randomly from the filtered valid candidates
+        return candidates.randomElement()
     }
     
     // MARK: - Convenience / Smart Search
