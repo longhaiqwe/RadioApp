@@ -10,21 +10,18 @@ struct ShareCardView: View {
     let artworkImage: UIImage?
     let stationName: String?
     let timestamp: Date
-    let qrCodeURL: String
     
     // 装饰性波形条的随机高度（在初始化时生成，确保渲染一致）
     let waveformHeights: [CGFloat]
     
     init(title: String, artist: String, album: String? = nil, artworkImage: UIImage? = nil,
-         stationName: String? = nil, timestamp: Date = Date(),
-         qrCodeURL: String = "https://apps.apple.com/app/id6740043165") {
+         stationName: String? = nil, timestamp: Date = Date()) {
         self.title = title
         self.artist = artist
         self.album = album
         self.artworkImage = artworkImage
         self.stationName = stationName
         self.timestamp = timestamp
-        self.qrCodeURL = qrCodeURL
         // 预生成波形高度，避免渲染时随机导致不一致
         self.waveformHeights = (0..<32).map { _ in CGFloat.random(in: 8...40) }
     }
@@ -240,20 +237,24 @@ struct ShareCardView: View {
     
     // MARK: - 底部品牌区
     private var brandingSection: some View {
-        HStack(spacing: 16) {
-            // QR 码
-            if let qrImage = ShareCardGenerator.generateQRCode(from: qrCodeURL) {
-                Image(uiImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+        HStack(spacing: 12) {
+            // App Logo（音乐图标）
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "00D9FF"), Color(hex: "8338EC")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.white)
             }
+            .shadow(color: Color(hex: "00D9FF").opacity(0.5), radius: 8)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("拾音FM")

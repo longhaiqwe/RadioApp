@@ -7,9 +7,6 @@ import UIKit
 @MainActor
 class ShareCardGenerator {
     
-    /// App Store 链接（用于二维码）
-    static let appStoreURL = "https://apps.apple.com/app/id6740043165"
-    
     // MARK: - 生成分享卡片图片
     
     /// 生成分享卡片的 UIImage
@@ -35,8 +32,7 @@ class ShareCardGenerator {
             album: album,
             artworkImage: artworkImage,
             stationName: stationName,
-            timestamp: timestamp,
-            qrCodeURL: appStoreURL
+            timestamp: timestamp
         )
         
         let renderer = ImageRenderer(content: cardView)
@@ -44,29 +40,6 @@ class ShareCardGenerator {
         renderer.proposedSize = ProposedViewSize(width: 360, height: nil) // 固定宽度
         
         return renderer.uiImage
-    }
-    
-    // MARK: - 生成二维码
-    
-    /// 使用 CoreImage 生成二维码图片
-    /// - Parameter string: 二维码内容（URL 字符串）
-    /// - Returns: 生成的二维码 UIImage
-    static func generateQRCode(from string: String) -> UIImage? {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-        
-        guard let ciImage = filter.outputImage else { return nil }
-        
-        // 放大二维码到合适尺寸（原始输出很小）
-        let scale: CGFloat = 10
-        let transform = CGAffineTransform(scaleX: scale, y: scale)
-        let scaledImage = ciImage.transformed(by: transform)
-        
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
-        
-        return UIImage(cgImage: cgImage)
     }
     
     // MARK: - 预加载封面图
