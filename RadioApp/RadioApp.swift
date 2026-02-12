@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct RadioApp: App {
@@ -12,5 +13,6 @@ struct RadioApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(HistoryManager.shared.container)
     }
 }

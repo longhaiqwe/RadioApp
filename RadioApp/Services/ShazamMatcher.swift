@@ -522,12 +522,22 @@ extension ShazamMatcher: SHSessionDelegate {
                     }
                     
                     // 确保 customMatchResult 始终被设置 (即使没有转换)
-                    // 注意：如果之前已经设置过（比如上面两个分支），这里可能会重复设置，但为了确保 releaseDate 更新，再设置一次也无妨
                     await MainActor.run {
-                        // 如果当前结果的 releaseDate 为 nil，但我们需要更新它
                         if self.customMatchResult == nil || (self.customMatchResult?.releaseDate == nil && finalReleaseDate != nil) {
                             self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
                         }
+                        
+                        // [NEW] 保存到历史记录
+                        let currentStationName = AudioPlayerManager.shared.currentStation?.name ?? "未知电台"
+                        HistoryManager.shared.addSong(
+                            title: finalTitle,
+                            artist: finalArtist,
+                            album: finalAlbum,
+                            artworkURL: mediaItem.artworkURL,
+                            appleMusicID: mediaItem.appleMusicID,
+                            stationName: currentStationName,
+                            source: "Shazam"
+                        )
                     }
                     
                     // 获取歌词
@@ -678,6 +688,17 @@ extension ShazamMatcher: SHSessionDelegate {
                             if self.customMatchResult == nil {
                                 self.customMatchResult = CustomMatchResult(title: finalTitle, artist: finalArtist, album: finalAlbum, artworkURL: nil, releaseDate: releaseDate)
                             }
+                            
+                            // [NEW] 保存到历史记录
+                            let currentStationName = AudioPlayerManager.shared.currentStation?.name ?? "未知电台"
+                            HistoryManager.shared.addSong(
+                                title: finalTitle,
+                                artist: finalArtist,
+                                album: finalAlbum,
+                                artworkURL: nil, // ACRCloud 通常没有高质量封面 URL, 暂时留空或后续优化
+                                stationName: currentStationName,
+                                source: "ACRCloud"
+                            )
                         }
                         
                         // 获取歌词

@@ -10,6 +10,10 @@ struct HomeView: View {
     @State private var draggingStation: Station?
     @State private var showFeedback = false
     @State private var showSettings = false
+    @State private var showHistory = false
+    @State private var showProUpgrade = false
+    
+    @ObservedObject var subscriptionManager = SubscriptionManager.shared
     
     @Environment(\.scenePhase) var scenePhase
     
@@ -61,6 +65,37 @@ struct HomeView: View {
                                 .padding(.leading, 8) // Add some spacing from title
                                 
                                 Spacer()
+                                
+                                // [NEW] 历史记录入口 (Pro 专属)
+                                Button(action: {
+                                    if subscriptionManager.isPro {
+                                        showHistory = true
+                                    } else {
+                                        showProUpgrade = true
+                                    }
+                                }) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(NeonColors.cyan)
+                                            .padding(10)
+                                            .background(
+                                                Circle()
+                                                    .fill(.white.opacity(0.1))
+                                            )
+                                        
+                                        // Pro 锁图标 (如果未订阅)
+                                        if !subscriptionManager.isPro {
+                                            Image(systemName: "lock.fill")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(NeonColors.gold)
+                                                .padding(4)
+                                                .background(Circle().fill(NeonColors.darkBg))
+                                                .offset(x: 5, y: -5)
+                                        }
+                                    }
+                                }
+                                .padding(.trailing, 8)
                                 
                                 // 设置入口
                                 Button(action: { showSettings = true }) {
@@ -241,6 +276,12 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showHistory) {
+            HistoryView()
+        }
+        .sheet(isPresented: $showProUpgrade) {
+            ProUpgradeView()
         }
     }
 }
