@@ -34,6 +34,49 @@ struct HomeView: View {
                                         )
                                     )
                                 
+
+                                
+                                // 随便听听入口 (Placed next to title)
+                                Button(action: {
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    
+                                    // 播放随机电台
+                                    Task {
+                                        do {
+                                            // Pass current station ID to exclude it from the random result
+                                            // ensuring we always get a NEW station
+                                            let currentId = playerManager.currentStation?.id
+                                            if let station = try await RadioService.shared.fetchRandomStation(excluding: currentId) {
+                                                await MainActor.run {
+                                                    // Always play (context: itself to avoid prev/next confusion for now)
+                                                    playerManager.play(station: station, in: [station], title: "随便听听")
+                                                }
+                                            }
+                                        } catch {
+                                            print("Random station fetch failed: \(error)")
+                                        }
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "shuffle")
+                                            .font(.system(size: 14, weight: .bold))
+                                        Text("随便听听")
+                                            .font(.system(size: 14, weight: .bold))
+                                    }
+                                    .foregroundColor(NeonColors.cyan)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule()
+                                            .fill(NeonColors.cyan.opacity(0.15))
+                                            .overlay(
+                                                Capsule().stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                                            )
+                                    )
+                                }
+                                .padding(.leading, 8) // Add some spacing from title
+                                
                                 Spacer()
                                 
                                 // 设置入口
@@ -171,6 +214,10 @@ struct HomeView: View {
                                     .foregroundColor(.white)
                             }
                             .padding(.horizontal, 20)
+                            
+                            .padding(.horizontal, 20)
+                            
+
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 16) {

@@ -163,6 +163,26 @@ class RadioService {
         return Array(filtered.prefix(limit))
     }
     
+    /// Fetch a random station (Surprise Me)
+    /// Logic: Search for "music" in "CN" with "random" order, limit to a pool to avoid duplicates.
+    func fetchRandomStation(excluding excludedId: String? = nil) async throws -> Station? {
+        var filter = StationFilter()
+        filter.countryCode = "CN"
+        filter.tag = "music" // Ensure it's music (safer than any random station)
+        filter.order = "random"
+        filter.limit = 10 // Increase limit to ensure we have alternatives
+        
+        let stations = try await advancedSearch(filter: filter)
+        
+        // Filter blocked AND excluded
+        let candidates = filterBlockedStations(stations).filter { station in
+            guard let excluded = excludedId else { return true }
+            return station.id != excluded
+        }
+        
+        return candidates.first
+    }
+    
     // MARK: - Convenience / Smart Search
     
     /// Smart search that handles "1017" frequency fixes and keyword splitting
