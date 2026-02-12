@@ -15,10 +15,10 @@ struct PlayerView: View {
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
     @State private var showLyrics = false // Lyrics Toggle State
     @State private var showProUpgrade = false // Pro 升级弹窗
-    @State private var showReportActionSheet = false // 举报/屏蔽菜单
+    @State private var showMenuActionSheet = false // 顶部菜单弹出状态
+    @State private var showReportButtonActionSheet = false // 底部举报按钮弹出状态
     @State private var showSleepTimerSheet = false // 定时关闭菜单
-    @State private var showCustomTimerPicker = false // 自定义时间选择器
-    @State private var customTimerDuration: TimeInterval = 60 * 60 // 默认 1 小时
+    @State private var activeActionSheet: ActionSheetConfig? = nil // 当前激活的自定义 ActionSheet
     
     var body: some View {
         ZStack {
@@ -91,6 +91,16 @@ struct PlayerView: View {
             }
             .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching || shazamMatcher.showAdvancedRecognitionPrompt)
 
+            // MARK: - 自定义 ActionSheet 弹窗层
+            if let config = activeActionSheet {
+                CustomActionSheet(config: config) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        activeActionSheet = nil
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
         }
     }
     
@@ -126,113 +136,68 @@ struct PlayerView: View {
                     .background(Circle().fill(Color.white.opacity(0.1)))
             }
         }
-        .actionSheet(isPresented: $showSleepTimerSheet) {
-            ActionSheet(
-                title: Text("定时关闭"),
-                message: Text("即使睡着了，音乐也会自动停止"),
-                buttons: [
-                    .default(Text("10 秒 (测试)")) { playerManager.startSleepTimer(duration: 10) },
-                    .default(Text("15 分钟")) { playerManager.startSleepTimer(duration: 15 * 60) },
-                    .default(Text("30 分钟")) { playerManager.startSleepTimer(duration: 30 * 60) },
-                    .default(Text("60 分钟")) { playerManager.startSleepTimer(duration: 60 * 60) },
-                    .default(Text("90 分钟")) { playerManager.startSleepTimer(duration: 90 * 60) },
-                    .default(Text("自定义...")) { 
-                        // 延迟一下以避免 ActionSheet 冲突
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            showCustomTimerPicker = true 
-                        }
-                    },
-                    playerManager.sleepTimerEndTime != nil ? .destructive(Text("关闭定时")) { playerManager.cancelSleepTimer() } : nil,
-                    .cancel()
-                ].compactMap { $0 }
-            )
-        }
-        .sheet(isPresented: $showCustomTimerPicker) {
-            NavigationView {
-                VStack {
-                    HStack {
-                        Picker("小时", selection: Binding(
-                            get: { Int(customTimerDuration) / 3600 },
-                            set: { newValue in
-                                let minutes = (Int(customTimerDuration) % 3600) / 60
-                                customTimerDuration = TimeInterval(newValue * 3600 + minutes * 60)
+        .onChange(of: showSleepTimerSheet) { show in
+            if show {
+                activeActionSheet = ActionSheetConfig(
+                    title: "定时关闭",
+                    message: "即使睡着了，音乐也会自动停止",
+                    items: [
+                        .button(title: "10 秒 (测试)", type: .default) { playerManager.startSleepTimer(duration: 10) },
+                        .button(title: "15 分钟", type: .default) { playerManager.startSleepTimer(duration: 15 * 60) },
+                        .button(title: "30 分钟", type: .default) { playerManager.startSleepTimer(duration: 30 * 60) },
+                        .button(title: "60 分钟", type: .default) { playerManager.startSleepTimer(duration: 60 * 60) },
+                        .button(title: "90 分钟", type: .default) { playerManager.startSleepTimer(duration: 90 * 60) },
+                        .input(placeholder: "自定义 (分钟)", onCommit: { text in
+                            if let minutes = Double(text) {
+                                playerManager.startSleepTimer(duration: minutes * 60)
                             }
-                        )) {
-                            ForEach(0..<24) { hour in
-                                Text("\(hour) 小时").tag(hour)
-                            }
-                        }
-                        .pickerStyle(WheelPickerStyle())
-                        .frame(width: 100)
-                        
-                        Picker("分钟", selection: Binding(
-                            get: { (Int(customTimerDuration) % 3600) / 60 },
-                            set: { newValue in
-                                let hours = Int(customTimerDuration) / 3600
-                                customTimerDuration = TimeInterval(hours * 3600 + newValue * 60)
-                            }
-                        )) {
-                            ForEach(0..<60) { minute in
-                                Text("\(minute) 分钟").tag(minute)
-                            }
-                        }
-                        .pickerStyle(WheelPickerStyle())
-                        .frame(width: 100)
-                    }
-                    .padding()
-                    
-                    Text("将在 \(Int(customTimerDuration) / 3600) 小时 \((Int(customTimerDuration) % 3600) / 60) 分钟后停止播放并退出应用")
-                        .foregroundColor(.gray)
-                        .padding()
-                    
-                    Spacer()
-                }
-                .navigationTitle("定时关闭")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") {
-                            showCustomTimerPicker = false
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("开始") {
-                            playerManager.startSleepTimer(duration: customTimerDuration)
-                            showCustomTimerPicker = false
-                        }
-                    }
-                }
+                        }),
+                        playerManager.sleepTimerEndTime != nil ? .button(title: "关闭定时", type: .destructive) { playerManager.cancelSleepTimer() } : nil,
+                        .button(title: "取消", type: .cancel) { }
+                    ].compactMap { $0 }
+                )
+                showSleepTimerSheet = false // Reset triggering state immediately
             }
         }
+
     }
     
     // MARK: - 更多菜单按钮
     private var menuButton: some View {
         Button(action: {
-            showReportActionSheet = true
+            showMenuActionSheet = true
         }) {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 24))
                 .foregroundColor(.white.opacity(0.8))
                 .frame(width: 44, height: 44)
         }
-        .actionSheet(isPresented: $showReportActionSheet) {
-            ActionSheet(
-                title: Text("更多操作"),
-                buttons: [
-                    .default(Text("屏蔽此电台")) {
-                        blockCurrentStation()
-                    },
-                    .default(Text("屏蔽并举报")) {
-                        reportStation()
-                    },
-                    .cancel()
-                ]
-            )
+        .onChange(of: showMenuActionSheet) { show in
+            if show {
+                presentReportActionSheet()
+                showMenuActionSheet = false
+            }
         }
     }
     
     // MARK: - 屏蔽/举报逻辑
+    // MARK: - 通用 ActionSheet (Custom)
+    private func presentReportActionSheet() {
+        activeActionSheet = ActionSheetConfig(
+            title: "更多操作",
+            message: nil,
+            items: [
+                .button(title: "屏蔽此电台", type: .default) {
+                    blockCurrentStation()
+                },
+                .button(title: "屏蔽并举报", type: .default) {
+                    reportStation()
+                },
+                .button(title: "取消", type: .cancel) {}
+            ]
+        )
+    }
+
     private func blockCurrentStation() {
         guard let station = playerManager.currentStation else { return }
         // 1. 本地屏蔽
@@ -506,13 +471,19 @@ struct PlayerView: View {
                 // 2. 举报/屏蔽按钮 (放在电台名称旁边)
                 if playerManager.currentStation != nil {
                     Button(action: {
-                        showReportActionSheet = true
+                        showReportButtonActionSheet = true
                     }) {
                         Image(systemName: "exclamationmark.shield")
                             .font(.system(size: 18))
                             .foregroundColor(NeonColors.red.opacity(0.9)) // 提醒色
                             .padding(8)
                             .background(Circle().fill(NeonColors.red.opacity(0.15)))
+                    }
+                    .onChange(of: showReportButtonActionSheet) { show in
+                        if show {
+                            presentReportActionSheet()
+                            showReportButtonActionSheet = false
+                       }
                     }
                 }
             }
