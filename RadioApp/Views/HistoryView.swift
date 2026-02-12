@@ -3,8 +3,9 @@ import SwiftData
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \RecognizedSong.timestamp, order: .reverse) private var songs: [RecognizedSong]
     @Environment(\.presentationMode) var presentationMode
+    @State private var searchText = ""
+    @Query private var allSongs: [RecognizedSong]
     
     var body: some View {
         ZStack {
@@ -31,7 +32,7 @@ struct HistoryView: View {
                     
                     Spacer()
                     
-                    if !songs.isEmpty {
+                    if !allSongs.isEmpty {
                         Button(action: clearAllHistory) {
                             Text("清空")
                                 .font(.system(size: 14))
@@ -45,56 +46,125 @@ struct HistoryView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
                 
-                if songs.isEmpty {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        Image(systemName: "music.note.list")
-                            .font(.system(size: 60))
-                            .foregroundColor(.white.opacity(0.2))
-                        Text("还没有识别记录")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white.opacity(0.5))
-                        Text("点击主页的识别按钮，发现此时此刻的好音乐")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.3))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                    }
-                    .frame(maxWidth: .infinity)
-                    Spacer()
-                } else {
-                    List {
-                        ForEach(songs) { song in
-                            NeonSongRow(song: song)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        deleteSong(song)
-                                    } label: {
-                                        Label("删除", systemImage: "trash")
-                                    }
-                                }
+                // 搜索栏
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.white.opacity(0.5))
+                    TextField("搜索歌曲、歌手、专辑或电台", text: $searchText)
+                        .foregroundColor(.white)
+                        .accentColor(NeonColors.cyan)
+                        .submitLabel(.search) // 将回车键变为“搜索”
+                        .onSubmit {
+                            hideKeyboard() // 点击搜索收起键盘
+                        }
+                    
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white.opacity(0.5))
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
+                .padding(10)
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(10)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+                
+                // 列表内容
+                HistoryListView(filter: searchText)
+                    .id(searchText) // 强制 SwiftUI 在搜索词变化时重新创建视图，触发新 Query
+                    .onTapGesture {
+                        hideKeyboard() // 点击列表收起键盘
+                    }
             }
         }
         .navigationBarHidden(true)
     }
     
-    private func deleteSong(_ song: RecognizedSong) {
-        withAnimation {
-            modelContext.delete(song)
-            try? modelContext.save()
-        }
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     private func clearAllHistory() {
         withAnimation {
             try? modelContext.delete(model: RecognizedSong.self)
+            try? modelContext.save()
+        }
+    }
+}
+
+struct HistoryListView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \RecognizedSong.timestamp, order: .reverse) private var allSongs: [RecognizedSong]
+    let filterString: String
+    
+    init(filter: String = "") {
+        self.filterString = filter
+    }
+    
+    /// 在内存中过滤（SwiftData 的 SQL 谓词对中文和可选字段支持不佳）
+    private var filteredSongs: [RecognizedSong] {
+        guard !filterString.isEmpty else { return allSongs }
+        let keyword = filterString.lowercased()
+        return allSongs.filter { song in
+            song.title.lowercased().contains(keyword) ||
+            song.artist.lowercased().contains(keyword) ||
+            (song.album?.lowercased().contains(keyword) ?? false) ||
+            (song.stationName?.lowercased().contains(keyword) ?? false)
+        }
+    }
+    
+    var body: some View {
+        if filteredSongs.isEmpty {
+            Spacer()
+            VStack(spacing: 16) {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 60))
+                    .foregroundColor(.white.opacity(0.2))
+                
+                if filterString.isEmpty {
+                    Text("还没有识别记录")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("点击主页的识别按钮，发现此时此刻的好音乐")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.3))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                } else {
+                    Text("没有找到相关记录")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            Spacer()
+        } else {
+            List {
+                ForEach(filteredSongs) { song in
+                    NeonSongRow(song: song)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteSong(song)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+    }
+    
+    private func deleteSong(_ song: RecognizedSong) {
+        withAnimation {
+            modelContext.delete(song)
             try? modelContext.save()
         }
     }
@@ -143,6 +213,13 @@ struct NeonSongRow: View {
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.7))
                         .lineLimit(1)
+                    
+                    if let album = song.album, !album.isEmpty {
+                        Text("• \(album)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.5))
+                            .lineLimit(1)
+                    }
                     
                     if let station = song.stationName {
                         Text("• \(station)")
