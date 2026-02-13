@@ -54,7 +54,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // ACRCloud 集成
     @Published var showAdvancedRecognitionPrompt = false
-    @Published var remainingCredits: Int = SubscriptionManager.shared.currentCredits
+
     
     // 自定义匹配结果 (用于 QQ 音乐等非 Shazam 源)
     @Published var customMatchResult: CustomMatchResult?
@@ -617,7 +617,7 @@ extension ShazamMatcher: SHSessionDelegate {
         
         // 消耗 1 次配额
         SubscriptionManager.shared.consumeCredit()
-        self.remainingCredits = SubscriptionManager.shared.currentCredits
+
         
         ACRCloudMatcher.shared.match(fileURL: fileURL) { [weak self] song, artist, album, offset, releaseDate in
             guard let self = self else { return }

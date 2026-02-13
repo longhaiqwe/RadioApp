@@ -351,7 +351,7 @@ struct PlayerView: View {
                         .foregroundColor(.white)
                     
                     if subscriptionManager.isPro {
-                        Text("剩余高级次数: \(shazamMatcher.remainingCredits)")
+                        Text("剩余高级次数: \(subscriptionManager.currentCredits)")
                             .font(.system(size: 9))
                             .foregroundColor(NeonColors.cyan.opacity(0.8))
                     }
@@ -679,7 +679,7 @@ struct PlayerView: View {
             }
             .padding(.top, 8)
             
-            Text("当前剩余高级配额: \(shazamMatcher.remainingCredits) 次")
+            Text("当前剩余高级配额: \(subscriptionManager.currentCredits) 次")
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.4))
         }
