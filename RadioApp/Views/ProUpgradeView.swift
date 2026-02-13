@@ -195,11 +195,24 @@ struct ProUpgradeView: View {
                         
                         // 错误信息
                         if let error = subscriptionManager.errorMessage {
-                            Text(error)
-                                .font(.system(size: 14))
-                                .foregroundColor(.red.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 20)
+                            VStack(spacing: 8) {
+                                Text(error)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.red.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                
+                                Button(action: {
+                                    Task {
+                                        await subscriptionManager.loadProducts()
+                                    }
+                                }) {
+                                    Text("重试")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(NeonColors.cyan)
+                                        .underline()
+                                }
+                            }
+                            .padding(.horizontal, 20)
                         }
                         
                         // 恢复购买
@@ -222,8 +235,11 @@ struct ProUpgradeView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             updateTimeRemaining()
+            if subscriptionManager.proProduct == nil {
+                await subscriptionManager.loadProducts()
+            }
         }
         .onReceive(timer) { _ in
             updateTimeRemaining()

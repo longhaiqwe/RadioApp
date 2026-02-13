@@ -98,6 +98,8 @@ class SubscriptionManager: ObservableObject {
     // MARK: - 加载产品信息
     
     func loadProducts() async {
+        errorMessage = nil
+        
         do {
             let products = try await Product.products(for: [Self.proLifetimeProductID])
             if let product = products.first {
