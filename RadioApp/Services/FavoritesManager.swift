@@ -136,6 +136,34 @@ class FavoritesManager: ObservableObject {
                              clickcount: finalStation.clickcount,
                              clicktrend: finalStation.clicktrend
                          )
+                    } else if finalStation.stationuuid == "94de57d1-542a-46b8-8e18-d97517d93f99" && finalStation.favicon != "bundle://morning_music_cover" {
+                         finalStation = Station(
+                             changeuuid: finalStation.changeuuid,
+                             stationuuid: finalStation.stationuuid,
+                             name: "清晨音乐台",
+                             url: finalStation.url,
+                             urlResolved: finalStation.urlResolved,
+                             homepage: finalStation.homepage,
+                             favicon: "bundle://morning_music_cover",
+                             tags: finalStation.tags,
+                             country: finalStation.country,
+                             countrycode: finalStation.countrycode,
+                             state: finalStation.state,
+                             language: finalStation.language,
+                             languagecodes: finalStation.languagecodes,
+                             votes: finalStation.votes,
+                             lastchangetime: finalStation.lastchangetime,
+                             codec: finalStation.codec,
+                             bitrate: finalStation.bitrate,
+                             hls: finalStation.hls,
+                             lastcheckok: finalStation.lastcheckok,
+                             lastchecktime: finalStation.lastchecktime,
+                             lastcheckoktime: finalStation.lastcheckoktime,
+                             lastlocalchecktime: finalStation.lastlocalchecktime,
+                             clicktimestamp: finalStation.clicktimestamp,
+                             clickcount: finalStation.clickcount,
+                             clicktrend: finalStation.clicktrend
+                         )
                     }
                     uniqueStations.append(finalStation)
                     seenNames.insert(station.name)
@@ -146,7 +174,8 @@ class FavoritesManager: ObservableObject {
         self.favoriteStations = uniqueStations
         // Only save if count changed to avoid unnecessary writes
         if existing.count != uniqueStations.count 
-            || uniqueStations.contains(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && $0.favicon == "bundle://huaiji_cover" && existing.first(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" })?.favicon != "bundle://huaiji_cover" }) {
+            || uniqueStations.contains(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" && $0.favicon == "bundle://huaiji_cover" && existing.first(where: { $0.stationuuid == "24711f7f-8ff5-4141-8e0f-ab17f3da1b89" })?.favicon != "bundle://huaiji_cover" })
+            || uniqueStations.contains(where: { $0.stationuuid == "94de57d1-542a-46b8-8e18-d97517d93f99" && $0.favicon == "bundle://morning_music_cover" && existing.first(where: { $0.stationuuid == "94de57d1-542a-46b8-8e18-d97517d93f99" })?.favicon != "bundle://morning_music_cover" }) {
             saveFavorites()
         }
     }
@@ -160,7 +189,7 @@ class FavoritesManager: ObservableObject {
                 url: "http://lhttp.qingting.fm/live/4915/64k.mp3",
                 urlResolved: "http://lhttp.qingting.fm/live/4915/64k.mp3",
                 homepage: "https://m.weibo.cn/u/2022851417",
-                favicon: "https://h5.sinaimg.cn/m/weibo-lite/appicon.png",
+                favicon: "bundle://morning_music_cover",
                 tags: "music,pop music",
                 country: "China",
                 countrycode: "CN",
