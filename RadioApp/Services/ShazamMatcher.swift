@@ -536,7 +536,8 @@ extension ShazamMatcher: SHSessionDelegate {
                             artworkURL: mediaItem.artworkURL,
                             appleMusicID: mediaItem.appleMusicID,
                             stationName: currentStationName,
-                            source: "Shazam"
+                            source: "Shazam",
+                            releaseDate: finalReleaseDate
                         )
                     }
                     
@@ -697,7 +698,8 @@ extension ShazamMatcher: SHSessionDelegate {
                                 album: finalAlbum,
                                 artworkURL: nil, // ACRCloud 通常没有高质量封面 URL, 暂时留空或后续优化
                                 stationName: currentStationName,
-                                source: "ACRCloud"
+                                source: "ACRCloud",
+                                releaseDate: releaseDate
                             )
                         }
                         

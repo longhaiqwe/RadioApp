@@ -1134,13 +1134,17 @@ struct PlayerView: View {
         isGeneratingShareCard = true
         defer { isGeneratingShareCard = false }
         
+        // 尝试获取发行时间
+        let releaseDate = shazamMatcher.customMatchResult?.releaseDate
+        
         await ShareCardGenerator.generateAndShare(
             title: title,
             artist: artist,
             album: album,
             artworkURL: artworkURL,
             stationName: stationName,
-            timestamp: Date()
+            timestamp: Date(),
+            releaseDate: releaseDate
         )
     }
 

@@ -21,7 +21,7 @@ class HistoryManager {
     
     // MARK: - API
     
-    func addSong(title: String, artist: String, album: String? = nil, artworkURL: URL? = nil, appleMusicID: String? = nil, stationName: String? = nil, source: String = "Shazam") {
+    func addSong(title: String, artist: String, album: String? = nil, artworkURL: URL? = nil, appleMusicID: String? = nil, stationName: String? = nil, source: String = "Shazam", releaseDate: Date? = nil) {
         let context = container.mainContext
         
         // 简单去重：如果最近 (10分钟内) 有完全相同的歌，只更新时间
@@ -40,6 +40,7 @@ class HistoryManager {
                 // 更新其他可能变更的字段
                 if let newUrl = artworkURL { existingSong.artworkURL = newUrl }
                 if let newAlbum = album { existingSong.album = newAlbum }
+                if let newDate = releaseDate { existingSong.releaseDate = newDate }
             } else {
                 print("[History] 添加新记录: \(title) - \(artist)")
                 let newSong = RecognizedSong(
@@ -50,7 +51,8 @@ class HistoryManager {
                     appleMusicID: appleMusicID,
                     stationName: stationName,
                     timestamp: Date(),
-                    source: source
+                    source: source,
+                    releaseDate: releaseDate
                 )
                 context.insert(newSong)
             }

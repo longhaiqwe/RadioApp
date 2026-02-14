@@ -17,6 +17,7 @@ class ShareCardGenerator {
     ///   - artworkImage: 封面图片（预加载的 UIImage）
     ///   - stationName: 电台名称（可选）
     ///   - timestamp: 识别时间
+    ///   - releaseDate: 发行时间（可选）
     /// - Returns: 渲染后的 UIImage，失败时返回 nil
     static func generateImage(
         title: String,
@@ -24,7 +25,8 @@ class ShareCardGenerator {
         album: String? = nil,
         artworkImage: UIImage? = nil,
         stationName: String? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        releaseDate: Date? = nil
     ) -> UIImage? {
         let cardView = ShareCardView(
             title: title,
@@ -32,7 +34,8 @@ class ShareCardGenerator {
             album: album,
             artworkImage: artworkImage,
             stationName: stationName,
-            timestamp: timestamp
+            timestamp: timestamp,
+            releaseDate: releaseDate
         )
         
         let renderer = ImageRenderer(content: cardView)
@@ -106,6 +109,7 @@ class ShareCardGenerator {
     ///   - artworkURL: 封面图 URL
     ///   - stationName: 电台名
     ///   - timestamp: 识别时间
+    ///   - releaseDate: 发行时间
     /// - Returns: 是否成功
     @discardableResult
     static func generateAndShare(
@@ -114,7 +118,8 @@ class ShareCardGenerator {
         album: String? = nil,
         artworkURL: URL? = nil,
         stationName: String? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        releaseDate: Date? = nil
     ) async -> Bool {
         // 1. 预加载封面
         let artworkImage = await preloadArtwork(from: artworkURL)
@@ -126,7 +131,8 @@ class ShareCardGenerator {
             album: album,
             artworkImage: artworkImage,
             stationName: stationName,
-            timestamp: timestamp
+            timestamp: timestamp,
+            releaseDate: releaseDate
         ) else {
             print("ShareCardGenerator: 卡片图片生成失败")
             return false

@@ -203,7 +203,8 @@ struct HistoryListView: View {
             album: song.album,
             artworkURL: song.artworkURL,
             stationName: song.stationName,
-            timestamp: song.timestamp
+            timestamp: song.timestamp,
+            releaseDate: song.releaseDate
         )
     }
 }

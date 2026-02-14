@@ -10,18 +10,20 @@ struct ShareCardView: View {
     let artworkImage: UIImage?
     let stationName: String?
     let timestamp: Date
+    let releaseDate: Date?
     
     // 装饰性波形条的随机高度（在初始化时生成，确保渲染一致）
     let waveformHeights: [CGFloat]
     
     init(title: String, artist: String, album: String? = nil, artworkImage: UIImage? = nil,
-         stationName: String? = nil, timestamp: Date = Date()) {
+         stationName: String? = nil, timestamp: Date = Date(), releaseDate: Date? = nil) {
         self.title = title
         self.artist = artist
         self.album = album
         self.artworkImage = artworkImage
         self.stationName = stationName
         self.timestamp = timestamp
+        self.releaseDate = releaseDate
         // 预生成波形高度，避免渲染时随机导致不一致
         self.waveformHeights = (0..<32).map { _ in CGFloat.random(in: 8...40) }
     }
@@ -183,7 +185,32 @@ struct ShareCardView: View {
                 .foregroundColor(Color(hex: "00D9FF").opacity(0.8))
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
+            
+            // 发行时间回忆（如果有）
+            if let releaseDate = releaseDate {
+                 HStack(spacing: 4) {
+                     Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11))
+                     
+                     Text(memoryString(from: releaseDate))
+                         .font(.system(size: 12))
+                 }
+                 .foregroundColor(.white.opacity(0.5))
+                 .padding(.top, 2)
+            }
         }
+    }
+    
+    // 生成回忆文案：e.g. "发行于 2004 · 20年前"
+    private func memoryString(from date: Date) -> String {
+        let year = Calendar.current.component(.year, from: date)
+        
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        formatter.locale = Locale(identifier: "zh_CN") // 强制中文，或者依赖系统 Locale.current
+        let relativeString = formatter.localizedString(for: date, relativeTo: Date())
+        
+        return "发行于 \(year) · \(relativeString)"
     }
     
     // MARK: - 装饰性波形
