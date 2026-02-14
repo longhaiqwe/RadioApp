@@ -166,7 +166,9 @@ class ShazamMatcher: NSObject, ObservableObject {
         StreamSampler.shared.cancel()
         isMatching = false
         // 立即结束 Activity
-        endLiveActivity(dismissalPolicy: .immediate)
+        Task {
+            await endLiveActivity(dismissalPolicy: .immediate)
+        }
         isLockScreenTriggered = false
         matchingProgress = ""
     }
@@ -412,29 +414,32 @@ class ShazamMatcher: NSObject, ObservableObject {
     private func startLiveActivity(stationName: String) {
         guard #available(iOS 16.1, *) else { return }
         
-        // End any existing activity first
-        endLiveActivity(dismissalPolicy: .immediate)
-        
-        let attributes = MusicRecognitionAttributes(stationName: stationName)
-        let contentState = MusicRecognitionAttributes.ContentState.listening
-        
-        do {
-            let activity = try Activity.request(attributes: attributes, content: .init(state: contentState, staleDate: nil))
-            self.liveActivity = activity
-            print("Live Activity started: \(activity.id)")
-        } catch {
-            print("Error starting Live Activity: \(error.localizedDescription)")
+        Task {
+            // End any existing activity first
+            await endLiveActivity(dismissalPolicy: .immediate)
+            
+            let attributes = MusicRecognitionAttributes(stationName: stationName)
+            let contentState = MusicRecognitionAttributes.ContentState.listening
+            
+            do {
+                let activity = try Activity.request(attributes: attributes, content: .init(state: contentState, staleDate: nil))
+                self.liveActivity = activity
+                print("Live Activity started: \(activity.id)")
+            } catch {
+                print("Error starting Live Activity: \(error.localizedDescription)")
+            }
         }
     }
     
-    private func updateLiveActivity(title: String, artist: String, coverURL: URL?) {
+    private func updateLiveActivity(title: String, artist: String, coverURL: URL?, releaseDate: Date?) {
         guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
         
         let contentState = MusicRecognitionAttributes.ContentState(
             state: .success,
             songTitle: title,
             artistName: artist,
-            coverImageURL: coverURL
+            coverImageURL: coverURL,
+            releaseDate: releaseDate
         )
         
         Task {
@@ -465,13 +470,11 @@ class ShazamMatcher: NSObject, ObservableObject {
          }
     }
     
-    private func endLiveActivity(dismissalPolicy: ActivityUIDismissalPolicy) {
+    private func endLiveActivity(dismissalPolicy: ActivityUIDismissalPolicy) async {
         guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
         
-        Task {
-            await activity.end(nil, dismissalPolicy: dismissalPolicy)
-            self.liveActivity = nil
-        }
+        await activity.end(nil, dismissalPolicy: dismissalPolicy)
+        self.liveActivity = nil
     }
 
 }
@@ -620,7 +623,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     }
 
                     // 更新 Live Activity
-                    self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: mediaItem.artworkURL)
+                    self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: mediaItem.artworkURL, releaseDate: finalReleaseDate)
                     
                     // 获取歌词
                     let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
@@ -785,7 +788,7 @@ extension ShazamMatcher: SHSessionDelegate {
                         }
                             
                         // 更新 Live Activity (ACRCloud)
-                        self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: nil)
+                        self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: nil, releaseDate: releaseDate)
                         
                         // 获取歌词
                         let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(

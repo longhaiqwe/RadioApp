@@ -54,6 +54,12 @@ struct RadioAppWidgetLiveActivity: Widget {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
+                            
+                            if let releaseDate = context.state.releaseDate {
+                                Text(releaseDateText(for: releaseDate))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary.opacity(0.8))
+                            }
                         }
                     } else {
                         Image(systemName: "exclamationmark.circle.fill")
@@ -111,6 +117,12 @@ struct RadioAppWidgetLiveActivity: Widget {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
+                            
+                            if let releaseDate = context.state.releaseDate {
+                                Text(releaseDateText(for: releaseDate))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary.opacity(0.8))
+                            }
                         }
                     } else {
                         Text("未识别")
@@ -146,6 +158,24 @@ struct RadioAppWidgetLiveActivity: Widget {
             }
             .widgetURL(URL(string: "radioapp://recognition"))
             .keylineTint(Color.accentColor)
+        }
+    }
+    
+    func releaseDateText(for date: Date) -> String {
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: date)
+        let yearsAgo = calendar.dateComponents([.year], from: date, to: Date()).year ?? 0
+        
+        if yearsAgo <= 0 {
+            return "\(year) 年新歌"
+        } else if yearsAgo > 30 {
+            return "黄金年代 · \(year)"
+        } else if yearsAgo > 20 {
+            return "白银年代 · \(year)"
+        } else if yearsAgo > 10 {
+            return "数字记忆 · \(year)"
+        } else {
+            return "发行于 \(year)"
         }
     }
 }

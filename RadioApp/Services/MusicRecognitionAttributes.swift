@@ -23,10 +23,11 @@ struct MusicRecognitionAttributes: ActivityAttributes {
         var songTitle: String?
         var artistName: String?
         var coverImageURL: URL?
+        var releaseDate: Date? // Added for 'years ago' display
         
         // Helper for default/listening state
         static var listening: ContentState {
-            ContentState(state: .listening, songTitle: nil, artistName: nil, coverImageURL: nil)
+            ContentState(state: .listening, songTitle: nil, artistName: nil, coverImageURL: nil, releaseDate: nil)
         }
     }
 
