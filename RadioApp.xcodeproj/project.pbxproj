@@ -8,14 +8,58 @@
 
 /* Begin PBXBuildFile section */
 		8F4736CD2F29E6AF00822589 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8F4736CC2F29E6AF00822589 /* StoreKit.framework */; };
+		8FEFB3DF2F4052DD00908364 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8FEFB3DE2F4052DD00908364 /* WidgetKit.framework */; };
+		8FEFB3E12F4052DD00908364 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8FEFB3E02F4052DD00908364 /* SwiftUI.framework */; };
+		8FEFB3F22F4052DF00908364 /* RadioAppWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8FEFB3F02F4052DF00908364 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8FF816E12F26FFA500FDAA9F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8FEFB3DC2F4052DD00908364;
+			remoteInfo = RadioAppWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8FEFB3F72F4052DF00908364 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8FEFB3F22F4052DF00908364 /* RadioAppWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		8F4736CC2F29E6AF00822589 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RadioAppWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8FEFB3DE2F4052DD00908364 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8FEFB3E02F4052DD00908364 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		8FF816E92F26FFA500FDAA9F /* RadioApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RadioApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8FEFB3F62F4052DF00908364 /* Exceptions for "RadioAppWidget" folder in "RadioAppWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */;
+		};
+		8FEFB3FB2F40550A00908364 /* Exceptions for "RadioApp" folder in "RadioAppWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/MusicRecognitionAttributes.swift,
+			);
+			target = 8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */;
+		};
 		8FF8170B2F27004300FDAA9F /* Exceptions for "RadioApp" folder in "RadioApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -26,10 +70,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		8FEFB3E22F4052DD00908364 /* RadioAppWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8FEFB3F62F4052DF00908364 /* Exceptions for "RadioAppWidget" folder in "RadioAppWidgetExtension" target */,
+			);
+			path = RadioAppWidget;
+			sourceTree = "<group>";
+		};
 		8FF816EB2F26FFA500FDAA9F /* RadioApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				8FF8170B2F27004300FDAA9F /* Exceptions for "RadioApp" folder in "RadioApp" target */,
+				8FEFB3FB2F40550A00908364 /* Exceptions for "RadioApp" folder in "RadioAppWidgetExtension" target */,
 			);
 			path = RadioApp;
 			sourceTree = "<group>";
@@ -37,6 +90,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		8FEFB3DA2F4052DD00908364 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8FEFB3E12F4052DD00908364 /* SwiftUI.framework in Frameworks */,
+				8FEFB3DF2F4052DD00908364 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8FF816E62F26FFA500FDAA9F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -52,6 +114,8 @@
 			isa = PBXGroup;
 			children = (
 				8F4736CC2F29E6AF00822589 /* StoreKit.framework */,
+				8FEFB3DE2F4052DD00908364 /* WidgetKit.framework */,
+				8FEFB3E02F4052DD00908364 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -60,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				8FF816EB2F26FFA500FDAA9F /* RadioApp */,
+				8FEFB3E22F4052DD00908364 /* RadioAppWidget */,
 				8F4736CB2F29E6AF00822589 /* Frameworks */,
 				8FF816EA2F26FFA500FDAA9F /* Products */,
 			);
@@ -69,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				8FF816E92F26FFA500FDAA9F /* RadioApp.app */,
+				8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,6 +142,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8FEFB3F32F4052DF00908364 /* Build configuration list for PBXNativeTarget "RadioAppWidgetExtension" */;
+			buildPhases = (
+				8FEFB3D92F4052DD00908364 /* Sources */,
+				8FEFB3DA2F4052DD00908364 /* Frameworks */,
+				8FEFB3DB2F4052DD00908364 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8FEFB3E22F4052DD00908364 /* RadioAppWidget */,
+			);
+			name = RadioAppWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = RadioAppWidgetExtension;
+			productReference = 8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8FF816E82F26FFA500FDAA9F /* RadioApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8FF816F42F26FFA600FDAA9F /* Build configuration list for PBXNativeTarget "RadioApp" */;
@@ -83,10 +171,12 @@
 				8FF816E52F26FFA500FDAA9F /* Sources */,
 				8FF816E62F26FFA500FDAA9F /* Frameworks */,
 				8FF816E72F26FFA500FDAA9F /* Resources */,
+				8FEFB3F72F4052DF00908364 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8FEFB3F12F4052DF00908364 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8FF816EB2F26FFA500FDAA9F /* RadioApp */,
@@ -108,6 +198,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					8FEFB3DC2F4052DD00908364 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					8FF816E82F26FFA500FDAA9F = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -129,11 +222,19 @@
 			projectRoot = "";
 			targets = (
 				8FF816E82F26FFA500FDAA9F /* RadioApp */,
+				8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		8FEFB3DB2F4052DD00908364 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8FF816E72F26FFA500FDAA9F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -144,6 +245,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8FEFB3D92F4052DD00908364 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8FF816E52F26FFA500FDAA9F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -153,7 +261,79 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		8FEFB3F12F4052DF00908364 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */;
+			targetProxy = 8FEFB3F02F4052DF00908364 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		8FEFB3F42F4052DF00908364 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5RFJK73RSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RadioAppWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RadioAppWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.longhai.radioapp.shazam.RadioAppWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8FEFB3F52F4052DF00908364 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5RFJK73RSL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RadioAppWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RadioAppWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.longhai.radioapp.shazam.RadioAppWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		8FF816F22F26FFA600FDAA9F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -362,6 +542,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		8FEFB3F32F4052DF00908364 /* Build configuration list for PBXNativeTarget "RadioAppWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8FEFB3F42F4052DF00908364 /* Debug */,
+				8FEFB3F52F4052DF00908364 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		8FF816E42F26FFA500FDAA9F /* Build configuration list for PBXProject "RadioApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

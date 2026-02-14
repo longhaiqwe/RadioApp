@@ -3,6 +3,7 @@ import Combine
 import ShazamKit
 import AVFoundation
 import MusicKit
+import ActivityKit
 
 struct CustomMatchResult {
     let title: String
@@ -71,6 +72,9 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     private var session: SHSession?
     
+    // Live Activity Reference (Type-erased for availability compatibility)
+    private var liveActivity: Any?
+    
     override init() {
         super.init()
         session = SHSession()
@@ -120,6 +124,9 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         print("ShazamMatcher: 开始识别...")
         
+        // 启动 Live Activity
+        self.startLiveActivity(stationName: station.name)
+        
         // 使用 StreamSampler 下载音频片段
         StreamSampler.shared.sampleStream(from: station.urlResolved) { [weak self] fileURL, isHLS, hlsOffset in
             guard let self = self else { return }
@@ -158,6 +165,8 @@ class ShazamMatcher: NSObject, ObservableObject {
     func stopMatching() {
         StreamSampler.shared.cancel()
         isMatching = false
+        // 立即结束 Activity
+        endLiveActivity(dismissalPolicy: .immediate)
         isLockScreenTriggered = false
         matchingProgress = ""
     }
@@ -287,7 +296,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         
         samples.withUnsafeBytes { rawBuffer in
             if let baseAddress = rawBuffer.baseAddress?.assumingMemoryBound(to: Float.self) {
-                pcmBuffer.floatChannelData?.pointee.assign(from: baseAddress, count: Int(frameCount))
+                pcmBuffer.floatChannelData?.pointee.update(from: baseAddress, count: Int(frameCount))
             }
         }
         pcmBuffer.frameLength = frameCount
@@ -354,16 +363,18 @@ class ShazamMatcher: NSObject, ObservableObject {
             throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
         }
         
-        let state = UnsafeMutablePointer<Bool>.allocate(capacity: 1)
-        state.initialize(to: false)
-        defer { state.deallocate() }
+        // Use a class to wrap the state for thread safety in closures
+        class ConverterState: @unchecked Sendable {
+            var isEndOfStream = false
+        }
+        let state = ConverterState()
         
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if state.pointee {
+            if state.isEndOfStream {
                 outStatus.pointee = .endOfStream
                 return nil
             }
-            state.pointee = true
+            state.isEndOfStream = true
             outStatus.pointee = .haveData
             return inputBuffer
         }
@@ -396,6 +407,73 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.matchingProgress = ""
         }
     }
+    // MARK: - Live Activity Management
+    
+    private func startLiveActivity(stationName: String) {
+        guard #available(iOS 16.1, *) else { return }
+        
+        // End any existing activity first
+        endLiveActivity(dismissalPolicy: .immediate)
+        
+        let attributes = MusicRecognitionAttributes(stationName: stationName)
+        let contentState = MusicRecognitionAttributes.ContentState.listening
+        
+        do {
+            let activity = try Activity.request(attributes: attributes, content: .init(state: contentState, staleDate: nil))
+            self.liveActivity = activity
+            print("Live Activity started: \(activity.id)")
+        } catch {
+            print("Error starting Live Activity: \(error.localizedDescription)")
+        }
+    }
+    
+    private func updateLiveActivity(title: String, artist: String, coverURL: URL?) {
+        guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
+        
+        let contentState = MusicRecognitionAttributes.ContentState(
+            state: .success,
+            songTitle: title,
+            artistName: artist,
+            coverImageURL: coverURL
+        )
+        
+        Task {
+            await activity.update(ActivityContent(state: contentState, staleDate: nil))
+            
+            // 5秒后自动结束，保留在通知中心
+            try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+            await activity.end(ActivityContent(state: contentState, staleDate: nil), dismissalPolicy: .default)
+            self.liveActivity = nil
+        }
+    }
+    
+    private func updateLiveActivityToFailure() {
+        guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
+        
+        let contentState = MusicRecognitionAttributes.ContentState(
+            state: .failed,
+            songTitle: nil,
+            artistName: nil,
+            coverImageURL: nil
+        )
+         
+        Task {
+             await activity.update(ActivityContent(state: contentState, staleDate: nil))
+             try? await Task.sleep(nanoseconds: 2 * 1_000_000_000)
+             await activity.end(nil, dismissalPolicy: .immediate)
+             self.liveActivity = nil
+         }
+    }
+    
+    private func endLiveActivity(dismissalPolicy: ActivityUIDismissalPolicy) {
+        guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
+        
+        Task {
+            await activity.end(nil, dismissalPolicy: dismissalPolicy)
+            self.liveActivity = nil
+        }
+    }
+
 }
 
 // MARK: - SHSessionDelegate
@@ -540,6 +618,9 @@ extension ShazamMatcher: SHSessionDelegate {
                             releaseDate: finalReleaseDate
                         )
                     }
+
+                    // 更新 Live Activity
+                    self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: mediaItem.artworkURL)
                     
                     // 获取歌词
                     let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
@@ -702,6 +783,9 @@ extension ShazamMatcher: SHSessionDelegate {
                                 releaseDate: releaseDate
                             )
                         }
+                            
+                        // 更新 Live Activity (ACRCloud)
+                        self.updateLiveActivity(title: finalTitle, artist: finalArtist, coverURL: nil)
                         
                         // 获取歌词
                         let fetchedLyrics = await MusicPlatformService.shared.fetchLyrics(
@@ -717,6 +801,7 @@ extension ShazamMatcher: SHSessionDelegate {
                     self.lastError = NSError(domain: "ShazamMatcher", code: -4,
                                            userInfo: [NSLocalizedDescriptionKey: "高级识别也未找到匹配歌曲"])
                     print("ShazamMatcher: ACRCloud no match found")
+                    self.updateLiveActivityToFailure()
                 }
             }
         }
