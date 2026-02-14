@@ -907,30 +907,24 @@ struct PlayerView: View {
                     }
                     
                     // Add to Playlist (Apple Music)
-                    Button(action: {
-                        activeActionSheet = nil // Clear any active sheet
-                        // Present AddToPlaylistView via a sheet
-                        // We need a state for this. 
-                        // Since we are inside a subview building function, we should use a binding or a new state in PlayerView.
-                        // Let's assume we add `showAddToPlaylist` state in PlayerView and toggle it here.
-                        // However, we are in a closure.
-                        // Let's verify if we have access to `showAddToPlaylist`. 
-                        // I will add `showAddToPlaylist` state to PlayerView first.
-                        showAddToPlaylist = true
-                    }) {
-                         Image(systemName: "plus.circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .sheet(isPresented: $showAddToPlaylist) {
-                         AddToPlaylistView(
-                             songTitle: title,
-                             songArtist: artistName,
-                             artworkURL: artworkURL
-                         )
+                    if match?.appleMusicID != nil {
+                        Button(action: {
+                            showAddToPlaylist = true
+                        }) {
+                             Image(systemName: "plus.circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .frame(width: 32, height: 32)
+                                .background(Color.white.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        .sheet(isPresented: $showAddToPlaylist) {
+                             AddToPlaylistView(
+                                 songTitle: title,
+                                 songArtist: artistName,
+                                 artworkURL: artworkURL
+                             )
+                        }
                     }
 
                     // 分享按钮
