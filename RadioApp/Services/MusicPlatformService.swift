@@ -245,6 +245,21 @@ class MusicPlatformService {
         return result.trimmingCharacters(in: .whitespaces)
     }
     
+    /// 清理专辑名：移除 " - Single", " - EP" 等后缀
+    func cleanAlbum(_ album: String) -> String {
+        let patterns = [
+            "\\s*-\\s*(Single|EP)\\s*$",            // " - Single", " - EP"
+            "\\s*[\\(\\[（]\\s*(Single|EP)\\s*[\\)\\]）]" // " (Single)", " (EP)"
+        ]
+        
+        var result = album
+        for pattern in patterns {
+            result = result.replacingOccurrences(of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
+        }
+        
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+    
     /// 转拼音 helper
     private func toPinyin(_ str: String) -> String {
         // 1. 转拉丁文 (拼音)

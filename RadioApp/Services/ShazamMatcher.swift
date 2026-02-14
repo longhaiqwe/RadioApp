@@ -560,7 +560,9 @@ extension ShazamMatcher: SHSessionDelegate {
                 var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(originalTitle)
                 finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                 var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(originalArtist)
-                let finalAlbum = MusicPlatformService.shared.toSimplifiedChinese(albumTitle ?? "")
+                let finalAlbum = MusicPlatformService.shared.cleanAlbum(
+                    MusicPlatformService.shared.toSimplifiedChinese(albumTitle ?? "")
+                )
                 
                 // 检查是否需要拼音转中文
                 let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
@@ -724,7 +726,9 @@ extension ShazamMatcher: SHSessionDelegate {
                     var finalTitle = MusicPlatformService.shared.toSimplifiedChinese(song)
                     finalTitle = MusicPlatformService.shared.cleanTitle(finalTitle)
                     var finalArtist = MusicPlatformService.shared.toSimplifiedChinese(artist ?? "未知")
-                    let finalAlbum = MusicPlatformService.shared.toSimplifiedChinese(album ?? "")
+                    let finalAlbum = MusicPlatformService.shared.cleanAlbum(
+                    MusicPlatformService.shared.toSimplifiedChinese(album ?? "")
+                )
                     
                     // 检查是否需要拼音转中文
                     let needsChineseConversion = MusicPlatformService.shared.isPinyinOrRomanized(finalTitle)
