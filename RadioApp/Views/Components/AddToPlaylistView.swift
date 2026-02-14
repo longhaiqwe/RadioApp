@@ -278,7 +278,7 @@ struct AddToPlaylistView: View {
         
         Task {
             do {
-                if let newPlaylist = try await appleMusicService.createPlaylist(name: newPlaylistName, description: "Created by 收音机 App") {
+                if let newPlaylist = try await appleMusicService.createPlaylist(name: newPlaylistName, description: "Created by 拾音 FM") {
                     // 刷新列表
                     try await appleMusicService.fetchUserPlaylists()
                     // 自动添加到新歌单

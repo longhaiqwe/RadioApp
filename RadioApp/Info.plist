@@ -20,5 +20,9 @@
 	<string>保存分享卡片到相册</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>需要访问您的媒体资料库以将识别的歌曲添加到歌单</string>
+	<key>CFBundleDisplayName</key>
+	<string>拾音 FM</string>
+	<key>CFBundleName</key>
+	<string>拾音 FM</string>
 </dict>
 </plist>
