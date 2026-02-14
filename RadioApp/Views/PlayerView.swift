@@ -20,6 +20,8 @@ struct PlayerView: View {
     @State private var showSleepTimerSheet = false // 定时关闭菜单
     @State private var activeActionSheet: ActionSheetConfig? = nil // 当前激活的自定义 ActionSheet
     @State private var isGeneratingShareCard = false // 分享卡片生成中
+    @State private var showSharePreview = false // 显示分享预览
+    @State private var shareCardImage: UIImage? = nil // 分享卡片图片
     @State private var showAddToPlaylist = false // 显示添加到歌单页面
 
     var body: some View {
@@ -102,6 +104,22 @@ struct PlayerView: View {
                 }
                 .transition(.opacity)
                 .zIndex(100)
+            }
+        }
+        .fullScreenCover(isPresented: $showSharePreview) {
+            if let image = shareCardImage {
+                ShareCardPreviewView(
+                    image: image,
+                    onShare: {
+                        ShareCardGenerator.shareImage(image) {
+                             // 分享/保存成功后关闭预览
+                             showSharePreview = false
+                        }
+                    },
+                    onDismiss: {
+                        showSharePreview = false
+                    }
+                )
             }
         }
     }
@@ -1137,7 +1155,8 @@ struct PlayerView: View {
         // 尝试获取发行时间
         let releaseDate = shazamMatcher.customMatchResult?.releaseDate
         
-        await ShareCardGenerator.generateAndShare(
+        // 生成图片并预览
+        if let image = await ShareCardGenerator.generateCardImage(
             title: title,
             artist: artist,
             album: album,
@@ -1145,7 +1164,10 @@ struct PlayerView: View {
             stationName: stationName,
             timestamp: Date(),
             releaseDate: releaseDate
-        )
+        ) {
+            self.shareCardImage = image
+            self.showSharePreview = true
+        }
     }
 
     

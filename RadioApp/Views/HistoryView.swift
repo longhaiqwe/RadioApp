@@ -100,7 +100,10 @@ struct HistoryListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RecognizedSong.timestamp, order: .reverse) private var allSongs: [RecognizedSong]
     let filterString: String
+
     @State private var selectedSongForPlaylist: RecognizedSong? // for sheet
+    @State private var showSharePreview = false // 显示分享预览
+    @State private var shareCardImage: UIImage? = nil // 分享卡片图片
     
     init(filter: String = "") {
         self.filterString = filter
@@ -184,6 +187,27 @@ struct HistoryListView: View {
                      songArtist: song.artist,
                      artworkURL: song.artworkURL
                 )
+                AddToPlaylistView(
+                     songTitle: song.title,
+                     songArtist: song.artist,
+                     artworkURL: song.artworkURL
+                )
+            }
+            .fullScreenCover(isPresented: $showSharePreview) {
+                if let image = shareCardImage {
+                    ShareCardPreviewView(
+                        image: image,
+                        onShare: {
+                            ShareCardGenerator.shareImage(image) {
+                                // 分享/保存成功后关闭预览
+                                showSharePreview = false
+                            }
+                        },
+                        onDismiss: {
+                            showSharePreview = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -197,7 +221,7 @@ struct HistoryListView: View {
     
     @MainActor
     private func shareSong(_ song: RecognizedSong) async {
-        await ShareCardGenerator.generateAndShare(
+        if let image = await ShareCardGenerator.generateCardImage(
             title: song.title,
             artist: song.artist,
             album: song.album,
@@ -205,7 +229,10 @@ struct HistoryListView: View {
             stationName: song.stationName,
             timestamp: song.timestamp,
             releaseDate: song.releaseDate
-        )
+        ) {
+            self.shareCardImage = image
+            self.showSharePreview = true
+        }
     }
 }
 

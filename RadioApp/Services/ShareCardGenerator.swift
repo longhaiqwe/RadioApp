@@ -65,12 +65,22 @@ class ShareCardGenerator {
     // MARK: - 分享图片
     
     /// 通过系统分享面板分享图片
-    /// - Parameter image: 要分享的图片
-    static func shareImage(_ image: UIImage) {
+    /// - Parameters:
+    ///   - image: 要分享的图片
+    ///   - completion: 分享完成后的回调（成功或取消）
+    static func shareImage(_ image: UIImage, completion: (() -> Void)? = nil) {
         let activityVC = UIActivityViewController(
             activityItems: [image],
             applicationActivities: nil
         )
+        
+        // 设置回调
+        activityVC.completionWithItemsHandler = { _, completed, _, _ in
+            if completed {
+                print("ShareCardGenerator: 分享/保存成功")
+                completion?()
+            }
+        }
         
         // 获取当前最上层 ViewController
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -141,5 +151,32 @@ class ShareCardGenerator {
         // 3. 弹出分享面板
         shareImage(cardImage)
         return true
+    }
+    
+    // MARK: - 仅生成图片（用于预览）
+    
+    /// 异步生成卡片图片
+    static func generateCardImage(
+        title: String,
+        artist: String,
+        album: String? = nil,
+        artworkURL: URL? = nil,
+        stationName: String? = nil,
+        timestamp: Date = Date(),
+        releaseDate: Date? = nil
+    ) async -> UIImage? {
+        // 1. 预加载封面
+        let artworkImage = await preloadArtwork(from: artworkURL)
+        
+        // 2. 生成卡片图片
+        return generateImage(
+            title: title,
+            artist: artist,
+            album: album,
+            artworkImage: artworkImage,
+            stationName: stationName,
+            timestamp: timestamp,
+            releaseDate: releaseDate
+        )
     }
 }
