@@ -100,6 +100,7 @@ struct HistoryListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RecognizedSong.timestamp, order: .reverse) private var allSongs: [RecognizedSong]
     let filterString: String
+    @State private var selectedSongForPlaylist: RecognizedSong? // for sheet
     
     init(filter: String = "") {
         self.filterString = filter
@@ -165,10 +166,25 @@ struct HistoryListView: View {
                             }
                             .tint(NeonColors.cyan)
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                selectedSongForPlaylist = song
+                            } label: {
+                                Label("加入歌单", systemImage: "plus.circle")
+                            }
+                            .tint(NeonColors.purple)
+                        }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .sheet(item: $selectedSongForPlaylist) { song in
+                AddToPlaylistView(
+                     songTitle: song.title,
+                     songArtist: song.artist,
+                     artworkURL: song.artworkURL
+                )
+            }
         }
     }
     
