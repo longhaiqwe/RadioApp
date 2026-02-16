@@ -3,7 +3,17 @@ import Combine
 import ShazamKit
 import AVFoundation
 import MusicKit
+import MusicKit
+#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 import ActivityKit
+#endif
+
+#if !canImport(ActivityKit) || !os(iOS) || targetEnvironment(macCatalyst)
+enum ActivityUIDismissalPolicy {
+    case immediate
+    case `default`
+}
+#endif
 
 struct CustomMatchResult {
     let title: String
@@ -412,6 +422,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     // MARK: - Live Activity Management
     
     private func startLiveActivity(stationName: String) {
+        #if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(macCatalyst)
         guard #available(iOS 16.1, *) else { return }
         
         Task {
@@ -429,9 +440,11 @@ class ShazamMatcher: NSObject, ObservableObject {
                 print("Error starting Live Activity: \(error.localizedDescription)")
             }
         }
+        #endif
     }
     
     private func updateLiveActivity(title: String, artist: String, coverURL: URL?, releaseDate: Date?) {
+        #if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(macCatalyst)
         guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
         
         let contentState = MusicRecognitionAttributes.ContentState(
@@ -450,9 +463,11 @@ class ShazamMatcher: NSObject, ObservableObject {
             await activity.end(ActivityContent(state: contentState, staleDate: nil), dismissalPolicy: .default)
             self.liveActivity = nil
         }
+        #endif
     }
     
     private func updateLiveActivityToFailure() {
+        #if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(macCatalyst)
         guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
         
         let contentState = MusicRecognitionAttributes.ContentState(
@@ -468,14 +483,21 @@ class ShazamMatcher: NSObject, ObservableObject {
              await activity.end(nil, dismissalPolicy: .immediate)
              self.liveActivity = nil
          }
+        #endif
     }
     
+    #if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
     private func endLiveActivity(dismissalPolicy: ActivityUIDismissalPolicy) async {
         guard #available(iOS 16.1, *), let activity = self.liveActivity as? Activity<MusicRecognitionAttributes> else { return }
         
         await activity.end(nil, dismissalPolicy: dismissalPolicy)
         self.liveActivity = nil
     }
+    #else
+    private func endLiveActivity(dismissalPolicy: ActivityUIDismissalPolicy = .default) async {
+        // No-op for non-iOS or when ActivityKit is missing
+    }
+    #endif
 
 }
 

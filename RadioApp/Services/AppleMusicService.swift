@@ -91,7 +91,7 @@ class AppleMusicService: ObservableObject {
     /// 获取用户创建的歌单 (可写入的)
     func fetchUserPlaylists() async throws {
         // 使用 MusicLibraryRequest 获取歌单
-        var request = MusicLibraryRequest<Playlist>()
+        let request = MusicLibraryRequest<Playlist>()
         // request.filter(matching: \.isLibraryBacked, equalTo: true) // Invalid for Playlist
         
         let response = try await request.response()
@@ -109,13 +109,21 @@ class AppleMusicService: ObservableObject {
     
     /// 创建新歌单
     func createPlaylist(name: String, description: String? = nil) async throws -> Playlist? {
+        #if !targetEnvironment(macCatalyst)
         let library = MusicLibrary.shared
         return try await library.createPlaylist(name: name, description: description)
+        #else
+        throw NSError(domain: "AppleMusicService", code: -4, userInfo: [NSLocalizedDescriptionKey: "Mac 版暂不支持创建歌单，请使用 iOS 版本。"])
+        #endif
     }
     
     /// 添加歌曲到歌单
     func addSongToPlaylist(song: Song, playlist: Playlist) async throws {
+        #if !targetEnvironment(macCatalyst)
         let library = MusicLibrary.shared
         try await library.add(song, to: playlist)
+        #else
+        throw NSError(domain: "AppleMusicService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Mac 版暂不支持添加歌曲到歌单，请使用 iOS 版本。"])
+        #endif
     }
 }

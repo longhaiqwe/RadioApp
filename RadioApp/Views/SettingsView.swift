@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
+    var showDoneButton: Bool = true
 
     var body: some View {
         NavigationView {
@@ -9,6 +10,7 @@ struct SettingsView: View {
                 NeonColors.darkBg.ignoresSafeArea()
 
                 List {
+                    // ... (rest of list content is unchanged, avoiding large replacement)
                     Section(header: Text("法律与合规").foregroundColor(NeonColors.cyan)) {
                         NavigationLink(destination: EULAView()) {
                             Label("服务条款 (EULA)", systemImage: "doc.text")
@@ -44,13 +46,16 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        presentationMode.wrappedValue.dismiss()
+                    if showDoneButton {
+                        Button("完成") {
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                        .foregroundColor(NeonColors.cyan)
                     }
-                    .foregroundColor(NeonColors.cyan)
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 

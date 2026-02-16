@@ -44,3 +44,4 @@ import_assets.py
 *.jpg
 *.jpeg
 *.o
+build_log*.txt

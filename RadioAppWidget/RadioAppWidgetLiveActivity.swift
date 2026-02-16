@@ -9,6 +9,7 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
+#if !targetEnvironment(macCatalyst)
 struct RadioAppWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MusicRecognitionAttributes.self) { context in
@@ -179,6 +180,7 @@ struct RadioAppWidgetLiveActivity: Widget {
         }
     }
 }
+#endif
 
 // Simple NetworkImage helper for Widgets/Live Activities
 // Note: iOS 15+ supports AsyncImage, but error handling is minimal.

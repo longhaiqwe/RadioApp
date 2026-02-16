@@ -7,6 +7,8 @@ struct SearchView: View {
     @Environment(\.presentationMode) var presentationMode
     @FocusState private var isFocused: Bool
     
+    var showBackButton: Bool = true
+    
     var body: some View {
         ZStack {
             // 霓虹背景
@@ -15,17 +17,19 @@ struct SearchView: View {
             VStack(spacing: 0) {
                 // MARK: - 顶部栏
                 HStack {
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.8))
-                            .frame(width: 44, height: 44)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial.opacity(0.3))
-                            )
+                    if showBackButton {
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.8))
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial.opacity(0.3))
+                                )
+                        }
                     }
                     
                     Spacer()

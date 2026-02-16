@@ -9,6 +9,7 @@
 import ActivityKit
 import Foundation
 
+#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 struct MusicRecognitionAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         // Dynamic state (changes during the activity)
@@ -36,3 +37,4 @@ struct MusicRecognitionAttributes: ActivityAttributes {
     // Maybe the station name?
     var stationName: String
 }
+#endif

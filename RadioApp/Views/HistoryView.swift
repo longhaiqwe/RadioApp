@@ -7,6 +7,8 @@ struct HistoryView: View {
     @State private var searchText = ""
     @Query private var allSongs: [RecognizedSong]
     
+    var showBackButton: Bool = true
+    
     var body: some View {
         ZStack {
             // 背景
@@ -16,14 +18,16 @@ struct HistoryView: View {
             VStack(alignment: .leading) {
                 // 顶部标题栏
                 HStack {
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(.white.opacity(0.1)))
+                    if showBackButton {
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Circle().fill(.white.opacity(0.1)))
+                        }
                     }
                     
                     Text("识别历史")

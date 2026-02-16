@@ -283,6 +283,7 @@ struct HomeView: View {
         .sheet(isPresented: $showProUpgrade) {
             ProUpgradeView()
         }
+        .navigationViewStyle(.stack)
     }
 }
 

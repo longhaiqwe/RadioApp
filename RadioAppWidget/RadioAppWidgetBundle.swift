@@ -13,6 +13,8 @@ struct RadioAppWidgetBundle: WidgetBundle {
     var body: some Widget {
         RadioAppWidget()
         RadioAppWidgetControl()
+        #if !targetEnvironment(macCatalyst)
         RadioAppWidgetLiveActivity()
+        #endif
     }
 }
