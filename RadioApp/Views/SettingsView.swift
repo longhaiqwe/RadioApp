@@ -5,7 +5,7 @@ struct SettingsView: View {
     var showDoneButton: Bool = true
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 NeonColors.darkBg.ignoresSafeArea()
 
@@ -55,7 +55,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
