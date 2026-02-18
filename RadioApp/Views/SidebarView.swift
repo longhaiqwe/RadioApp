@@ -35,25 +35,27 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                NavigationLink(value: SidebarItem.home) {
-                    Label(SidebarItem.home.title, systemImage: SidebarItem.home.icon)
-                }
-                
-                NavigationLink(value: SidebarItem.search) {
-                    Label(SidebarItem.search.title, systemImage: SidebarItem.search.icon)
-                }
+                SidebarRow(item: .home, selection: selection)
+                SidebarRow(item: .search, selection: selection)
             } header: {
                 Text("浏览")
+                    .foregroundColor(.white.opacity(0.6))
+                    .font(.footnote)
+                    .fontWeight(.medium)
             }
             
             Section {
-                NavigationLink(value: SidebarItem.favorites) {
-                    Label(SidebarItem.favorites.title, systemImage: SidebarItem.favorites.icon)
-                }
+                SidebarRow(item: .favorites, selection: selection)
                 
                 NavigationLink(value: SidebarItem.history) {
                     HStack {
-                        Label(SidebarItem.history.title, systemImage: SidebarItem.history.icon)
+                        Label {
+                            Text(SidebarItem.history.title)
+                                .foregroundColor(selection == .history ? .white : .white.opacity(0.8))
+                        } icon: {
+                            Image(systemName: SidebarItem.history.icon)
+                                .foregroundColor(selection == .history ? .white : NeonColors.cyan)
+                        }
                         
                         if !subscriptionManager.isPro {
                             Spacer()
@@ -67,19 +69,114 @@ struct SidebarView: View {
                         }
                     }
                 }
+                .listRowBackground(rowBackground(for: .history))
             } header: {
                 Text("我的")
+                    .foregroundColor(.white.opacity(0.6))
+                    .font(.footnote)
+                    .fontWeight(.medium)
             }
             
             Section {
-                NavigationLink(value: SidebarItem.settings) {
-                    Label(SidebarItem.settings.title, systemImage: SidebarItem.settings.icon)
-                }
+                SidebarRow(item: .settings, selection: selection)
             } header: {
                 Text("应用")
+                    .foregroundColor(.white.opacity(0.6))
+                    .font(.footnote)
+                    .fontWeight(.medium)
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("拾音 FM")
+        .scrollContentBackground(.hidden)
+        .background(NeonColors.darkBg)
+        .safeAreaInset(edge: .top) {
+            HStack(spacing: 12) {
+                // Logo 图标
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [NeonColors.magenta, NeonColors.purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                        .shadow(color: NeonColors.magenta.opacity(0.5), radius: 8, x: 0, y: 4)
+                    
+                    Image(systemName: "radio.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                
+                // 应用名称
+                Text("拾音 FM")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                    .shadow(color: NeonColors.purple.opacity(0.3), radius: 8, x: 0, y: 4)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 20) // Add top padding for visual balance
+            .padding(.bottom, 12)
+            .background(NeonColors.darkBg) // Ensure header is opaque
+        }
+    }
+    
+    @ViewBuilder
+    private func rowBackground(for item: SidebarItem) -> some View {
+        if selection == item {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    LinearGradient(
+                        colors: [NeonColors.purple.opacity(0.8), NeonColors.cyan.opacity(0.6)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+                .padding(.horizontal, 4) // Adjust padding to fit sidebar list better
+        } else {
+            Color.clear
+        }
+    }
+}
+
+struct SidebarRow: View {
+    let item: SidebarItem
+    let selection: SidebarItem?
+    
+    var body: some View {
+        NavigationLink(value: item) {
+            Label {
+                Text(item.title)
+                    .foregroundColor(selection == item ? .white : .white.opacity(0.8))
+            } icon: {
+                Image(systemName: item.icon)
+                    .foregroundColor(selection == item ? .white : NeonColors.cyan)
+            }
+        }
+        .listRowBackground(
+            selection == item ? 
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    LinearGradient(
+                        colors: [NeonColors.purple.opacity(0.8), NeonColors.cyan.opacity(0.6)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+                .padding(.horizontal, 4)
+            : nil
+        )
     }
 }

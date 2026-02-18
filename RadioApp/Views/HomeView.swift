@@ -18,247 +18,244 @@ struct HomeView: View {
     @Environment(\.scenePhase) var scenePhase
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // 动态霓虹背景
-                AnimatedMeshBackground()
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // MARK: - 顶部标题
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("发现")
-                                    .font(.system(size: 42, weight: .bold))
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [.white, .white.opacity(0.8)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
+        ZStack {
+            // 动态霓虹背景
+            AnimatedMeshBackground()
+            
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    // MARK: - 顶部标题
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("发现")
+                                .font(.system(size: 42, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.white, .white.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
                                     )
-                                
-
-                                
-                                // 随便听听入口 (Placed next to title)
-                                NeonRandomButton {
-                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                    generator.impactOccurred()
-                                    
-                                    // 播放随机电台
-                                    Task {
-                                        do {
-                                            // Pass current station ID to exclude it from the random result
-                                            // ensuring we always get a NEW station
-                                            let currentId = playerManager.currentStation?.id
-                                            if let station = try await RadioService.shared.fetchRandomStation(excluding: currentId) {
-                                                await MainActor.run {
-                                                    // Always play (context: itself to avoid prev/next confusion for now)
-                                                    playerManager.play(station: station, in: [station], title: "随便听听")
-                                                }
-                                            }
-                                        } catch {
-                                            print("Random station fetch failed: \(error)")
-                                        }
-                                    }
-                                }
-                                .padding(.leading, 8) // Add some spacing from title
-                                
-                                Spacer()
-                                
-                                // [NEW] 历史记录入口 (Pro 专属)
-                                Button(action: {
-                                    if subscriptionManager.isPro {
-                                        showHistory = true
-                                    } else {
-                                        showProUpgrade = true
-                                    }
-                                }) {
-                                    ZStack(alignment: .topTrailing) {
-                                        Image(systemName: "clock.arrow.circlepath")
-                                            .font(.system(size: 20))
-                                            .foregroundColor(NeonColors.cyan)
-                                            .padding(10)
-                                            .background(
-                                                Circle()
-                                                    .fill(.white.opacity(0.1))
-                                            )
-                                        
-                                        // Pro 锁图标 (如果未订阅)
-                                        if !subscriptionManager.isPro {
-                                            Image(systemName: "lock.fill")
-                                                .font(.system(size: 10))
-                                                .foregroundColor(NeonColors.gold)
-                                                .padding(4)
-                                                .background(Circle().fill(NeonColors.darkBg))
-                                                .offset(x: 5, y: -5)
-                                        }
-                                    }
-                                }
-                                .padding(.trailing, 8)
-                                
-                                // 设置入口
-                                Button(action: { showSettings = true }) {
-                                    Image(systemName: "gearshape.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(NeonColors.cyan)
-                                        .padding(10)
-                                        .background(
-                                            Circle()
-                                                .fill(.white.opacity(0.1))
-                                        )
-                                }
-                                .padding(.trailing, 8)
-                                
-                                // 反馈入口
-                                Button(action: { showFeedback = true }) {
-                                    Image(systemName: "envelope.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(NeonColors.cyan)
-                                        .padding(10)
-                                        .background(
-                                            Circle()
-                                                .fill(.white.opacity(0.1))
-                                        )
-                                }
-                            }
-                            
-                            Text("探索全球电台")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(NeonColors.cyan.opacity(0.8))
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 60)
-                        
-                        // MARK: - 搜索入口
-                        NavigationLink(destination: SearchView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(NeonColors.cyan)
-                                
-                                Text("搜索电台、风格、地区...")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white.opacity(0.5))
-                                
-                                Spacer()
-                                
-                                Image(systemName: "mic.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(NeonColors.purple.opacity(0.6))
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .background(
-                                GlassmorphicBackground(cornerRadius: 16, glowColor: NeonColors.cyan.opacity(0.5))
-                            )
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // MARK: - 收藏区域
-                        let visibleFavorites = favoritesManager.favoriteStations.filter { !stationBlockManager.isBlocked($0) }
-                        if !visibleFavorites.isEmpty {
-                            VStack(alignment: .leading, spacing: 16) {
-                                HStack {
-                                    Image(systemName: "heart.fill")
-                                        .foregroundColor(NeonColors.magenta)
-                                    Text("我的收藏")
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundColor(.white)
-                                    
-                                    Spacer()
-                                    
-                                    Text("\(visibleFavorites.count)")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(NeonColors.cyan)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(
-                                            Capsule()
-                                                .fill(NeonColors.cyan.opacity(0.15))
-                                        )
-                                }
-                                .padding(.horizontal, 20)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 16) {
-                                        ForEach(visibleFavorites) { station in
-                                            NeonStationCard(
-                                                station: station,
-                                                isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
-                                            )
-                                            .onTapGesture {
-                                                playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
-                                            }
-                                            .contextMenu {
-                                                Button(role: .destructive) {
-                                                    favoritesManager.removeFavorite(station)
-                                                } label: {
-                                                    Label("取消收藏", systemImage: "heart.slash")
-                                                }
-                                            }
-                                            // 拖拽支持
-                                            .onDrag {
-                                                self.draggingStation = station
-                                                return NSItemProvider(object: station.id as NSString)
-                                            }
-                                            .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
-                                        }
-                                    }
-                                    .padding(.horizontal, 20)
-                                }
-                            }
-                        }
-                        
-                        // MARK: - 分割线
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [.clear, NeonColors.purple.opacity(0.3), .clear],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
                                 )
-                            )
-                            .frame(height: 1)
-                            .padding(.horizontal, 20)
+                            
+
+                            
+                            // 随便听听入口 (Placed next to title)
+                            NeonRandomButton {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                
+                                // 播放随机电台
+                                Task {
+                                    do {
+                                        // Pass current station ID to exclude it from the random result
+                                        // ensuring we always get a NEW station
+                                        let currentId = playerManager.currentStation?.id
+                                        if let station = try await RadioService.shared.fetchRandomStation(excluding: currentId) {
+                                            await MainActor.run {
+                                                // Always play (context: itself to avoid prev/next confusion for now)
+                                                playerManager.play(station: station, in: [station], title: "随便听听")
+                                            }
+                                        }
+                                    } catch {
+                                        print("Random station fetch failed: \(error)")
+                                    }
+                                }
+                            }
+                            .padding(.leading, 8) // Add some spacing from title
+                            
+                            Spacer()
+                            
+                            // [NEW] 历史记录入口 (Pro 专属)
+                            Button(action: {
+                                if subscriptionManager.isPro {
+                                    showHistory = true
+                                } else {
+                                    showProUpgrade = true
+                                }
+                            }) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(NeonColors.cyan)
+                                        .padding(10)
+                                        .background(
+                                            Circle()
+                                                .fill(.white.opacity(0.1))
+                                        )
+                                    
+                                    // Pro 锁图标 (如果未订阅)
+                                    if !subscriptionManager.isPro {
+                                        Image(systemName: "lock.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(NeonColors.gold)
+                                            .padding(4)
+                                            .background(Circle().fill(NeonColors.darkBg))
+                                            .offset(x: 5, y: -5)
+                                    }
+                                }
+                            }
+                            .padding(.trailing, 8)
+                            
+                            // 设置入口
+                            Button(action: { showSettings = true }) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(NeonColors.cyan)
+                                    .padding(10)
+                                    .background(
+                                        Circle()
+                                            .fill(.white.opacity(0.1))
+                                    )
+                            }
+                            .padding(.trailing, 8)
+                            
+                            // 反馈入口
+                            Button(action: { showFeedback = true }) {
+                                Image(systemName: "envelope.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(NeonColors.cyan)
+                                    .padding(10)
+                                    .background(
+                                        Circle()
+                                            .fill(.white.opacity(0.1))
+                                    )
+                            }
+                        }
                         
-                        // MARK: - 热门推荐
+                        Text("探索全球电台")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(NeonColors.cyan.opacity(0.8))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 60)
+                    
+                    // MARK: - 搜索入口
+                    NavigationLink(destination: SearchView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(NeonColors.cyan)
+                            
+                            Text("搜索电台、风格、地区...")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                            
+                            Spacer()
+                            
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(NeonColors.purple.opacity(0.6))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(
+                            GlassmorphicBackground(cornerRadius: 16, glowColor: NeonColors.cyan.opacity(0.5))
+                        )
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    // MARK: - 收藏区域
+                    let visibleFavorites = favoritesManager.favoriteStations.filter { !stationBlockManager.isBlocked($0) }
+                    if !visibleFavorites.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
-                                Image(systemName: "flame.fill")
-                                    .foregroundColor(NeonColors.gold)
-                                Text("热门推荐")
+                                Image(systemName: "heart.fill")
+                                    .foregroundColor(NeonColors.magenta)
+                                Text("我的收藏")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Text("\(visibleFavorites.count)")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(NeonColors.cyan)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        Capsule()
+                                            .fill(NeonColors.cyan.opacity(0.15))
+                                    )
                             }
                             .padding(.horizontal, 20)
                             
-                            .padding(.horizontal, 20)
-                            
-
-                            
                             ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 16) {
-                                    ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
+                                HStack(spacing: 16) {
+                                    ForEach(visibleFavorites) { station in
                                         NeonStationCard(
                                             station: station,
                                             isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
                                         )
                                         .onTapGesture {
-                                            playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
+                                            playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
                                         }
+                                        .contextMenu {
+                                            Button(role: .destructive) {
+                                                favoritesManager.removeFavorite(station)
+                                            } label: {
+                                                Label("取消收藏", systemImage: "heart.slash")
+                                            }
+                                        }
+                                        // 拖拽支持
+                                        .onDrag {
+                                            self.draggingStation = station
+                                            return NSItemProvider(object: station.id as NSString)
+                                        }
+                                        .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
                                     }
                                 }
                                 .padding(.horizontal, 20)
                             }
                         }
-                        
-                        // 底部留白给 Mini Player
-                        Color.clear.frame(height: 100)
                     }
+                    
+                    // MARK: - 分割线
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.clear, NeonColors.purple.opacity(0.3), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(height: 1)
+                        .padding(.horizontal, 20)
+                    
+                    // MARK: - 热门推荐
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Image(systemName: "flame.fill")
+                                .foregroundColor(NeonColors.gold)
+                            Text("热门推荐")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        .padding(.horizontal, 20)
+                        
+
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 16) {
+                                ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
+                                    NeonStationCard(
+                                        station: station,
+                                        isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
+                                    )
+                                    .onTapGesture {
+                                        playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    
+                    // 底部留白给 Mini Player
+                    Color.clear.frame(height: 100)
                 }
             }
-            .navigationBarHidden(true)
         }
         .onAppear {
             // 每次出现都尝试静默更新 (L3)
@@ -283,7 +280,6 @@ struct HomeView: View {
         .sheet(isPresented: $showProUpgrade) {
             ProUpgradeView()
         }
-        .navigationViewStyle(.stack)
     }
 }
 

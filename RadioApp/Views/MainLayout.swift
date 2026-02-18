@@ -66,11 +66,17 @@ struct SidebarLayout: View {
                     }
                 }
             }
+            .navigationTitle("")
+            #if os(iOS)
+            .navigationBarHidden(true)
+            #endif
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showPlayer) {
                 PlayerView()
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .background(NeonColors.darkBg)
     }
 }
 
