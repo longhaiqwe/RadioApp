@@ -71,6 +71,8 @@ struct SidebarLayout: View {
             .navigationBarHidden(true)
             #endif
             .toolbar(.hidden, for: .navigationBar)
+            .background(TitleBarHider()) // Inject the title bar hider
+
             .sheet(isPresented: $showPlayer) {
                 PlayerView()
             }
