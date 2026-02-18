@@ -4,7 +4,9 @@ import SwiftData
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.presentationMode) var presentationMode
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @State private var searchText = ""
+    @State private var showProUpgrade = false
     @Query private var allSongs: [RecognizedSong]
     
     var showBackButton: Bool = true
@@ -35,6 +37,24 @@ struct HistoryView: View {
                         .foregroundColor(.white)
                     
                     Spacer()
+                    
+                    if !subscriptionManager.isPro {
+                        Button(action: { showProUpgrade = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 12))
+                                Text("Pro")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
+                            .foregroundColor(NeonColors.gold)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(NeonColors.gold.opacity(0.2)))
+                            .overlay(
+                                Capsule().stroke(NeonColors.gold.opacity(0.5), lineWidth: 1)
+                            )
+                        }
+                    }
                     
                     if !allSongs.isEmpty {
                         Button(action: clearAllHistory) {
@@ -78,7 +98,7 @@ struct HistoryView: View {
                 .padding(.bottom, 10)
                 
                 // 列表内容
-                HistoryListView(filter: searchText)
+                HistoryListView(filter: searchText, showProUpgrade: $showProUpgrade)
                     .id(searchText) // 强制 SwiftUI 在搜索词变化时重新创建视图，触发新 Query
                     .onTapGesture {
                         hideKeyboard() // 点击列表收起键盘
@@ -86,6 +106,9 @@ struct HistoryView: View {
             }
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showProUpgrade) {
+            ProUpgradeView()
+        }
     }
     
     private func hideKeyboard() {
@@ -102,15 +125,18 @@ struct HistoryView: View {
 
 struct HistoryListView: View {
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @Query(sort: \RecognizedSong.timestamp, order: .reverse) private var allSongs: [RecognizedSong]
     let filterString: String
+    @Binding var showProUpgrade: Bool
 
     @State private var selectedSongForPlaylist: RecognizedSong? // for sheet
     @State private var showSharePreview = false // 显示分享预览
     @State private var shareCardImage: UIImage? = nil // 分享卡片图片
     
-    init(filter: String = "") {
+    init(filter: String = "", showProUpgrade: Binding<Bool>) {
         self.filterString = filter
+        self._showProUpgrade = showProUpgrade
     }
     
     /// 在内存中过滤（SwiftData 的 SQL 谓词对中文和可选字段支持不佳）
@@ -128,27 +154,81 @@ struct HistoryListView: View {
     var body: some View {
         if filteredSongs.isEmpty {
             Spacer()
-            VStack(spacing: 16) {
-                Image(systemName: "music.note.list")
-                    .font(.system(size: 60))
-                    .foregroundColor(.white.opacity(0.2))
-                
-                if filterString.isEmpty {
-                    Text("还没有识别记录")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.5))
-                    Text("点击主页的识别按钮，发现此时此刻的好音乐")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.3))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                } else {
-                    Text("没有找到相关记录")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.5))
+            ScrollView {
+                VStack(spacing: 24) {
+                    VStack(spacing: 16) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 60))
+                            .foregroundColor(.white.opacity(0.2))
+                        
+                        if filterString.isEmpty {
+                            Text("还没有识别记录")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text("点击主页的识别按钮，发现此时此刻的好音乐")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.3))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                        } else {
+                            Text("没有找到相关记录")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                    }
+                    
+                    // Pro 推广卡片 (仅非 Pro 用户显示)
+                    if !subscriptionManager.isPro && filterString.isEmpty {
+                        Button(action: { showProUpgrade = true }) {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [NeonColors.gold, Color.orange],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(width: 48, height: 48)
+                                    
+                                    Image(systemName: "crown.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("升级到 Pro 版")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.white)
+                                    
+                                    Text("解锁 50 次高精度识别，支持 Apple Music 同步")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .multilineTextAlignment(.leading)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(.white.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(NeonColors.gold.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                    }
                 }
+                .padding(.top, 60) // 给上面留点空间
             }
-            .frame(maxWidth: .infinity)
             Spacer()
         } else {
             List {

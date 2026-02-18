@@ -30,6 +30,7 @@ enum SidebarItem: Hashable, CaseIterable {
 
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
+    @ObservedObject var subscriptionManager = SubscriptionManager.shared
     
     var body: some View {
         List(selection: $selection) {
@@ -51,7 +52,20 @@ struct SidebarView: View {
                 }
                 
                 NavigationLink(value: SidebarItem.history) {
-                    Label(SidebarItem.history.title, systemImage: SidebarItem.history.icon)
+                    HStack {
+                        Label(SidebarItem.history.title, systemImage: SidebarItem.history.icon)
+                        
+                        if !subscriptionManager.isPro {
+                            Spacer()
+                            Text("PRO")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(NeonColors.gold)
+                                .cornerRadius(4)
+                        }
+                    }
                 }
             } header: {
                 Text("我的")
