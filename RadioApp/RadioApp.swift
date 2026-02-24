@@ -12,6 +12,9 @@ struct RadioApp: App {
     var body: some Scene {
         WindowGroup {
             MainLayout()
+                #if targetEnvironment(macCatalyst)
+                .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+                #endif
         }
         .modelContainer(HistoryManager.shared.container)
         #if targetEnvironment(macCatalyst)

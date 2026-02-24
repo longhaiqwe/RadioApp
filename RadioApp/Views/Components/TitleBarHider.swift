@@ -33,6 +33,12 @@ struct TitleBarHider: UIViewControllerRepresentable {
                 titlebar.titleVisibility = .hidden
                 titlebar.toolbar = nil
             }
+            
+            // 允许窗口自由调整大小
+            if let sizeRestrictions = windowScene.sizeRestrictions {
+                sizeRestrictions.minimumSize = CGSize(width: 800, height: 600)
+                sizeRestrictions.maximumSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            }
             #endif
         }
     }
