@@ -25,85 +25,101 @@ struct PlayerView: View {
     @State private var showAddToPlaylist = false // 显示添加到歌单页面
 
     var body: some View {
-        ZStack {
-            // MARK: - 动态背景
-            playerBackground
-            
-            VStack(spacing: 0) {
-                // MARK: - 顶部栏
-                topBar
-                    .padding(.top, 20)
+        GeometryReader { proxy in
+            ZStack {
+                // MARK: - 动态背景
+                playerBackground
                 
-                Spacer()
-                
-                // MARK: - 封面区域 (仅在没有识别结果时显示)
-                if shazamMatcher.lastMatch == nil {
-                    albumArtSection
+                VStack(spacing: 0) {
+                    // MARK: - 顶部栏
+                    topBar
+                        .padding(.top, 20)
                     
-                    // 波形可视化
-                    if playerManager.isPlaying {
-                        EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
-                            .frame(height: 40)
-                            .padding(.vertical, 35)
-                    } else {
-                        Spacer().frame(height: 100)
+                    Spacer()
+                    
+                    // MARK: - 封面区域 (仅在没有识别结果时显示)
+                    if shazamMatcher.lastMatch == nil {
+                        albumArtSection
+                        
+                        // 波形可视化
+                        if playerManager.isPlaying {
+                            EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
+                                .frame(height: 40)
+                                .padding(.vertical, 35)
+                        } else {
+                            Spacer().frame(height: 100)
+                        }
                     }
+                    
+                    // MARK: - 电台信息 (始终显示在最下方)
+                    stationInfo
+                    
+                    Spacer()
+                    
+                    // MARK: - 控制按钮
+                    controlButtons
+                        .padding(.bottom, 20)
+                    
+                    volumeControl
+                        .padding(.horizontal, 40)
+                        .padding(.bottom, 40)
                 }
                 
-                // MARK: - 电台信息 (始终显示在最下方)
-                stationInfo
-                
-                Spacer()
-                
-                // MARK: - 控制按钮
-                controlButtons
-                    .padding(.bottom, 20)
-                
-                volumeControl
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 40)
-            }
-            
-            // MARK: - Shazam Overlay Layer (识别结果、歌词、错误提示)
-            VStack(spacing: 0) {
-                // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
-                Color.clear.frame(height: 72)
-                
-                if shazamMatcher.lastError != nil {
-                    // 错误提示
-                    shazamErrorCard
-                    Spacer()
-                } else if let match = shazamMatcher.lastMatch {
-                    // 识别结果和歌词 - 覆盖在封面上方
-                    shazamResultOverlay(match: match)
-                } else if shazamMatcher.customMatchResult != nil {
-                    // 自定义识别结果
-                    shazamResultOverlay(match: nil)
-                } else if shazamMatcher.isMatching {
-                    // 识别进度提示
-                    shazamMatchingIndicator
-                        .padding(.top, 20)
-                    Spacer()
-                } else if shazamMatcher.showAdvancedRecognitionPrompt {
-                    // 高级识别提示
-                    shazamAdvancedPromptCard
-                        .padding(.top, 20)
+                // MARK: - Shazam Overlay Layer (识别结果、歌词、错误提示)
+                VStack(spacing: 0) {
+                    // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
+                    Color.clear
+                        .frame(height: 72)
+                        .allowsHitTesting(false)
+                    
+                    if shazamMatcher.lastError != nil {
+                        // 错误提示
+                        shazamErrorCard
+                            .allowsHitTesting(true)
+                        Spacer()
+                    } else if let match = shazamMatcher.lastMatch {
+                        // 识别结果和歌词 - 覆盖在封面上方
+                        shazamResultOverlay(
+                            match: match,
+                            availableHeight: proxy.size.height,
+                            safeAreaInsets: proxy.safeAreaInsets
+                        )
+                        .allowsHitTesting(true)
+                    } else if shazamMatcher.customMatchResult != nil {
+                        // 自定义识别结果
+                        shazamResultOverlay(
+                            match: nil,
+                            availableHeight: proxy.size.height,
+                            safeAreaInsets: proxy.safeAreaInsets
+                        )
+                        .allowsHitTesting(true)
+                    } else if shazamMatcher.isMatching {
+                        // 识别进度提示
+                        shazamMatchingIndicator
+                            .padding(.top, 20)
+                            .allowsHitTesting(true)
+                        Spacer()
+                    } else if shazamMatcher.showAdvancedRecognitionPrompt {
+                        // 高级识别提示
+                        shazamAdvancedPromptCard
+                            .padding(.top, 20)
+                            .allowsHitTesting(true)
+                        Spacer()
+                    }
+                    
                     Spacer()
                 }
-                
-                Spacer()
-            }
-            .allowsHitTesting(shazamMatcher.lastMatch != nil || shazamMatcher.customMatchResult != nil || shazamMatcher.lastError != nil || shazamMatcher.isMatching || shazamMatcher.showAdvancedRecognitionPrompt)
 
-            // MARK: - 自定义 ActionSheet 弹窗层
-            if let config = activeActionSheet {
-                CustomActionSheet(config: config) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        activeActionSheet = nil
+                // MARK: - 自定义 ActionSheet 弹窗层
+                if let config = activeActionSheet {
+                    CustomActionSheet(config: config) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            activeActionSheet = nil
+                        }
                     }
+                    .transition(.opacity)
+                    .zIndex(100)
                 }
-                .transition(.opacity)
-                .zIndex(100)
             }
         }
         .fullScreenCover(isPresented: $showSharePreview) {
@@ -813,7 +829,11 @@ struct PlayerView: View {
     }
     
     // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
-    private func shazamResultOverlay(match: SHMatchedMediaItem?) -> some View {
+    private func shazamResultOverlay(
+        match: SHMatchedMediaItem?,
+        availableHeight: CGFloat,
+        safeAreaInsets: EdgeInsets
+    ) -> some View {
         // 优先使用 customMatchResult (中文转换后的结果)，如果没有则回退到 Shazam 原始结果
         let title = shazamMatcher.customMatchResult?.title ?? match?.title ?? "未知歌曲"
         let artistName = shazamMatcher.customMatchResult?.artist ?? match?.artist ?? "未知歌手"
@@ -1048,7 +1068,11 @@ struct PlayerView: View {
                 }
                 .padding(.top, 40)
             } else if shazamMatcher.lyrics != nil {
-                lyricsLayout
+                lyricsLayout(
+                    availableHeight: availableHeight,
+                    safeAreaInsets: safeAreaInsets,
+                    showsAdvancedRecognitionButton: match != nil && subscriptionManager.isPro && subscriptionManager.currentCredits > 0
+                )
                     .padding(.top, 12)
             } else {
                  Text("暂无歌词")
@@ -1173,7 +1197,11 @@ struct PlayerView: View {
     
     // MARK: - 歌词视图
     // MARK: - 歌词布局 (用于 Overlay)
-    private var lyricsLayout: some View {
+    private func lyricsLayout(
+        availableHeight: CGFloat,
+        safeAreaInsets: EdgeInsets,
+        showsAdvancedRecognitionButton: Bool
+    ) -> some View {
         Group {
             if let lyricsText = shazamMatcher.lyrics {
                 LyricsView(lyrics: lyricsText, matcher: shazamMatcher)
@@ -1181,9 +1209,11 @@ struct PlayerView: View {
                 EmptyView()
             }
         }
-        // 动态高度计算：屏幕高度 - 预留空间
-        // 增加预留空间至 550，确保在 iPhone 14 Pro 等机型上不遮挡底部播放栏
-        .frame(height: max(UIScreen.main.bounds.height - 550, 200))
+        .frame(height: lyricsContainerHeight(
+            availableHeight: availableHeight,
+            safeAreaInsets: safeAreaInsets,
+            showsAdvancedRecognitionButton: showsAdvancedRecognitionButton
+        ))
         .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
         .background(
              RoundedRectangle(cornerRadius: 20)
@@ -1201,6 +1231,20 @@ struct PlayerView: View {
                  )
         )
         .padding(.horizontal, 32)
+    }
+
+    private func lyricsContainerHeight(
+        availableHeight: CGFloat,
+        safeAreaInsets: EdgeInsets,
+        showsAdvancedRecognitionButton: Bool
+    ) -> CGFloat {
+        let topReservedSpace: CGFloat = 72
+        let bottomReservedSpace: CGFloat = 180 + safeAreaInsets.bottom
+        let headerEstimatedHeight: CGFloat = showsAdvancedRecognitionButton ? 250 : 220
+        let maxUsableHeight = availableHeight - topReservedSpace - bottomReservedSpace - headerEstimatedHeight
+        let preferredHeight = availableHeight * 0.42
+
+        return max(min(maxUsableHeight, preferredHeight), 180)
     }
 }
 
