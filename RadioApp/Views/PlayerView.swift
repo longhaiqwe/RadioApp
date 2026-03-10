@@ -59,15 +59,16 @@ struct PlayerView: View {
                     // MARK: - 电台信息 (始终显示在最下方)
                     stationInfo
                     
-                    Spacer()
+                    Spacer(minLength: 24)
                     
                     // MARK: - 控制按钮
                     controlButtons
-                        .padding(.bottom, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
                     
                     volumeControl
                         .padding(.horizontal, 40)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, max(proxy.safeAreaInsets.bottom, 28))
                 }
                 
                 // MARK: - Shazam Overlay Layer (识别结果、歌词、错误提示)

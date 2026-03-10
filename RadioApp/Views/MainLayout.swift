@@ -86,6 +86,8 @@ struct SidebarLayout: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(NeonColors.darkBg)
+        #if targetEnvironment(macCatalyst)
+        .frame(minWidth: 1000, maxWidth: .infinity, minHeight: 860, maxHeight: .infinity)
+        #endif
     }
 }
-
