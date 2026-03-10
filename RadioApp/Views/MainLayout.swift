@@ -54,7 +54,7 @@ struct SidebarLayout: View {
                 }
                 
                 // Mini Player
-                if playerManager.currentStation != nil {
+                if playerManager.currentStation != nil && !showPlayer {
                     // Reuse MiniPlayerBar from ContentView logic
                     // We need to match the logic in ContentView
                     VStack {
@@ -65,6 +65,16 @@ struct SidebarLayout: View {
                             .frame(maxWidth: 600) // Constraint width on large screens
                     }
                 }
+
+                if showPlayer {
+                    PlayerView {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showPlayer = false
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(50)
+                }
             }
             .navigationTitle("")
             #if os(iOS)
@@ -72,14 +82,10 @@ struct SidebarLayout: View {
             #endif
             .toolbar(.hidden, for: .navigationBar)
             .background(TitleBarHider()) // Inject the title bar hider
-
-            .sheet(isPresented: $showPlayer) {
-                PlayerView()
-            }
+            .animation(.easeInOut(duration: 0.25), value: showPlayer)
         }
         .navigationSplitViewStyle(.balanced)
         .background(NeonColors.darkBg)
     }
 }
-
 

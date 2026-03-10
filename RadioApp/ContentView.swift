@@ -9,14 +9,22 @@ struct ContentView: View {
             HomeView()
             
             // MARK: - Mini Player Bar
-            if playerManager.currentStation != nil {
+            if playerManager.currentStation != nil && !showPlayer {
                 MiniPlayerBar(showPlayer: $showPlayer)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            if showPlayer {
+                PlayerView {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        showPlayer = false
+                    }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(50)
+            }
         }
-        .sheet(isPresented: $showPlayer) {
-            PlayerView()
-        }
+        .animation(.easeInOut(duration: 0.25), value: showPlayer)
     }
 }
 

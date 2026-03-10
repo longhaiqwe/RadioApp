@@ -6,6 +6,7 @@ struct PlayerView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
     @Environment(\.presentationMode) var presentationMode
+    let onDismiss: (() -> Void)?
 
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
@@ -23,6 +24,10 @@ struct PlayerView: View {
     @State private var showSharePreview = false // 显示分享预览
     @State private var shareCardImage: UIImage? = nil // 分享卡片图片
     @State private var showAddToPlaylist = false // 显示添加到歌单页面
+
+    init(onDismiss: (() -> Void)? = nil) {
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -241,7 +246,7 @@ struct PlayerView: View {
         
         // 2. 停止播放并退出
         playerManager.stop()
-        presentationMode.wrappedValue.dismiss()
+        dismissPlayer()
     }
     
     private func reportStation() {
@@ -255,7 +260,15 @@ struct PlayerView: View {
 
         // 3. 停止播放并退出
         playerManager.stop()
-        presentationMode.wrappedValue.dismiss()
+        dismissPlayer()
+    }
+
+    private func dismissPlayer() {
+        if let onDismiss {
+            onDismiss()
+        } else {
+            presentationMode.wrappedValue.dismiss()
+        }
     }
 
     // MARK: - 背景
@@ -321,9 +334,9 @@ struct PlayerView: View {
     private var topBar: some View {
         HStack {
             Button(action: {
-                presentationMode.wrappedValue.dismiss()
+                dismissPlayer()
             }) {
-                Image(systemName: "chevron.down")
+                Image(systemName: "chevron.left")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white.opacity(0.8))
                     .frame(width: 44, height: 44)
@@ -1239,10 +1252,10 @@ struct PlayerView: View {
         showsAdvancedRecognitionButton: Bool
     ) -> CGFloat {
         let topReservedSpace: CGFloat = 72
-        let bottomReservedSpace: CGFloat = 180 + safeAreaInsets.bottom
-        let headerEstimatedHeight: CGFloat = showsAdvancedRecognitionButton ? 250 : 220
+        let bottomReservedSpace: CGFloat = 120 + safeAreaInsets.bottom
+        let headerEstimatedHeight: CGFloat = showsAdvancedRecognitionButton ? 240 : 210
         let maxUsableHeight = availableHeight - topReservedSpace - bottomReservedSpace - headerEstimatedHeight
-        let preferredHeight = availableHeight * 0.42
+        let preferredHeight = availableHeight * 0.5
 
         return max(min(maxUsableHeight, preferredHeight), 180)
     }
