@@ -12,6 +12,7 @@ struct RadioApp: App {
     var body: some Scene {
         WindowGroup {
             MainLayout()
+                .preferredColorScheme(.dark)
         }
         .modelContainer(HistoryManager.shared.container)
         #if targetEnvironment(macCatalyst)
