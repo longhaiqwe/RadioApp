@@ -34,6 +34,8 @@ struct PlayerView: View {
             ZStack {
                 // MARK: - 动态背景
                 playerBackground
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
                 
                 VStack(spacing: 0) {
                     // MARK: - 顶部栏
@@ -1255,7 +1257,7 @@ struct PlayerView: View {
         showsAdvancedRecognitionButton: Bool
     ) -> CGFloat {
         let topReservedSpace: CGFloat = 72
-        let bottomReservedSpace: CGFloat = 120 + safeAreaInsets.bottom
+        let bottomReservedSpace: CGFloat = 260 + safeAreaInsets.bottom
         let headerEstimatedHeight: CGFloat = showsAdvancedRecognitionButton ? 240 : 210
         let maxUsableHeight = availableHeight - topReservedSpace - bottomReservedSpace - headerEstimatedHeight
         let preferredHeight = availableHeight * 0.5
