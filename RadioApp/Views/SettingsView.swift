@@ -36,6 +36,7 @@ struct SettingsView: View {
                     }
                 }
                 .listStyle(InsetGroupedListStyle())
+                .scrollContentBackground(.hidden)
                 // 适配暗色模式列表背景
                 .onAppear {
                     UITableView.appearance().backgroundColor = .clear
@@ -170,6 +171,7 @@ struct BlockedStationsView: View {
                 }
             }
             .listStyle(InsetGroupedListStyle())
+            .scrollContentBackground(.hidden)
             .onAppear {
                 UITableView.appearance().backgroundColor = .clear
                 blockManager.fetchMissingStationNames()
