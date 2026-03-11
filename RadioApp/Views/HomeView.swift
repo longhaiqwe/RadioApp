@@ -156,6 +156,7 @@ struct HomeView: View {
                     
                     // MARK: - 收藏区域
                     let visibleFavorites = favoritesManager.favoriteStations.filter { !stationBlockManager.isBlocked($0) }
+                    
                     if !visibleFavorites.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
@@ -179,6 +180,33 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, 20)
                             
+                            #if targetEnvironment(macCatalyst)
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
+                                ForEach(visibleFavorites) { station in
+                                    NeonStationCard(
+                                        station: station,
+                                        isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
+                                    )
+                                    .onTapGesture {
+                                        playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
+                                    }
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            favoritesManager.removeFavorite(station)
+                                        } label: {
+                                            Label("取消收藏", systemImage: "heart.slash")
+                                        }
+                                    }
+                                    // 拖拽支持
+                                    .onDrag {
+                                        self.draggingStation = station
+                                        return NSItemProvider(object: station.id as NSString)
+                                    }
+                                    .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            #else
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
                                     ForEach(visibleFavorites) { station in
@@ -206,6 +234,7 @@ struct HomeView: View {
                                 }
                                 .padding(.horizontal, 20)
                             }
+                            #endif
                         }
                     }
                     
@@ -236,6 +265,20 @@ struct HomeView: View {
                         
 
                         
+                        #if targetEnvironment(macCatalyst)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
+                            ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
+                                NeonStationCard(
+                                    station: station,
+                                    isPlaying: playerManager.currentStation?.id == station.id && playerManager.isPlaying
+                                )
+                                .onTapGesture {
+                                    playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        #else
                         ScrollView(.horizontal, showsIndicators: false) {
                             LazyHStack(spacing: 16) {
                                 ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
@@ -250,6 +293,7 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, 20)
                         }
+                        #endif
                     }
                     
                     // 底部留白给 Mini Player
