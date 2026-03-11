@@ -30,6 +30,9 @@ struct SidebarLayout: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $selection)
+                #if targetEnvironment(macCatalyst)
+                .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 240)
+                #endif
         } detail: {
             ZStack(alignment: .bottom) {
                 // Background
@@ -72,10 +75,13 @@ struct SidebarLayout: View {
                             showPlayer = false
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity) // 确保播放器内部撑满
+                    .ignoresSafeArea(edges: [.top, .bottom, .trailing]) // 修改：保留左侧(leading)安全区避让 sidebar，避免内容偏移
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(50)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity) // 确保外层 ZStack 撑满整个 detail 区域
             .navigationTitle("")
             #if os(iOS)
             .navigationBarHidden(true)

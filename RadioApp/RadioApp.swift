@@ -15,7 +15,7 @@ struct RadioApp: App {
         }
         .modelContainer(HistoryManager.shared.container)
         #if targetEnvironment(macCatalyst)
-        .defaultSize(width: 1000, height: 860)
+        .defaultSize(width: 1200, height: 860)
         #endif
     }
 }

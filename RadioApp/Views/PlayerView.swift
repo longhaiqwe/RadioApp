@@ -37,7 +37,7 @@ struct PlayerView: View {
                 
                 VStack(spacing: 0) {
                     // MARK: - 顶部栏
-                    topBar
+                    topBar(horizontalPadding: chromeHorizontalPadding(for: proxy.size.width))
                         .padding(.top, 20)
                     
                     Spacer()
@@ -67,7 +67,7 @@ struct PlayerView: View {
                         .padding(.bottom, 12)
                     
                     volumeControl
-                        .padding(.horizontal, 40)
+                        .padding(.horizontal, chromeHorizontalPadding(for: proxy.size.width))
                         .padding(.bottom, max(proxy.safeAreaInsets.bottom, 28))
                 }
                 
@@ -80,13 +80,14 @@ struct PlayerView: View {
                     
                     if shazamMatcher.lastError != nil {
                         // 错误提示
-                        shazamErrorCard
+                        shazamErrorCard(for: proxy.size.width)
                             .allowsHitTesting(true)
                         Spacer()
                     } else if let match = shazamMatcher.lastMatch {
                         // 识别结果和歌词 - 覆盖在封面上方
                         shazamResultOverlay(
                             match: match,
+                            availableWidth: proxy.size.width,
                             availableHeight: proxy.size.height,
                             safeAreaInsets: proxy.safeAreaInsets
                         )
@@ -95,19 +96,20 @@ struct PlayerView: View {
                         // 自定义识别结果
                         shazamResultOverlay(
                             match: nil,
+                            availableWidth: proxy.size.width,
                             availableHeight: proxy.size.height,
                             safeAreaInsets: proxy.safeAreaInsets
                         )
                         .allowsHitTesting(true)
                     } else if shazamMatcher.isMatching {
                         // 识别进度提示
-                        shazamMatchingIndicator
+                        shazamMatchingIndicator(for: proxy.size.width)
                             .padding(.top, 20)
                             .allowsHitTesting(true)
                         Spacer()
                     } else if shazamMatcher.showAdvancedRecognitionPrompt {
                         // 高级识别提示
-                        shazamAdvancedPromptCard
+                        shazamAdvancedPromptCard(for: proxy.size.width)
                             .padding(.top, 20)
                             .allowsHitTesting(true)
                         Spacer()
@@ -115,6 +117,7 @@ struct PlayerView: View {
                     
                     Spacer()
                 }
+                .padding(.horizontal, chromeHorizontalPadding(for: proxy.size.width))
 
                 // MARK: - 自定义 ActionSheet 弹窗层
                 if let config = activeActionSheet {
@@ -332,7 +335,7 @@ struct PlayerView: View {
     }
     
     // MARK: - 顶部栏
-    private var topBar: some View {
+    private func topBar(horizontalPadding: CGFloat) -> some View {
         HStack {
             Button(action: {
                 dismissPlayer()
@@ -359,7 +362,7 @@ struct PlayerView: View {
             // 菜单按钮
             menuButton
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, horizontalPadding)
     }
     
     // MARK: - 歌曲识别按钮 (顶部)
@@ -638,7 +641,7 @@ struct PlayerView: View {
     }
     
     // MARK: - Shazam 识别中指示器
-    private var shazamMatchingIndicator: some View {
+    private func shazamMatchingIndicator(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 // 旋转的 Shazam 图标
@@ -666,8 +669,8 @@ struct PlayerView: View {
                     .foregroundColor(.white.opacity(0.6))
             }
         }
-        .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
+        .frame(maxWidth: overlayCardMaxWidth(for: availableWidth))
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.black.opacity(0.4))
@@ -676,11 +679,10 @@ struct PlayerView: View {
                         .stroke(NeonColors.cyan.opacity(0.4), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 20)
     }
     
     // MARK: - ACRCloud 高级识别提示
-    private var shazamAdvancedPromptCard: some View {
+    private func shazamAdvancedPromptCard(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
                 .font(.system(size: 30))
@@ -733,6 +735,7 @@ struct PlayerView: View {
                 .foregroundColor(.white.opacity(0.4))
         }
         .padding(24)
+        .frame(maxWidth: overlayCardMaxWidth(for: availableWidth))
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(NeonColors.cardBg.opacity(0.95))
@@ -741,12 +744,11 @@ struct PlayerView: View {
                         .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 24)
         .shadow(color: NeonColors.cyan.opacity(0.2), radius: 20)
     }
     
     // MARK: - Shazam 识别失败提示卡片
-    private var shazamErrorCard: some View {
+    private func shazamErrorCard(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 12) {
             // 图标
             Image(systemName: "music.note.list")
@@ -810,9 +812,9 @@ struct PlayerView: View {
             }
             .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .padding(.horizontal, 16)
+        .frame(maxWidth: overlayCardMaxWidth(for: availableWidth))
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(
@@ -837,7 +839,6 @@ struct PlayerView: View {
                         )
                 )
         )
-        .padding(.horizontal, 20)
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
         .animation(.easeOut(duration: 0.2), value: shazamMatcher.lastError != nil)
     }
@@ -845,6 +846,7 @@ struct PlayerView: View {
     // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
     private func shazamResultOverlay(
         match: SHMatchedMediaItem?,
+        availableWidth: CGFloat,
         availableHeight: CGFloat,
         safeAreaInsets: EdgeInsets
     ) -> some View {
@@ -1059,7 +1061,7 @@ struct PlayerView: View {
             }
             .padding(.vertical, 20)
             .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
+            .frame(maxWidth: overlayCardMaxWidth(for: availableWidth))
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(NeonColors.darkBg.opacity(0.95))
@@ -1068,7 +1070,6 @@ struct PlayerView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(NeonColors.purple.opacity(0.3), lineWidth: 1)
             )
-            .padding(.horizontal, 32)
             
             // 2. 歌词区域 (紧接在下方)
             if shazamMatcher.isFetchingLyrics {
@@ -1083,6 +1084,7 @@ struct PlayerView: View {
                 .padding(.top, 40)
             } else if shazamMatcher.lyrics != nil {
                 lyricsLayout(
+                    availableWidth: availableWidth,
                     availableHeight: availableHeight,
                     safeAreaInsets: safeAreaInsets,
                     showsAdvancedRecognitionButton: match != nil && subscriptionManager.isPro && subscriptionManager.currentCredits > 0
@@ -1212,6 +1214,7 @@ struct PlayerView: View {
     // MARK: - 歌词视图
     // MARK: - 歌词布局 (用于 Overlay)
     private func lyricsLayout(
+        availableWidth: CGFloat,
         availableHeight: CGFloat,
         safeAreaInsets: EdgeInsets,
         showsAdvancedRecognitionButton: Bool
@@ -1228,7 +1231,7 @@ struct PlayerView: View {
             safeAreaInsets: safeAreaInsets,
             showsAdvancedRecognitionButton: showsAdvancedRecognitionButton
         ))
-        .frame(maxWidth: .infinity) // 强制撑满宽度 (减去 padding)
+        .frame(maxWidth: lyricsCardMaxWidth(for: availableWidth))
         .background(
              RoundedRectangle(cornerRadius: 20)
                  .fill(Color.black.opacity(0.9)) // 增加不透明度覆盖底部内容
@@ -1244,7 +1247,6 @@ struct PlayerView: View {
                          )
                  )
         )
-        .padding(.horizontal, 32)
     }
 
     private func lyricsContainerHeight(
@@ -1259,6 +1261,26 @@ struct PlayerView: View {
         let preferredHeight = availableHeight * 0.5
 
         return max(min(maxUsableHeight, preferredHeight), 180)
+    }
+
+    private func chromeHorizontalPadding(for availableWidth: CGFloat) -> CGFloat {
+        if availableWidth >= 1100 {
+            return 56
+        } else if availableWidth >= 820 {
+            return 40
+        } else {
+            return 32
+        }
+    }
+
+    private func overlayCardMaxWidth(for availableWidth: CGFloat) -> CGFloat {
+        let reservedSpace: CGFloat = availableWidth >= 1100 ? 300 : (availableWidth >= 820 ? 160 : 64)
+        return max(min(availableWidth - reservedSpace, 680), 320)
+    }
+
+    private func lyricsCardMaxWidth(for availableWidth: CGFloat) -> CGFloat {
+        let reservedSpace: CGFloat = availableWidth >= 1100 ? 300 : (availableWidth >= 820 ? 160 : 64)
+        return max(min(availableWidth - reservedSpace, 680), 320)
     }
 }
 

@@ -96,6 +96,7 @@ struct EULAView: View {
                 .lineSpacing(6)
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(NeonColors.darkBg.ignoresSafeArea())
         .navigationTitle("服务条款")
@@ -130,6 +131,7 @@ struct PrivacyPolicyView: View {
                 .lineSpacing(6)
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(NeonColors.darkBg.ignoresSafeArea())
         .navigationTitle("隐私政策")
