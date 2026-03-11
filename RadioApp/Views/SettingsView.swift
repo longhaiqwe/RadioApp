@@ -142,32 +142,39 @@ struct BlockedStationsView: View {
     @ObservedObject var blockManager = StationBlockManager.shared
 
     var body: some View {
-        List {
-            if blockManager.blockedUUIDs.isEmpty {
-                Text("暂无屏蔽电台")
-                    .foregroundColor(.gray)
-            } else {
-                ForEach(Array(blockManager.blockedUUIDs).sorted(), id: \.self) { uuid in
-                    Text(blockManager.blockedStationNames[uuid] ?? "未知电台")
-                        .font(.body)
-                        .foregroundColor(.primary)
-                }
-                .onDelete { indexSet in
-                     // 支持解除屏蔽（可选）
-                     let sortedUUIDs = Array(blockManager.blockedUUIDs).sorted()
-                    indexSet.forEach { index in
-                        if index < sortedUUIDs.count {
-                            let uuid = sortedUUIDs[index]
-                            blockManager.unblock(stationUUID: uuid)
+        ZStack {
+            NeonColors.darkBg.ignoresSafeArea()
+            
+            List {
+                if blockManager.blockedUUIDs.isEmpty {
+                    Text("暂无屏蔽电台")
+                        .foregroundColor(.gray)
+                        .listRowBackground(NeonColors.cardBg)
+                } else {
+                    ForEach(Array(blockManager.blockedUUIDs).sorted(), id: \.self) { uuid in
+                        Text(blockManager.blockedStationNames[uuid] ?? "未知电台")
+                            .font(.body)
+                            .foregroundColor(.white)
+                    }
+                    .onDelete { indexSet in
+                         // 支持解除屏蔽
+                         let sortedUUIDs = Array(blockManager.blockedUUIDs).sorted()
+                        indexSet.forEach { index in
+                            if index < sortedUUIDs.count {
+                                let uuid = sortedUUIDs[index]
+                                blockManager.unblock(stationUUID: uuid)
+                            }
                         }
                     }
+                    .listRowBackground(NeonColors.cardBg)
                 }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .onAppear {
+                UITableView.appearance().backgroundColor = .clear
+                blockManager.fetchMissingStationNames()
             }
         }
         .navigationTitle("已屏蔽电台")
-        .background(NeonColors.darkBg)
-        .onAppear {
-            blockManager.fetchMissingStationNames()
-        }
     }
 }
