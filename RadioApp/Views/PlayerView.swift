@@ -1257,10 +1257,10 @@ struct PlayerView: View {
         showsAdvancedRecognitionButton: Bool
     ) -> CGFloat {
         let topReservedSpace: CGFloat = 72
-        let bottomReservedSpace: CGFloat = 260 + safeAreaInsets.bottom
+        let bottomReservedSpace: CGFloat = 160 + safeAreaInsets.bottom // 预留底部控制栏空间
         let headerEstimatedHeight: CGFloat = showsAdvancedRecognitionButton ? 240 : 210
         let maxUsableHeight = availableHeight - topReservedSpace - bottomReservedSpace - headerEstimatedHeight
-        let preferredHeight = availableHeight * 0.5
+        let preferredHeight = availableHeight * 0.65 // 放宽最大偏好高度
 
         return max(min(maxUsableHeight, preferredHeight), 180)
     }
