@@ -386,7 +386,7 @@ struct NeonSongRow: View {
                     
                     Spacer()
                     
-                    if song.source == "ACRCloud" {
+                    if song.source == "ACRCloud" || song.source == "GroqLyrics" {
                         Text("Pro")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(NeonColors.gold)

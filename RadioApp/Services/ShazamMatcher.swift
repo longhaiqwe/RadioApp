@@ -84,6 +84,22 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // Live Activity Reference (Type-erased for availability compatibility)
     private var liveActivity: Any?
+
+    private var isGroqOnlyModeEnabled: Bool {
+        if let value = ProcessInfo.processInfo.environment["MUSIC_RECOGNITION_FORCE_GROQ_ONLY"] {
+            return ["1", "true", "yes", "on"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        }
+
+        return Bundle.main.object(forInfoDictionaryKey: "MUSIC_RECOGNITION_FORCE_GROQ_ONLY") as? Bool ?? false
+    }
+
+    private var canUseGroqLyricsFallback: Bool {
+        if isGroqOnlyModeEnabled {
+            return GroqSpeechToTextService.shared.isConfigured
+        }
+
+        return SubscriptionManager.shared.isPro && GroqSpeechToTextService.shared.isConfigured
+    }
     
     override init() {
         super.init()
@@ -109,6 +125,7 @@ class ShazamMatcher: NSObject, ObservableObject {
         customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
         isFetchingLyrics = false
+        showAdvancedRecognitionPrompt = false
         matchDate = nil // Reset match date
         matchOffset = 0 // Reset offset
         
@@ -143,12 +160,18 @@ class ShazamMatcher: NSObject, ObservableObject {
             
             if let fileURL = fileURL {
                 DispatchQueue.main.async {
-                    self.matchingProgress = "正在识别..."
+                    self.matchingProgress = self.isGroqOnlyModeEnabled ? "正在准备歌词兜底..." : "正在识别..."
                     self.captureEndTime = Date() // 记录采集完成时间
                     self.currentMatchingFileURL = fileURL // 保存 URL 供兜底使用
                     self.isHLSStream = isHLS
                     self.hlsStreamOffset = hlsOffset
-                    self.matchFile(at: fileURL)
+
+                    if self.isGroqOnlyModeEnabled {
+                        print("ShazamMatcher: 已启用 Groq-only 测试模式，跳过 Shazam / ACRCloud")
+                        self.startGroqLyricsFallback(with: fileURL)
+                    } else {
+                        self.matchFile(at: fileURL)
+                    }
                 }
             } else {
                 self.handleFailure(error: NSError(domain: "ShazamMatcher", code: -2,
@@ -167,6 +190,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.matchingProgress = ""
             self.lastError = error
             self.isLockScreenTriggered = false
+            self.currentMatchingFileURL = nil
             print("ShazamMatcher: Error - \(error.localizedDescription)")
         }
     }
@@ -499,6 +523,123 @@ class ShazamMatcher: NSObject, ObservableObject {
     }
     #endif
 
+    private func startGroqLyricsFallback(with fileURL: URL) {
+        guard canUseGroqLyricsFallback else { return }
+
+        self.isMatching = true
+        self.matchingProgress = isGroqOnlyModeEnabled ? "正在通过 Groq 识别歌词..." : "正在通过歌词兜底..."
+        self.lastError = nil
+        self.showAdvancedRecognitionPrompt = false
+        self.currentMatchingFileURL = fileURL
+
+        let languageHint = transcriptionLanguageHint()
+
+        Task {
+            do {
+                let transcription = try await GroqSpeechToTextService.shared.transcribeLyrics(
+                    fileURL: fileURL,
+                    languageHint: languageHint
+                )
+                let snippets = GroqSpeechToTextService.shared.extractLikelyLyricSnippets(from: transcription)
+
+                guard !snippets.isEmpty else {
+                    throw NSError(
+                        domain: "ShazamMatcher",
+                        code: -5,
+                        userInfo: [NSLocalizedDescriptionKey: "Groq 未提取到可用歌词片段"]
+                    )
+                }
+
+                self.matchingProgress = "正在根据歌词搜索歌曲..."
+
+                guard let resolvedSong = await MusicPlatformService.shared.resolveSongFromLyricSnippets(snippets) else {
+                    throw NSError(
+                        domain: "ShazamMatcher",
+                        code: -6,
+                        userInfo: [NSLocalizedDescriptionKey: "歌词兜底未找到可信匹配"]
+                    )
+                }
+
+                self.applyLyricFallbackResult(resolvedSong)
+            } catch {
+                self.isMatching = false
+                self.matchingProgress = ""
+                self.currentMatchingFileURL = nil
+                self.lastError = error
+                self.isLockScreenTriggered = false
+                self.updateLiveActivityToFailure()
+                print("ShazamMatcher: Groq lyric fallback failed - \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func applyLyricFallbackResult(_ result: LyricResolvedSong) {
+        self.isMatching = false
+        self.matchingProgress = ""
+        self.currentMatchingFileURL = nil
+        self.isLockScreenTriggered = false
+        self.lastError = nil
+        self.lastMatch = nil
+        self.customMatchResult = CustomMatchResult(
+            title: result.title,
+            artist: result.artist,
+            album: result.album,
+            artworkURL: nil,
+            releaseDate: nil
+        )
+        self.lyrics = result.lyrics
+        self.isFetchingLyrics = false
+
+        if let captureStartTime = self.captureStartTime,
+           let estimatedSongOffset = result.estimatedSongOffsetAtClipStart {
+            self.matchDate = captureStartTime
+            self.matchOffset = estimatedSongOffset
+        } else {
+            self.matchDate = nil
+            self.matchOffset = 0
+        }
+
+        let currentStationName = AudioPlayerManager.shared.currentStation?.name ?? "未知电台"
+        HistoryManager.shared.addSong(
+            title: result.title,
+            artist: result.artist,
+            album: result.album,
+            artworkURL: nil,
+            stationName: currentStationName,
+            source: result.source,
+            releaseDate: nil
+        )
+
+        self.updateLiveActivity(title: result.title, artist: result.artist, coverURL: nil, releaseDate: nil)
+        print("ShazamMatcher: Groq lyric fallback success - \(result.title) / \(result.artist)")
+    }
+
+    private func transcriptionLanguageHint() -> String? {
+        if let languageCode = AudioPlayerManager.shared.currentStation?.languagecodes?
+            .split(separator: ",")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !languageCode.isEmpty {
+            return String(languageCode)
+        }
+
+        let language = AudioPlayerManager.shared.currentStation?.language.lowercased() ?? ""
+        if language.contains("chinese") || language.contains("mandarin") || language.contains("cantonese") || language.contains("中文") {
+            return "zh"
+        }
+        if language.contains("english") || language.contains("英文") {
+            return "en"
+        }
+        if language.contains("japanese") || language.contains("日语") {
+            return "ja"
+        }
+        if language.contains("korean") || language.contains("韩语") {
+            return "ko"
+        }
+
+        return nil
+    }
+
 }
 
 // MARK: - SHSessionDelegate
@@ -689,6 +830,12 @@ extension ShazamMatcher: SHSessionDelegate {
                     }
                 }
             }
+
+            if self.canUseGroqLyricsFallback, let fileURL = self.currentMatchingFileURL {
+                print("ShazamMatcher: Shazam 识别失败，切换到 Groq 歌词兜底...")
+                self.startGroqLyricsFallback(with: fileURL)
+                return
+            }
             
             self.isMatching = false
             self.isLockScreenTriggered = false
@@ -709,8 +856,19 @@ extension ShazamMatcher: SHSessionDelegate {
     // MARK: - 触发高级识别
     
     func startAdvancedMatching() {
-        guard let fileURL = self.currentMatchingFileURL, 
-              SubscriptionManager.shared.currentCredits > 0 else {
+        guard let fileURL = self.currentMatchingFileURL else {
+            self.showAdvancedRecognitionPrompt = false
+            self.isLockScreenTriggered = false
+            return
+        }
+
+        if self.isGroqOnlyModeEnabled {
+            self.showAdvancedRecognitionPrompt = false
+            self.startGroqLyricsFallback(with: fileURL)
+            return
+        }
+
+        guard SubscriptionManager.shared.currentCredits > 0 else {
             self.showAdvancedRecognitionPrompt = false
             self.isLockScreenTriggered = false
             return
@@ -734,9 +892,9 @@ extension ShazamMatcher: SHSessionDelegate {
             DispatchQueue.main.async {
                 self.isMatching = false
                 self.matchingProgress = ""
-                self.currentMatchingFileURL = nil
                 
                 if let song = song {
+                    self.currentMatchingFileURL = nil
                     print("\n=== 🎵 ACRCloud 识别成功 ===")
                     print("原始歌曲: \(song)")
                     print("原始歌手: \(artist ?? "未知")")
@@ -827,16 +985,20 @@ extension ShazamMatcher: SHSessionDelegate {
                         }
                     }
                 } else {
-                    self.lastError = NSError(domain: "ShazamMatcher", code: -4,
-                                           userInfo: [NSLocalizedDescriptionKey: "高级识别也未找到匹配歌曲"])
                     print("ShazamMatcher: ACRCloud no match found")
-                    self.updateLiveActivityToFailure()
+
+                    if self.canUseGroqLyricsFallback {
+                        self.startGroqLyricsFallback(with: fileURL)
+                    } else {
+                        self.currentMatchingFileURL = nil
+                        self.lastError = NSError(domain: "ShazamMatcher", code: -4,
+                                               userInfo: [NSLocalizedDescriptionKey: "高级识别也未找到匹配歌曲"])
+                        self.updateLiveActivityToFailure()
+                    }
                 }
             }
         }
     }
 }
-
-
 
 

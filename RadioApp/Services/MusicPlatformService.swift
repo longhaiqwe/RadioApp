@@ -3,6 +3,30 @@ import Combine
 import CryptoKit
 import os
 
+private enum MusicSearchPlatform: String {
+    case qqMusic = "QQMusic"
+    case netEase = "NetEase"
+}
+
+private struct MusicSearchCandidate: Hashable {
+    let platform: MusicSearchPlatform
+    let id: String
+    let title: String
+    let artist: String
+    let album: String?
+}
+
+struct LyricResolvedSong {
+    let title: String
+    let artist: String
+    let album: String?
+    let lyrics: String
+    let matchedSnippet: String
+    let confidenceScore: Double
+    let estimatedSongOffsetAtClipStart: TimeInterval?
+    let source: String
+}
+
 class MusicPlatformService {
     static let shared = MusicPlatformService()
     private let logger = Logger(subsystem: "com.longhai.radioapp", category: "MusicPlatformService")
@@ -455,6 +479,72 @@ class MusicPlatformService {
         
         return nil
     }
+
+    func resolveSongFromLyricSnippets(_ snippets: [GroqLyricSnippet]) async -> LyricResolvedSong? {
+        let usableSnippets = snippets.filter { normalizedLyricSearchText($0.text).count >= 6 }
+        guard !usableSnippets.isEmpty else { return nil }
+
+        var candidates: [MusicSearchCandidate] = []
+        var seenQueries = Set<String>()
+
+        for snippet in usableSnippets.prefix(3) {
+            let query = compactLyricQuery(snippet.text)
+            let normalizedQuery = normalizedLyricSearchText(query)
+            guard seenQueries.insert(normalizedQuery).inserted else { continue }
+
+            candidates.append(contentsOf: await searchQQSongCandidates(keyword: query, limit: 6))
+            candidates.append(contentsOf: await searchNetEaseSongCandidates(keyword: query, limit: 6))
+        }
+
+        var uniqueCandidates: [MusicSearchCandidate] = []
+        var seenCandidateKeys = Set<String>()
+
+        for candidate in candidates {
+            let key = "\(normalizeString(candidate.title))::\(normalizeString(candidate.artist, removeParenthesesContent: false))"
+            guard seenCandidateKeys.insert(key).inserted else { continue }
+            uniqueCandidates.append(candidate)
+        }
+
+        var bestCandidate: (candidate: MusicSearchCandidate, lyrics: String, snippet: GroqLyricSnippet, score: Double)?
+
+        for candidate in uniqueCandidates.prefix(12) {
+            guard let lyrics = await fetchLyrics(for: candidate) else { continue }
+            let (score, matchedSnippet) = bestSnippetMatchScore(in: lyrics, snippets: usableSnippets)
+            guard let matchedSnippet else { continue }
+
+            if score > (bestCandidate?.score ?? 0) {
+                bestCandidate = (candidate, lyrics, matchedSnippet, score)
+            }
+        }
+
+        guard let bestCandidate, bestCandidate.score >= 0.72 else {
+            return nil
+        }
+
+        var finalTitle = cleanTitle(toSimplifiedChinese(bestCandidate.candidate.title))
+        var finalArtist = toSimplifiedChinese(bestCandidate.candidate.artist)
+        let finalAlbum = cleanAlbum(toSimplifiedChinese(bestCandidate.candidate.album ?? ""))
+
+        if isPinyinOrRomanized(finalTitle),
+           let chineseMeta = await fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
+            finalTitle = chineseMeta.title
+            finalArtist = chineseMeta.artist
+        }
+
+        return LyricResolvedSong(
+            title: finalTitle,
+            artist: finalArtist,
+            album: finalAlbum.isEmpty ? nil : finalAlbum,
+            lyrics: bestCandidate.lyrics,
+            matchedSnippet: bestCandidate.snippet.text,
+            confidenceScore: bestCandidate.score,
+            estimatedSongOffsetAtClipStart: estimateSongOffsetAtClipStart(
+                lyrics: bestCandidate.lyrics,
+                matchedSnippet: bestCandidate.snippet
+            ),
+            source: "GroqLyrics"
+        )
+    }
     
     // QQ Music ID Search (Refactored for public use if needed, or private)
     func findQQMusicIDs(title: String, artist: String, strictness: MatchStrictness = .fuzzy) async -> [String] {
@@ -529,17 +619,9 @@ class MusicPlatformService {
     private func fetchQQLyrics(title: String, artist: String, strictness: MatchStrictness) async -> String? {
         let songmids = await findQQMusicIDs(title: title, artist: artist, strictness: strictness)
         for songmid in songmids {
-            let urlString = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&format=json&nobase64=1"
-            guard let url = URL(string: urlString) else { continue }
-            var request = URLRequest(url: url)
-            request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
-            do {
-                let (data, _) = try await URLSession.shared.data(for: request)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let lyric = json["lyric"] as? String, !lyric.isEmpty {
-                    return lyric
-                }
-            } catch {}
+            if let lyric = await fetchQQLyrics(songmid: songmid) {
+                return lyric
+            }
         }
         return nil
     }
@@ -547,16 +629,9 @@ class MusicPlatformService {
     private func fetchNetEaseLyrics(title: String, artist: String, strictness: MatchStrictness) async -> String? {
         let ids = await findNetEaseIDs(title: title, artist: artist, strictness: strictness)
         for id in ids {
-            let urlString = "http://music.163.com/api/song/lyric?id=\(id)&lv=1&kv=1&tv=-1"
-            guard let url = URL(string: urlString) else { continue }
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let lrc = json["lrc"] as? [String: Any],
-                   let lyric = lrc["lyric"] as? String, !lyric.isEmpty {
-                    return lyric
-                }
-            } catch {}
+            if let lyric = await fetchNetEaseLyrics(id: id) {
+                return lyric
+            }
         }
         return nil
     }
@@ -623,5 +698,255 @@ class MusicPlatformService {
         let rArtist = normalizeString(resultArtist, removeParenthesesContent: false)
         
         return qArtist.contains(rArtist) || rArtist.contains(qArtist)
+    }
+
+    private func fetchLyrics(for candidate: MusicSearchCandidate) async -> String? {
+        switch candidate.platform {
+        case .qqMusic:
+            return await fetchQQLyrics(songmid: candidate.id)
+        case .netEase:
+            return await fetchNetEaseLyrics(id: candidate.id)
+        }
+    }
+
+    private func fetchQQLyrics(songmid: String) async -> String? {
+        let urlString = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=\(songmid)&format=json&nobase64=1"
+        guard let url = URL(string: urlString) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let lyric = json["lyric"] as? String, !lyric.isEmpty {
+                return lyric
+            }
+        } catch {
+            logger.error("QQ 歌词拉取失败 - \(error.localizedDescription)")
+        }
+
+        return nil
+    }
+
+    private func fetchNetEaseLyrics(id: String) async -> String? {
+        let urlString = "http://music.163.com/api/song/lyric?id=\(id)&lv=1&kv=1&tv=-1"
+        guard let url = URL(string: urlString) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let lrc = json["lrc"] as? [String: Any],
+               let lyric = lrc["lyric"] as? String, !lyric.isEmpty {
+                return lyric
+            }
+        } catch {
+            logger.error("网易云歌词拉取失败 - \(error.localizedDescription)")
+        }
+
+        return nil
+    }
+
+    private func searchQQSongCandidates(keyword: String, limit: Int) async -> [MusicSearchCandidate] {
+        guard let encodedQuery = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=\(limit)&w=\(encodedQuery)&format=json") else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataObj = json["data"] as? [String: Any],
+                  let songObj = dataObj["song"] as? [String: Any],
+                  let list = songObj["list"] as? [[String: Any]] else {
+                return []
+            }
+
+            return list.compactMap { song in
+                guard let songmid = song["songmid"] as? String,
+                      let title = song["songname"] as? String else {
+                    return nil
+                }
+
+                if isDerivative(title) { return nil }
+
+                let singers = song["singer"] as? [[String: Any]] ?? []
+                let artist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                let album = song["albumname"] as? String
+
+                return MusicSearchCandidate(
+                    platform: .qqMusic,
+                    id: songmid,
+                    title: title,
+                    artist: artist,
+                    album: album
+                )
+            }
+        } catch {
+            logger.error("QQ 歌词候选搜索失败 - \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func searchNetEaseSongCandidates(keyword: String, limit: Int) async -> [MusicSearchCandidate] {
+        guard let encodedQuery = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=\(limit)") else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result = json["result"] as? [String: Any],
+                  let songs = result["songs"] as? [[String: Any]] else {
+                return []
+            }
+
+            return songs.compactMap { song in
+                guard let id = song["id"] as? Int,
+                      let title = song["name"] as? String else {
+                    return nil
+                }
+
+                if isDerivative(title) { return nil }
+
+                let singers = song["artists"] as? [[String: Any]] ?? []
+                let artist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
+                let album = (song["album"] as? [String: Any])?["name"] as? String
+
+                return MusicSearchCandidate(
+                    platform: .netEase,
+                    id: String(id),
+                    title: title,
+                    artist: artist,
+                    album: album
+                )
+            }
+        } catch {
+            logger.error("网易云歌词候选搜索失败 - \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func bestSnippetMatchScore(in lyrics: String, snippets: [GroqLyricSnippet]) -> (Double, GroqLyricSnippet?) {
+        let normalizedLyrics = normalizedLyricSearchText(lyrics)
+        guard !normalizedLyrics.isEmpty else { return (0, nil) }
+
+        var bestScore = 0.0
+        var bestSnippet: GroqLyricSnippet?
+
+        for snippet in snippets {
+            let normalizedSnippet = normalizedLyricSearchText(snippet.text)
+            guard normalizedSnippet.count >= 6 else { continue }
+
+            let overlapScore: Double
+            if normalizedLyrics.contains(normalizedSnippet) {
+                overlapScore = 1.0
+            } else {
+                overlapScore = nGramOverlapScore(needle: normalizedSnippet, haystack: normalizedLyrics)
+            }
+
+            let weightedScore = overlapScore * (0.85 + (snippet.confidenceScore * 0.15))
+            if weightedScore > bestScore {
+                bestScore = weightedScore
+                bestSnippet = snippet
+            }
+        }
+
+        return (bestScore, bestSnippet)
+    }
+
+    private func estimateSongOffsetAtClipStart(lyrics: String, matchedSnippet: GroqLyricSnippet) -> TimeInterval? {
+        guard let snippetStart = matchedSnippet.start else { return nil }
+
+        let lines = LRCParser.parse(lrc: lyrics)
+        guard !lines.isEmpty else { return nil }
+
+        let normalizedSnippet = normalizedLyricSearchText(matchedSnippet.text)
+        guard !normalizedSnippet.isEmpty else { return nil }
+
+        for line in lines {
+            let normalizedLine = normalizedLyricSearchText(line.text)
+            guard !normalizedLine.isEmpty else { continue }
+
+            let score: Double
+            if normalizedLine.contains(normalizedSnippet) || normalizedSnippet.contains(normalizedLine) {
+                score = 1.0
+            } else {
+                score = nGramOverlapScore(needle: normalizedSnippet, haystack: normalizedLine)
+            }
+
+            if score >= 0.75 {
+                return max(0, line.time - snippetStart)
+            }
+        }
+
+        return nil
+    }
+
+    private func compactLyricQuery(_ text: String) -> String {
+        let collapsed = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !collapsed.isEmpty else { return text }
+
+        let words = collapsed.split(separator: " ")
+        if words.count > 8 {
+            return words.prefix(8).joined(separator: " ")
+        }
+
+        if words.count <= 1 && collapsed.count > 18 {
+            return String(collapsed.prefix(18))
+        }
+
+        return collapsed
+    }
+
+    private func normalizedLyricSearchText(_ text: String) -> String {
+        let simplified = toSimplifiedChinese(text)
+        let withoutTimestamps = simplified.replacingOccurrences(
+            of: "\\[[^\\]]+\\]",
+            with: " ",
+            options: .regularExpression
+        )
+
+        return withoutTimestamps
+            .lowercased()
+            .replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+    }
+
+    private func nGramOverlapScore(needle: String, haystack: String) -> Double {
+        guard !needle.isEmpty, !haystack.isEmpty else { return 0 }
+        if haystack.contains(needle) { return 1.0 }
+
+        let needleCharacters = Array(needle)
+        let gramLength = min(5, max(3, needleCharacters.count / 3))
+        guard needleCharacters.count >= gramLength else { return 0 }
+
+        var grams = Set<String>()
+        for index in 0...(needleCharacters.count - gramLength) {
+            grams.insert(String(needleCharacters[index..<(index + gramLength)]))
+        }
+
+        guard !grams.isEmpty else { return 0 }
+
+        let matches = grams.filter { haystack.contains($0) }.count
+        return Double(matches) / Double(grams.count)
     }
 }
