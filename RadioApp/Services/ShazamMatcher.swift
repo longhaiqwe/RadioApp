@@ -84,6 +84,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // Live Activity Reference (Type-erased for availability compatibility)
     private var liveActivity: Any?
+    private var groqFallbackTask: Task<Void, Never>?
 
     private var isGroqOnlyModeEnabled: Bool {
         if let value = ProcessInfo.processInfo.environment["MUSIC_RECOGNITION_FORCE_GROQ_ONLY"] {
@@ -198,12 +199,15 @@ class ShazamMatcher: NSObject, ObservableObject {
     /// 停止识别
     func stopMatching() {
         StreamSampler.shared.cancel()
+        groqFallbackTask?.cancel()
+        groqFallbackTask = nil
         isMatching = false
         // 立即结束 Activity
         Task {
             await endLiveActivity(dismissalPolicy: .immediate)
         }
         isLockScreenTriggered = false
+        currentMatchingFileURL = nil
         matchingProgress = ""
     }
     
@@ -524,22 +528,50 @@ class ShazamMatcher: NSObject, ObservableObject {
     #endif
 
     private func startGroqLyricsFallback(with fileURL: URL) {
-        guard canUseGroqLyricsFallback else { return }
+        guard canUseGroqLyricsFallback else {
+            self.isMatching = false
+            self.matchingProgress = ""
+            self.currentMatchingFileURL = nil
+            self.isLockScreenTriggered = false
+            self.showAdvancedRecognitionPrompt = false
 
+            let message: String
+            if isGroqOnlyModeEnabled {
+                message = "Groq-only 模式已启用，但未配置可用的 GROQ_API_KEY"
+            } else if !GroqSpeechToTextService.shared.isConfigured {
+                message = "Groq 歌词兜底当前不可用，请检查 API Key 配置"
+            } else {
+                message = "当前账号无法使用歌词兜底"
+            }
+
+            self.lastError = NSError(
+                domain: "ShazamMatcher",
+                code: -7,
+                userInfo: [NSLocalizedDescriptionKey: message]
+            )
+            self.updateLiveActivityToFailure()
+            print("ShazamMatcher: \(message)")
+            return
+        }
+
+        groqFallbackTask?.cancel()
         self.isMatching = true
-        self.matchingProgress = isGroqOnlyModeEnabled ? "正在通过 Groq 识别歌词..." : "正在通过歌词兜底..."
+        self.matchingProgress = "正在预处理音频..."
         self.lastError = nil
         self.showAdvancedRecognitionPrompt = false
         self.currentMatchingFileURL = fileURL
 
         let languageHint = transcriptionLanguageHint()
 
-        Task {
+        groqFallbackTask = Task {
+            defer { self.groqFallbackTask = nil }
             do {
+                self.matchingProgress = isGroqOnlyModeEnabled ? "正在通过 Groq 识别歌词..." : "正在通过歌词兜底..."
                 let transcription = try await GroqSpeechToTextService.shared.transcribeLyrics(
                     fileURL: fileURL,
                     languageHint: languageHint
                 )
+                try Task.checkCancellation()
                 let snippets = GroqSpeechToTextService.shared.extractLikelyLyricSnippets(from: transcription)
 
                 guard !snippets.isEmpty else {
@@ -561,6 +593,8 @@ class ShazamMatcher: NSObject, ObservableObject {
                 }
 
                 self.applyLyricFallbackResult(resolvedSong)
+            } catch is CancellationError {
+                print("ShazamMatcher: Groq lyric fallback cancelled")
             } catch {
                 self.isMatching = false
                 self.matchingProgress = ""
@@ -1000,5 +1034,4 @@ extension ShazamMatcher: SHSessionDelegate {
         }
     }
 }
-
 

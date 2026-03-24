@@ -39,6 +39,110 @@ class MusicPlatformService {
     }
     
     private init() {}
+
+    private func makeQQSearchRequest(keyword: String, limit: Int, page: Int = 1) -> URLRequest? {
+        guard let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg") else {
+            return nil
+        }
+
+        let payload: [String: Any] = [
+            "comm": [
+                "ct": 19,
+                "cv": 1859,
+                "uin": "0",
+                "format": "json"
+            ],
+            "req_1": [
+                "module": "music.search.SearchCgiService",
+                "method": "DoSearchForQQMusicDesktop",
+                "param": [
+                    "query": keyword,
+                    "search_type": 0,
+                    "page_num": page,
+                    "num_per_page": limit,
+                    "grp": 1
+                ]
+            ]
+        ]
+
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.timeoutInterval = 10
+        request.setValue("application/json;charset=UTF-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            forHTTPHeaderField: "User-Agent"
+        )
+        return request
+    }
+
+    private func parseQQSearchCandidate(from song: [String: Any]) -> MusicSearchCandidate? {
+        guard let id = (song["mid"] as? String) ?? (song["songmid"] as? String) else {
+            return nil
+        }
+
+        let title = ((song["title"] as? String) ?? (song["songname"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        let singers = song["singer"] as? [[String: Any]] ?? []
+        let artist = singers
+            .compactMap { ($0["name"] as? String) ?? ($0["title"] as? String) }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let albumObject = song["album"] as? [String: Any]
+        let album = ((albumObject?["name"] as? String) ?? (albumObject?["title"] as? String) ?? (song["albumname"] as? String))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return MusicSearchCandidate(
+            platform: .qqMusic,
+            id: id,
+            title: title,
+            artist: artist,
+            album: album
+        )
+    }
+
+    private func searchQQSongs(keyword: String, limit: Int, page: Int = 1) async -> [MusicSearchCandidate] {
+        guard let request = makeQQSearchRequest(keyword: keyword, limit: limit, page: page) else {
+            logger.error("QQ 搜索请求构造失败")
+            return []
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200..<300).contains(httpResponse.statusCode) {
+                logger.error("QQ 搜索失败 - HTTP \(httpResponse.statusCode)")
+                return []
+            }
+
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let requestObject = (json["req_1"] as? [String: Any]) ?? (json["req"] as? [String: Any]),
+                  let requestCode = requestObject["code"] as? Int,
+                  requestCode == 0,
+                  let requestData = requestObject["data"] as? [String: Any],
+                  let body = requestData["body"] as? [String: Any],
+                  let songObject = body["song"] as? [String: Any],
+                  let list = songObject["list"] as? [[String: Any]] else {
+                logger.error("QQ 搜索返回结构异常")
+                return []
+            }
+
+            return list.compactMap(parseQQSearchCandidate)
+        } catch {
+            logger.error("QQ 搜索失败 - \(error.localizedDescription)")
+            return []
+        }
+    }
     
     // MARK: - 主入口
     
@@ -88,49 +192,32 @@ class MusicPlatformService {
         // 构造 QQ 音乐搜索 URL (只搜歌手 w=Artist, n=30 获取前30首)
         let query = cleanArtist
         logger.info("[歌手反查] 搜索 Query: \(query, privacy: .public)")
-        
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=30&w=\(encodedQuery)&format=json") else {
+
+        let songs = await searchQQSongs(keyword: query, limit: 30)
+        guard !songs.isEmpty else {
             return nil
         }
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let dataObj = json["data"] as? [String: Any],
-               let songObj = dataObj["song"] as? [String: Any],
-               let list = songObj["list"] as? [[String: Any]] {
-                
-                logger.info("[歌手反查] 找到 \(list.count) 首歌曲，开始本地拼音比对...")
-                
-                // 目标拼音 (归一化: 去空格，转小写)
-                let targetPinyin = normalizePinyin(title)
-                logger.debug("[歌手反查] Target Pinyin: \(targetPinyin, privacy: .public)")
-                
-                for song in list {
-                    let resultTitle = song["songname"] as? String ?? ""
-                    let singers = song["singer"] as? [[String: Any]] ?? []
-                    let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                    
-                    // 跳过空的或明显的衍生版本 (如果需要)
-                    if resultTitle.isEmpty { continue }
-                    
-                    // 将当期结果转拼音
-                    let resultPinyin = normalizePinyin(toPinyin(resultTitle))
-                    // logger.debug("Check: \(resultTitle, privacy: .public) -> \(resultPinyin, privacy: .public)")
-                    
-                    // 计算相似度
-                    if isPinyinSimilar(targetPinyin, resultPinyin) {
-                        logger.info("[歌手反查] 匹配成功!\n   - 原拼音: \(targetPinyin, privacy: .public)\n   - 本地转: \(resultPinyin, privacy: .public)\n   - 中文名: \(resultTitle, privacy: .public)")
-                        return (resultTitle, resultArtist)
-                    }
-                }
+
+        logger.info("[歌手反查] 找到 \(songs.count) 首歌曲，开始本地拼音比对...")
+
+        // 目标拼音 (归一化: 去空格，转小写)
+        let targetPinyin = normalizePinyin(title)
+        logger.debug("[歌手反查] Target Pinyin: \(targetPinyin, privacy: .public)")
+
+        for song in songs {
+            let resultTitle = song.title
+            let resultArtist = song.artist
+
+            if resultTitle.isEmpty { continue }
+
+            let resultPinyin = normalizePinyin(toPinyin(resultTitle))
+
+            if isPinyinSimilar(targetPinyin, resultPinyin) {
+                logger.info("[歌手反查] 匹配成功!\n   - 原拼音: \(targetPinyin, privacy: .public)\n   - 本地转: \(resultPinyin, privacy: .public)\n   - 中文名: \(resultTitle, privacy: .public)")
+                return (resultTitle, resultArtist)
             }
-        } catch {
-            logger.error("[歌手反查] 失败 - \(error.localizedDescription)")
         }
-        
+
         logger.info("[歌手反查] 未找到匹配歌曲")
         return nil
     }
@@ -302,63 +389,47 @@ class MusicPlatformService {
     /// 从 QQ 音乐获取中文元数据
     private func fetchChineseMetadataFromQQ(title: String, artist: String) async -> (title: String, artist: String)? {
         let query = "\(title) \(artist)"
-        
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=5&w=\(encodedQuery)&format=json") else {
+
+        let songs = await searchQQSongs(keyword: query, limit: 5)
+        guard !songs.isEmpty else {
             return nil
         }
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let dataObj = json["data"] as? [String: Any],
-               let songObj = dataObj["song"] as? [String: Any],
-               let list = songObj["list"] as? [[String: Any]] {
-                
-                func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
-                    for (index, song) in list.enumerated() {
-                        let resultTitle = song["songname"] as? String ?? ""
-                        if resultTitle.isEmpty { continue }
-                        
-                        if !allowDerivative && isDerivative(resultTitle) { continue }
-                        
-                        let singers = song["singer"] as? [[String: Any]] ?? []
-                        let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                        
-                        if !isPinyinOrRomanized(resultTitle) {
-                            // 验证 1: 拼音匹配
-                            let queryTitlePinyin = normalizePinyin(toPinyin(title))
-                            let resultTitlePinyin = normalizePinyin(toPinyin(resultTitle))
-                            
-                            // 使用相似度判断代替严格相等
-                            guard isPinyinSimilar(queryTitlePinyin, resultTitlePinyin) else { return nil }
-                            
-                            // 验证 2: 歌手匹配
-                            if !isPinyinOrRomanized(artist) {
-                                let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
-                                let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
-                                
-                                let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
-                                                  resultArtistNormalized.contains(queryArtistNormalized)
-                                
-                                guard artistMatch else { continue }
-                            }
-                            
-                            print("MusicPlatformService: QQ 音乐成功获取中文元数据 (Idx: \(index))")
-                            return (resultTitle, resultArtist)
-                        }
+
+        func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
+            for (index, song) in songs.enumerated() {
+                let resultTitle = song.title
+                if resultTitle.isEmpty { continue }
+
+                if !allowDerivative && isDerivative(resultTitle) { continue }
+
+                let resultArtist = song.artist
+
+                if !isPinyinOrRomanized(resultTitle) {
+                    let queryTitlePinyin = normalizePinyin(toPinyin(title))
+                    let resultTitlePinyin = normalizePinyin(toPinyin(resultTitle))
+
+                    guard isPinyinSimilar(queryTitlePinyin, resultTitlePinyin) else { continue }
+
+                    if !isPinyinOrRomanized(artist) {
+                        let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                        let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+
+                        let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
+                                          resultArtistNormalized.contains(queryArtistNormalized)
+
+                        guard artistMatch else { continue }
                     }
-                    return nil
+
+                    print("MusicPlatformService: QQ 音乐成功获取中文元数据 (Idx: \(index))")
+                    return (resultTitle, resultArtist)
                 }
-                
-                if let match = findBestMatch(allowDerivative: false) { return match }
-                if let match = findBestMatch(allowDerivative: true) { return match }
             }
-        } catch {
-            print("MusicPlatformService: QQ 音乐中文元数据查询失败 - \(error)")
+            return nil
         }
-        
+
+        if let match = findBestMatch(allowDerivative: false) { return match }
+        if let match = findBestMatch(allowDerivative: true) { return match }
+
         return nil
     }
     
@@ -548,35 +619,21 @@ class MusicPlatformService {
     
     // QQ Music ID Search (Refactored for public use if needed, or private)
     func findQQMusicIDs(title: String, artist: String, strictness: MatchStrictness = .fuzzy) async -> [String] {
-         let query = "\(title) \(artist)"
-         // ... (Same implementation as before, abbreviated here)
-         // 实现逻辑与之前相同，这里简化：
-         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-               let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=5&w=\(encodedQuery)&format=json") else { return [] }
-         
-         do {
-             let (data, _) = try await URLSession.shared.data(from: url)
-             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let dataObj = json["data"] as? [String: Any],
-                let songObj = dataObj["song"] as? [String: Any],
-                let list = songObj["list"] as? [[String: Any]] {
-                 
-                 var candidates: [String] = []
-                 for song in list {
-                     guard let songmid = song["songmid"] as? String else { continue }
-                     let resultTitle = song["songname"] as? String ?? ""
-                     let singers = song["singer"] as? [[String: Any]] ?? []
-                     let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
-                     
-                     // Helper: isMatch Check
-                     if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultTitle, resultArtist: resultArtist, strictness: strictness) {
-                         candidates.append(songmid)
-                     }
-                 }
-                 return candidates
-             }
-         } catch {}
-         return []
+        let query = "\(title) \(artist)"
+        let candidates = await searchQQSongs(keyword: query, limit: 5)
+
+        return candidates.compactMap { song in
+            if isMatch(
+                queryTitle: title,
+                queryArtist: artist,
+                resultTitle: song.title,
+                resultArtist: song.artist,
+                strictness: strictness
+            ) {
+                return song.id
+            }
+            return nil
+        }
     }
     
     // NetEase ID Search
@@ -754,48 +811,8 @@ class MusicPlatformService {
     }
 
     private func searchQQSongCandidates(keyword: String, limit: Int) async -> [MusicSearchCandidate] {
-        guard let encodedQuery = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?aggr=1&cr=1&flag_qc=0&p=1&n=\(limit)&w=\(encodedQuery)&format=json") else {
-            return []
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let dataObj = json["data"] as? [String: Any],
-                  let songObj = dataObj["song"] as? [String: Any],
-                  let list = songObj["list"] as? [[String: Any]] else {
-                return []
-            }
-
-            return list.compactMap { song in
-                guard let songmid = song["songmid"] as? String,
-                      let title = song["songname"] as? String else {
-                    return nil
-                }
-
-                if isDerivative(title) { return nil }
-
-                let singers = song["singer"] as? [[String: Any]] ?? []
-                let artist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                let album = song["albumname"] as? String
-
-                return MusicSearchCandidate(
-                    platform: .qqMusic,
-                    id: songmid,
-                    title: title,
-                    artist: artist,
-                    album: album
-                )
-            }
-        } catch {
-            logger.error("QQ 歌词候选搜索失败 - \(error.localizedDescription)")
-            return []
-        }
+        let candidates = await searchQQSongs(keyword: keyword, limit: limit)
+        return candidates.filter { !isDerivative($0.title) }
     }
 
     private func searchNetEaseSongCandidates(keyword: String, limit: Int) async -> [MusicSearchCandidate] {

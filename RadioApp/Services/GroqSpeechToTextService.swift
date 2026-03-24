@@ -69,8 +69,15 @@ final class GroqSpeechToTextService {
     static let shared = GroqSpeechToTextService()
 
     private let logger = Logger(subsystem: "com.longhai.radioapp", category: "GroqSpeechToTextService")
+    private let session: URLSession
 
-    private init() {}
+    private init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 45
+        configuration.waitsForConnectivity = false
+        self.session = URLSession(configuration: configuration)
+    }
 
     var isConfigured: Bool {
         !(apiKey?.isEmpty ?? true)
@@ -81,11 +88,14 @@ final class GroqSpeechToTextService {
             throw GroqSpeechToTextError.missingAPIKey
         }
 
+        logger.info("Groq transcription started")
+        print("GroqSpeechToTextService: 开始预处理音频...")
         let uploadURL = try await prepareUploadAudio(from: fileURL)
         let boundary = "Boundary-\(UUID().uuidString)"
 
         var request = URLRequest(url: URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!)
         request.httpMethod = "POST"
+        request.timeoutInterval = 30
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
@@ -95,8 +105,10 @@ final class GroqSpeechToTextService {
             languageHint: normalizedLanguageHint(languageHint)
         )
 
-        let (data, response) = try await URLSession.shared.upload(for: request, from: body)
+        print("GroqSpeechToTextService: 音频预处理完成，开始上传至 Groq...")
+        let (data, response) = try await session.upload(for: request, from: body)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        print("GroqSpeechToTextService: Groq 已返回响应，状态码 \(statusCode)")
 
         guard (200..<300).contains(statusCode) else {
             let message = String(data: data, encoding: .utf8) ?? "unknown_error"
