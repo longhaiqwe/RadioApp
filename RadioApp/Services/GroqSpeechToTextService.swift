@@ -114,7 +114,8 @@ final class OpenRouterLyricsTranscriptionService {
 
         logger.info("OpenRouter lyric transcription started")
         print("OpenRouterLyricsTranscriptionService: 开始预处理音频...")
-        let uploadURL = try await prepareUploadAudio(from: fileURL)
+        let preparedAudio = try await prepareUploadAudio(from: fileURL)
+        let uploadURL = preparedAudio.fileURL
         defer { try? FileManager.default.removeItem(at: uploadURL) }
 
         let audioData = try Data(contentsOf: uploadURL)
@@ -143,7 +144,7 @@ final class OpenRouterLyricsTranscriptionService {
 
         let completion = try JSONDecoder().decode(OpenRouterChatCompletionResponse.self, from: data)
         let rawContent = completion.choices.first?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let transcription = try parseTranscription(from: rawContent)
+        let transcription = try parseTranscription(from: rawContent, audioDuration: preparedAudio.duration)
         let cleanedText = transcription.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !cleanedText.isEmpty else {
@@ -337,7 +338,7 @@ final class OpenRouterLyricsTranscriptionService {
         return try JSONSerialization.data(withJSONObject: payload)
     }
 
-    private func parseTranscription(from rawContent: String) throws -> LyricsTranscription {
+    private func parseTranscription(from rawContent: String, audioDuration: TimeInterval) throws -> LyricsTranscription {
         let jsonString = extractJSONPayload(from: rawContent)
         guard let jsonData = jsonString.data(using: .utf8) else {
             throw OpenRouterLyricsTranscriptionError.malformedModelOutput("无法读取模型返回的 JSON 文本")
@@ -348,7 +349,7 @@ final class OpenRouterLyricsTranscriptionService {
         let payload = try decoder.decode(LyricsAnalysisPayload.self, from: jsonData)
 
         let segmentsPayload = payload.snippets ?? payload.segments ?? []
-        let segments = segmentsPayload.compactMap { payload -> LyricsTranscriptionSegment? in
+        let rawSegments = segmentsPayload.compactMap { payload -> LyricsTranscriptionSegment? in
             let cleanedText = cleanedSnippetText(payload.text)
             guard !cleanedText.isEmpty else { return nil }
 
@@ -360,6 +361,7 @@ final class OpenRouterLyricsTranscriptionService {
                 confidence: payload.confidence ?? payload.confidenceScore
             )
         }
+        let segments = fillMissingSegmentTimingIfNeeded(in: rawSegments, audioDuration: audioDuration)
 
         let transcript = cleanedSnippetText(payload.transcript ?? payload.text ?? "")
         let finalText = transcript.isEmpty
@@ -395,7 +397,12 @@ final class OpenRouterLyricsTranscriptionService {
         return (rawMessage?.isEmpty == false ? rawMessage : nil) ?? "unknown_error"
     }
 
-    private func prepareUploadAudio(from fileURL: URL) async throws -> URL {
+    private struct PreparedAudioUpload {
+        let fileURL: URL
+        let duration: TimeInterval
+    }
+
+    private func prepareUploadAudio(from fileURL: URL) async throws -> PreparedAudioUpload {
         do {
             let buffer = try await readAudioBuffer(from: fileURL)
             let targetFormat = AVAudioFormat(
@@ -405,7 +412,11 @@ final class OpenRouterLyricsTranscriptionService {
                 interleaved: false
             )!
             let convertedBuffer = try convertBuffer(buffer, to: targetFormat)
-            return try writeWAVFile(from: convertedBuffer)
+            let duration = audioDuration(for: convertedBuffer)
+            return PreparedAudioUpload(
+                fileURL: try writeWAVFile(from: convertedBuffer),
+                duration: duration
+            )
         } catch {
             logger.error("OpenRouter audio preparation failed: \(error.localizedDescription, privacy: .public)")
             throw OpenRouterLyricsTranscriptionError.audioPreparationFailed(error.localizedDescription)
@@ -577,7 +588,60 @@ final class OpenRouterLyricsTranscriptionService {
         return outputURL
     }
 
+    private func audioDuration(for buffer: AVAudioPCMBuffer) -> TimeInterval {
+        guard buffer.format.sampleRate > 0 else { return 12 }
+        return max(Double(buffer.frameLength) / buffer.format.sampleRate, 1)
+    }
+
+    private func fillMissingSegmentTimingIfNeeded(
+        in segments: [LyricsTranscriptionSegment],
+        audioDuration: TimeInterval
+    ) -> [LyricsTranscriptionSegment] {
+        guard !segments.isEmpty else { return segments }
+        guard segments.allSatisfy({ $0.start == nil && $0.end == nil }) else { return segments }
+
+        let effectiveDuration = max(audioDuration, 6)
+        let weights = segments.map { max(Double(normalizedComparisonText($0.text).count), 4) }
+        let totalWeight = max(weights.reduce(0, +), 1)
+
+        var cursor: TimeInterval = 0
+        var estimatedSegments: [LyricsTranscriptionSegment] = []
+
+        for (index, segment) in segments.enumerated() {
+            let isLastSegment = index == segments.count - 1
+            let duration = isLastSegment
+                ? max(effectiveDuration - cursor, 0)
+                : effectiveDuration * (weights[index] / totalWeight)
+            let start = min(cursor, effectiveDuration)
+            let end = isLastSegment
+                ? effectiveDuration
+                : min(effectiveDuration, start + duration)
+
+            estimatedSegments.append(
+                LyricsTranscriptionSegment(
+                    id: segment.id,
+                    start: start,
+                    end: end,
+                    text: segment.text,
+                    confidence: segment.confidence
+                )
+            )
+
+            cursor = end
+        }
+
+        let durationText = String(format: "%.2f", effectiveDuration)
+        print("OpenRouterLyricsTranscriptionService: 模型未返回分段时间戳，已按 \(durationText)s 音频时长估算时间轴")
+        return estimatedSegments
+    }
+
     private func segmentPriority(lhs: LyricsTranscriptionSegment, rhs: LyricsTranscriptionSegment) -> Bool {
+        let lhsHasTiming = lhs.start != nil
+        let rhsHasTiming = rhs.start != nil
+        if lhsHasTiming != rhsHasTiming {
+            return lhsHasTiming
+        }
+
         if lhs.confidenceScore == rhs.confidenceScore {
             return lhs.text.count > rhs.text.count
         }

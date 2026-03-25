@@ -879,7 +879,11 @@ class MusicPlatformService {
             }
 
             let weightedScore = overlapScore * (0.85 + (snippet.confidenceScore * 0.15))
-            if weightedScore > bestScore {
+            let bestSnippetHasTiming = bestSnippet?.start != nil
+            let snippetHasTiming = snippet.start != nil
+
+            if weightedScore > bestScore + 0.0001 ||
+                (abs(weightedScore - bestScore) <= 0.0001 && snippetHasTiming && !bestSnippetHasTiming) {
                 bestScore = weightedScore
                 bestSnippet = snippet
             }
