@@ -405,7 +405,11 @@ struct PlayerView: View {
                         .foregroundColor(.white)
                     
                     if subscriptionManager.isPro {
-                        Text("剩余高级次数: \(subscriptionManager.currentCredits)")
+                        Text(
+                            shazamMatcher.shouldShowLyricRecognitionGuidance
+                            ? "选歌词清晰片段开始"
+                            : "剩余高级次数: \(subscriptionManager.currentCredits)"
+                        )
                             .font(.system(size: 9))
                             .foregroundColor(NeonColors.cyan.opacity(0.8))
                     }
@@ -660,6 +664,15 @@ struct PlayerView: View {
                 Text(shazamMatcher.matchingProgress.isEmpty ? "歌曲识别中..." : shazamMatcher.matchingProgress)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(NeonColors.cyan)
+            }
+
+            if shazamMatcher.shouldShowLyricRecognitionGuidance {
+                Text("提示：\(shazamMatcher.lyricRecognitionGuidanceText)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.72))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .padding(.horizontal, 12)
             }
             
             // 取消按钮

@@ -123,7 +123,7 @@ struct PrivacyPolicyView: View {
                 - **Radio Browser**: 为了获取电台列表，应用会向 Radio Browser API 发送匿名请求。
                 - **ShazamKit**: 音乐识别功能由 Apple ShazamKit 提供，音频指纹处理在设备端或通过 Apple 安全服务器进行，我们无法获取您的原始音频数据。
                 - **ACRCloud**: 高级识别功能会将音频指纹发送至 ACRCloud 进行匹配（仅限 Pro 用户主动触发）。
-                - **Groq Speech-to-Text**: 当常规识别失败且启用了歌词兜底时，应用会将采样得到的音频片段发送至 Groq 进行语音转写，以提取可能的歌词文本用于二次匹配。
+                - **OpenRouter (Xiaomi MiMo-V2-Omni)**: 当常规识别失败且启用了歌词兜底时，应用会将采样得到的音频片段发送至 OpenRouter，由 Xiaomi MiMo-V2-Omni 分析并提取可能的歌词文本，用于二次匹配。
 
                 4. 变更通知
                 随着法律法规或业务变动，我们可能会更新本政策。

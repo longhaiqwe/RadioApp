@@ -551,7 +551,7 @@ class MusicPlatformService {
         return nil
     }
 
-    func resolveSongFromLyricSnippets(_ snippets: [GroqLyricSnippet]) async -> LyricResolvedSong? {
+    func resolveSongFromLyricSnippets(_ snippets: [LyricSnippet]) async -> LyricResolvedSong? {
         let usableSnippets = snippets.filter { normalizedLyricSearchText($0.text).count >= 6 }
         guard !usableSnippets.isEmpty else { return nil }
 
@@ -576,7 +576,7 @@ class MusicPlatformService {
             uniqueCandidates.append(candidate)
         }
 
-        var bestCandidate: (candidate: MusicSearchCandidate, lyrics: String, snippet: GroqLyricSnippet, score: Double)?
+        var bestCandidate: (candidate: MusicSearchCandidate, lyrics: String, snippet: LyricSnippet, score: Double)?
 
         for candidate in uniqueCandidates.prefix(12) {
             guard let lyrics = await fetchLyrics(for: candidate) else { continue }
@@ -613,7 +613,7 @@ class MusicPlatformService {
                 lyrics: bestCandidate.lyrics,
                 matchedSnippet: bestCandidate.snippet
             ),
-            source: "GroqLyrics"
+            source: "OpenRouterLyrics"
         )
     }
     
@@ -860,12 +860,12 @@ class MusicPlatformService {
         }
     }
 
-    private func bestSnippetMatchScore(in lyrics: String, snippets: [GroqLyricSnippet]) -> (Double, GroqLyricSnippet?) {
+    private func bestSnippetMatchScore(in lyrics: String, snippets: [LyricSnippet]) -> (Double, LyricSnippet?) {
         let normalizedLyrics = normalizedLyricSearchText(lyrics)
         guard !normalizedLyrics.isEmpty else { return (0, nil) }
 
         var bestScore = 0.0
-        var bestSnippet: GroqLyricSnippet?
+        var bestSnippet: LyricSnippet?
 
         for snippet in snippets {
             let normalizedSnippet = normalizedLyricSearchText(snippet.text)
@@ -888,7 +888,7 @@ class MusicPlatformService {
         return (bestScore, bestSnippet)
     }
 
-    private func estimateSongOffsetAtClipStart(lyrics: String, matchedSnippet: GroqLyricSnippet) -> TimeInterval? {
+    private func estimateSongOffsetAtClipStart(lyrics: String, matchedSnippet: LyricSnippet) -> TimeInterval? {
         guard let snippetStart = matchedSnippet.start else { return nil }
 
         let lines = LRCParser.parse(lrc: lyrics)

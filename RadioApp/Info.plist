@@ -24,9 +24,9 @@
 	<string>拾音 FM</string>
 	<key>CFBundleName</key>
 	<string>拾音 FM</string>
-	<key>GROQ_SPEECH_MODEL</key>
-	<string>whisper-large-v3</string>
-	<key>MUSIC_RECOGNITION_FORCE_GROQ_ONLY</key>
+	<key>OPENROUTER_LYRIC_MODEL</key>
+	<string>xiaomi/mimo-v2-omni</string>
+	<key>MUSIC_RECOGNITION_FORCE_LYRIC_FALLBACK_ONLY</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
