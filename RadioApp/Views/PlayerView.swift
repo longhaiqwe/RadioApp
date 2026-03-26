@@ -1162,11 +1162,15 @@ struct PlayerView: View {
 
     private func preferredOpeningPreference(for platform: MusicPlatformLink) -> MusicPlatformLinkOpeningPreference {
 #if targetEnvironment(macCatalyst)
-        if platform == .netease {
+        switch platform {
+        case .netease:
             return .neteaseDesktopApp
+        case .qq:
+            return .qqDesktopApp
         }
-#endif
+#else
         return .appPreferred
+#endif
     }
 
     @MainActor

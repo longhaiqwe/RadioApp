@@ -7,6 +7,7 @@ struct MusicPlatformLinkResolverTests {
         testNetEaseSearchTargets()
         testNetEaseDesktopAppTargets()
         testQQSongTargets()
+        testQQDesktopAppTargets()
         testMissingTitleReturnsNil()
         print("MusicPlatformLinkResolverTests passed")
     }
@@ -85,6 +86,44 @@ struct MusicPlatformLinkResolverTests {
             targets?.fallbackURL?.absoluteString,
             "https://y.qq.com/n/ryqq/songDetail/004VBMk71TdUuR",
             "QQ fallback song URL should use the public web detail page"
+        )
+    }
+
+    private static func testQQDesktopAppTargets() {
+        let songTargets = MusicPlatformLinkResolver.makeTargets(
+            platform: .qq,
+            songID: "004VBMk71TdUuR",
+            title: "起风了",
+            artist: "买辣椒也用券",
+            openingPreference: .qqDesktopApp
+        )
+
+        expectEqual(
+            songTargets?.primaryURL.absoluteString,
+            "qqmusicmac://qq.com/media/playSonglist?p=%7B%22song%22:%5B%7B%22type%22:%220%22,%22songmid%22:%22004VBMk71TdUuR%22%7D%5D,%22action%22:%22play%22%7D",
+            "Mac QQ mode should use the desktop app song deep link"
+        )
+        expectNil(
+            songTargets?.fallbackURL,
+            "Mac QQ desktop mode should stay inside the native app instead of bouncing to the web"
+        )
+
+        let searchTargets = MusicPlatformLinkResolver.makeTargets(
+            platform: .qq,
+            songID: nil,
+            title: "起风了",
+            artist: "买辣椒也用券",
+            openingPreference: .qqDesktopApp
+        )
+
+        expectEqual(
+            searchTargets?.primaryURL.absoluteString,
+            "qqmusicmac://qq.com/ui/search?w=%E8%B5%B7%E9%A3%8E%E4%BA%86%20%E4%B9%B0%E8%BE%A3%E6%A4%92%E4%B9%9F%E7%94%A8%E5%88%B8",
+            "Mac QQ mode should use the desktop app search deep link"
+        )
+        expectNil(
+            searchTargets?.fallbackURL,
+            "Mac QQ desktop search mode should not fall back to the web"
         )
     }
 

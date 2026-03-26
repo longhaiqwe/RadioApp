@@ -9,6 +9,7 @@ enum MusicPlatformLinkOpeningPreference {
     case appPreferred
     case directWeb
     case neteaseDesktopApp
+    case qqDesktopApp
 }
 
 struct MusicPlatformLinkFollowUpLaunch: Equatable {
@@ -38,6 +39,10 @@ enum MusicPlatformLinkResolver {
             return makeNetEaseDesktopTargets(songID: normalizedSongID(songID), query: query)
         }
 
+        if openingPreference == .qqDesktopApp, platform == .qq {
+            return makeQQDesktopTargets(songID: normalizedSongID(songID), query: query)
+        }
+
         let appURL: URL
         let webURL: URL
         if let songID = normalizedSongID(songID) {
@@ -54,6 +59,8 @@ enum MusicPlatformLinkResolver {
         case .directWeb:
             return MusicPlatformLinkTargets(primaryURL: webURL, followUpLaunch: nil, fallbackURL: nil)
         case .neteaseDesktopApp:
+            return MusicPlatformLinkTargets(primaryURL: appURL, followUpLaunch: nil, fallbackURL: webURL)
+        case .qqDesktopApp:
             return MusicPlatformLinkTargets(primaryURL: appURL, followUpLaunch: nil, fallbackURL: webURL)
         }
     }
@@ -138,11 +145,37 @@ enum MusicPlatformLinkResolver {
         )
     }
 
+    private static func makeQQDesktopTargets(songID: String?, query: String) -> MusicPlatformLinkTargets {
+        guard let songID else {
+            return MusicPlatformLinkTargets(
+                primaryURL: qqDesktopSearchURL(query: query),
+                followUpLaunch: nil,
+                fallbackURL: nil
+            )
+        }
+
+        return MusicPlatformLinkTargets(
+            primaryURL: qqDesktopSongURL(songID: songID),
+            followUpLaunch: nil,
+            fallbackURL: nil
+        )
+    }
+
     private static func netEaseDesktopSongURL(songID: String) -> URL {
         // macOS 桌面版网易云会把 Base64 JSON 载荷作为 webcmd 入口消费。
         let payload = "{\"cmd\":\"play\",\"type\":\"song\",\"id\":\"\(jsonStringLiteral(songID))\",\"channel\":\"webset\"}"
         let encodedPayload = Data(payload.utf8).base64EncodedString()
         return URL(string: "orpheus://\(encodedPayload)")!
+    }
+
+    private static func qqDesktopSongURL(songID: String) -> URL {
+        let jsonString = "{\"song\":[{\"type\":\"0\",\"songmid\":\"\(songID)\"}],\"action\":\"play\"}"
+        let encodedJSON = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+        return URL(string: "qqmusicmac://qq.com/media/playSonglist?p=\(encodedJSON)")!
+    }
+
+    private static func qqDesktopSearchURL(query: String) -> URL {
+        URL(string: "qqmusicmac://qq.com/ui/search?w=\(query)")!
     }
 
     private static func jsonStringLiteral(_ value: String) -> String {
