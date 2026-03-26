@@ -6,12 +6,13 @@ struct PlayerView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @ObservedObject var favoritesManager = FavoritesManager.shared
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.openURL) private var openURL
     let onDismiss: (() -> Void)?
 
     @State private var rotation: Double = 0
     @State private var showVolumeSlider = true
     @State private var showFavoritesList = false
-    @State private var loadingPlatform: String? = nil // "netease" or "qq"
+    @State private var loadingPlatform: MusicPlatformLink? = nil
     @ObservedObject var shazamMatcher = ShazamMatcher.shared
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
     @State private var showLyrics = false // Lyrics Toggle State
@@ -946,12 +947,12 @@ struct PlayerView: View {
                     // 网易云音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "netease", title: title, artist: artistName)
+                            await openMusicApp(platform: .netease, title: title, artist: artistName)
                         }
                     }) {
                         ZStack {
                             MusicIconView(imageName: "NetEaseLogo", color: .red, scale: 1.2, size: 40)
-                            if loadingPlatform == "netease" {
+                            if loadingPlatform == .netease {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     .scaleEffect(0.8)
@@ -962,12 +963,12 @@ struct PlayerView: View {
                     // QQ音乐
                     Button(action: {
                         Task {
-                            await openMusicApp(platform: "qq", title: title, artist: artistName)
+                            await openMusicApp(platform: .qq, title: title, artist: artistName)
                         }
                     }) {
                         ZStack {
                             MusicIconView(imageName: "QQMusicLogo", color: .white, scale: 0.7, size: 37)
-                            if loadingPlatform == "qq" {
+                            if loadingPlatform == .qq {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .black))
                                     .scaleEffect(0.8)
@@ -1120,86 +1121,61 @@ struct PlayerView: View {
         }
     }
     
-    private func openMusicApp(platform: String, title: String?, artist: String?) async {
-        guard let title = title, let artist = artist else { return }
+    private func openMusicApp(platform: MusicPlatformLink, title: String?, artist: String?) async {
+        let safeTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let safeArtist = artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !safeTitle.isEmpty else { return }
         guard loadingPlatform == nil else { return }
         
         loadingPlatform = platform
-        
-        // 1. 尝试获取 Song ID
-        var songId: String? = nil
-        if platform == "netease" {
-            songId = await MusicPlatformService.shared.findNetEaseIDs(title: title, artist: artist).first
-        } else if platform == "qq" {
-            songId = await MusicPlatformService.shared.findQQMusicIDs(title: title, artist: artist).first
+        defer { loadingPlatform = nil }
+
+        // 先查平台内歌曲 ID，能直达就直达；如果失败则退回搜索页。
+        let songID: String?
+        switch platform {
+        case .netease:
+            songID = await MusicPlatformService.shared.findNetEaseIDs(title: safeTitle, artist: safeArtist).first
+        case .qq:
+            songID = await MusicPlatformService.shared.findQQMusicIDs(title: safeTitle, artist: safeArtist).first
         }
-        
-        // 2. 构建 URL
-        var finalURL: URL? = nil
-        
-        if let id = songId {
-            // ID 直达模式
-            if platform == "netease" {
-                // 网易云单曲链接: orpheus://song/{id}
-                finalURL = URL(string: "orpheus://song/\(id)")
-            } else if platform == "qq" {
-                // QQ音乐单曲链接
-                let jsonStr = "{\"song\":[{\"type\":\"0\",\"songmid\":\"\(id)\"}],\"action\":\"play\"}"
-                if let encodedJson = jsonStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                    finalURL = URL(string: "qqmusic://qq.com/media/playSonglist?p=\(encodedJson)")
-                }
+
+        guard let targets = MusicPlatformLinkResolver.makeTargets(
+            platform: platform,
+            songID: songID,
+            title: safeTitle,
+            artist: safeArtist,
+            openingPreference: preferredOpeningPreference(for: platform)
+        ) else {
+            return
+        }
+
+        let openedPrimaryURL = await openExternalURL(targets.primaryURL)
+        if openedPrimaryURL, let followUpLaunch = targets.followUpLaunch {
+            let delayInNanoseconds = UInt64(followUpLaunch.delay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayInNanoseconds)
+            _ = await openExternalURL(followUpLaunch.url)
+        } else if !openedPrimaryURL, let fallbackURL = targets.fallbackURL {
+            _ = await openExternalURL(fallbackURL)
+        }
+    }
+
+    private func preferredOpeningPreference(for platform: MusicPlatformLink) -> MusicPlatformLinkOpeningPreference {
+#if targetEnvironment(macCatalyst)
+        if platform == .netease {
+            return .neteaseDesktopApp
+        }
+#endif
+        return .appPreferred
+    }
+
+    @MainActor
+    private func openExternalURL(_ url: URL) async -> Bool {
+        await withCheckedContinuation { continuation in
+            openURL(url) { accepted in
+                continuation.resume(returning: accepted)
             }
         }
-        
-        // 3. 降级到搜索模式 (如果没找到 ID)
-        if finalURL == nil {
-            if platform == "netease" {
-                finalURL = getNetEaseSearchURL(title: title, artist: artist)
-            } else if platform == "qq" {
-                finalURL = getQQMusicSearchURL(title: title, artist: artist)
-            }
-        }
-        
-        // 4. 打开链接
-        if let url = finalURL {
-            await MainActor.run {
-                UIApplication.shared.open(url)
-            }
-        }
-        
-        loadingPlatform = nil
-    }
-    
-    private func getNetEaseSearchURL(title: String?, artist: String?) -> URL? {
-        guard let query = getSmartQuery(title: title, artist: artist) else { return nil }
-        // 网易云音乐搜索 Scheme
-        // 尝试添加 &type=1 指明搜索单曲，期望能触发搜索
-        return URL(string: "orpheus://search?keyword=\(query)&type=1")
-    }
-    
-    private func getQQMusicSearchURL(title: String?, artist: String?) -> URL? {
-        guard let query = getSmartQuery(title: title, artist: artist) else { return nil }
-        // QQ音乐搜索 Scheme
-        // 更新为 qqmusic://qq.com/ui/search?w=... 尝试修复跳转首页问题
-        return URL(string: "qqmusic://qq.com/ui/search?w=\(query)")
-    }
-    
-    // 生成更精准的搜索关键词
-    private func getSmartQuery(title: String?, artist: String?) -> String? {
-        let safeTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let safeArtist = artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
-        guard !safeTitle.isEmpty else { return nil }
-        
-        // 组合 歌名 + 歌手
-        let rawQuery: String
-        if !safeArtist.isEmpty {
-            rawQuery = "\(safeTitle) \(safeArtist)"
-        } else {
-            rawQuery = safeTitle
-        }
-        
-        return rawQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
     }
     
     // MARK: - 分享当前歌曲

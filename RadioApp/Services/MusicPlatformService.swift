@@ -143,6 +143,36 @@ class MusicPlatformService {
             return []
         }
     }
+
+    private func searchNetEaseSongs(keyword: String, limit: Int) async -> [MusicSearchCandidate] {
+        guard let request = NetEaseSearchResolver.makeSearchRequest(keyword: keyword, limit: limit) else {
+            logger.error("网易云搜索请求构造失败")
+            return []
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200..<300).contains(httpResponse.statusCode) {
+                logger.error("网易云搜索失败 - HTTP \(httpResponse.statusCode)")
+                return []
+            }
+
+            return try NetEaseSearchResolver.parseSongs(from: data).map { song in
+                MusicSearchCandidate(
+                    platform: .netEase,
+                    id: song.id,
+                    title: song.title,
+                    artist: song.artist,
+                    album: song.album
+                )
+            }
+        } catch {
+            logger.error("网易云搜索失败 - \(error.localizedDescription)")
+            return []
+        }
+    }
     
     // MARK: - 主入口
     
@@ -437,64 +467,46 @@ class MusicPlatformService {
     
     private func fetchChineseMetadataFromNetEase(title: String, artist: String) async -> (title: String, artist: String)? {
         let query = "\(title) \(artist)"
-        
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=5") else {
+
+        let songs = await searchNetEaseSongs(keyword: query, limit: 5)
+        guard !songs.isEmpty else {
             return nil
         }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let result = json["result"] as? [String: Any],
-               let songs = result["songs"] as? [[String: Any]] {
-                
-                func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
-                    for (index, song) in songs.enumerated() {
-                        let resultTitle = song["name"] as? String ?? ""
-                        if resultTitle.isEmpty { continue }
-                        
-                        if !allowDerivative && isDerivative(resultTitle) { continue }
-                        
-                        let singers = song["artists"] as? [[String: Any]] ?? []
-                        let resultArtist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                        
-                        if !isPinyinOrRomanized(resultTitle) {
-                             let queryTitlePinyin = normalizePinyin(toPinyin(title))
-                             let resultTitlePinyin = normalizePinyin(toPinyin(resultTitle))
-                             
-                             guard isPinyinSimilar(queryTitlePinyin, resultTitlePinyin) else { return nil }
-                            
-                            if !isPinyinOrRomanized(artist) {
-                                let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
-                                let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
-                                
-                                let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
-                                                  resultArtistNormalized.contains(queryArtistNormalized)
-                                
-                                guard artistMatch else { continue }
-                            }
-                            
-                            print("MusicPlatformService: 网易云成功获取中文元数据 (Idx: \(index))")
-                            return (resultTitle, resultArtist)
-                        }
+
+        func findBestMatch(allowDerivative: Bool) -> (title: String, artist: String)? {
+            for (index, song) in songs.enumerated() {
+                let resultTitle = song.title
+                if resultTitle.isEmpty { continue }
+
+                if !allowDerivative && isDerivative(resultTitle) { continue }
+
+                let resultArtist = song.artist
+
+                if !isPinyinOrRomanized(resultTitle) {
+                     let queryTitlePinyin = normalizePinyin(toPinyin(title))
+                     let resultTitlePinyin = normalizePinyin(toPinyin(resultTitle))
+
+                     guard isPinyinSimilar(queryTitlePinyin, resultTitlePinyin) else { return nil }
+
+                    if !isPinyinOrRomanized(artist) {
+                        let queryArtistNormalized = normalizeString(artist, removeParenthesesContent: false)
+                        let resultArtistNormalized = normalizeString(resultArtist, removeParenthesesContent: false)
+
+                        let artistMatch = queryArtistNormalized.contains(resultArtistNormalized) ||
+                                          resultArtistNormalized.contains(queryArtistNormalized)
+
+                        guard artistMatch else { continue }
                     }
-                    return nil
+
+                    print("MusicPlatformService: 网易云成功获取中文元数据 (Idx: \(index))")
+                    return (resultTitle, resultArtist)
                 }
-                
-                if let match = findBestMatch(allowDerivative: false) { return match }
-                if let match = findBestMatch(allowDerivative: true) { return match }
             }
-        } catch {
-            print("MusicPlatformService: 网易云中文元数据查询失败 - \(error)")
+            return nil
         }
-        
+
+        if let match = findBestMatch(allowDerivative: false) { return match }
+        if let match = findBestMatch(allowDerivative: true) { return match }
         return nil
     }
     
@@ -639,37 +651,41 @@ class MusicPlatformService {
     // NetEase ID Search
     func findNetEaseIDs(title: String, artist: String, strictness: MatchStrictness = .fuzzy) async -> [String] {
         let query = "\(title) \(artist)"
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=5") else { return [] }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let result = json["result"] as? [String: Any],
-               let songs = result["songs"] as? [[String: Any]] {
-                
-                var candidates: [String] = []
-                for song in songs {
-                    guard let id = song["id"] as? Int,
-                          let resultName = song["name"] as? String else { continue }
-                    let idStr = String(id)
-                    
-                    let singers = song["artists"] as? [[String: Any]] ?? []
-                    let resultArtist = singers.map { $0["name"] as? String ?? "" }.joined(separator: " ")
-                    
-                    if isMatch(queryTitle: title, queryArtist: artist, resultTitle: resultName, resultArtist: resultArtist, strictness: strictness) {
-                        candidates.append(idStr)
-                    }
-                }
-                return candidates
+        let candidates = await searchNetEaseSongs(keyword: query, limit: 5)
+        let matchedCandidates = candidates.filter { song in
+            isMatch(
+                queryTitle: title,
+                queryArtist: artist,
+                resultTitle: song.title,
+                resultArtist: song.artist,
+                strictness: strictness
+            )
+        }
+
+        let rankedCandidates = matchedCandidates.sorted { lhs, rhs in
+            let lhsScore = NetEaseSearchResolver.matchPriority(
+                queryTitle: title,
+                queryArtist: artist,
+                songTitle: lhs.title,
+                songArtist: lhs.artist,
+                songAlbum: lhs.album
+            )
+            let rhsScore = NetEaseSearchResolver.matchPriority(
+                queryTitle: title,
+                queryArtist: artist,
+                songTitle: rhs.title,
+                songArtist: rhs.artist,
+                songAlbum: rhs.album
+            )
+
+            if lhsScore != rhsScore {
+                return lhsScore > rhsScore
             }
-        } catch {}
-        return []
+
+            return lhs.id < rhs.id
+        }
+
+        return rankedCandidates.map(\.id)
     }
     
     // Lyrics Fetchers
@@ -816,48 +832,8 @@ class MusicPlatformService {
     }
 
     private func searchNetEaseSongCandidates(keyword: String, limit: Int) async -> [MusicSearchCandidate] {
-        guard let encodedQuery = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "http://music.163.com/api/search/get/web?s=\(encodedQuery)&type=1&offset=0&total=true&limit=\(limit)") else {
-            return []
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("http://music.163.com", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let result = json["result"] as? [String: Any],
-                  let songs = result["songs"] as? [[String: Any]] else {
-                return []
-            }
-
-            return songs.compactMap { song in
-                guard let id = song["id"] as? Int,
-                      let title = song["name"] as? String else {
-                    return nil
-                }
-
-                if isDerivative(title) { return nil }
-
-                let singers = song["artists"] as? [[String: Any]] ?? []
-                let artist = singers.compactMap { $0["name"] as? String }.joined(separator: " ")
-                let album = (song["album"] as? [String: Any])?["name"] as? String
-
-                return MusicSearchCandidate(
-                    platform: .netEase,
-                    id: String(id),
-                    title: title,
-                    artist: artist,
-                    album: album
-                )
-            }
-        } catch {
-            logger.error("网易云歌词候选搜索失败 - \(error.localizedDescription)")
-            return []
-        }
+        let candidates = await searchNetEaseSongs(keyword: keyword, limit: limit)
+        return candidates.filter { !isDerivative($0.title) }
     }
 
     private func bestSnippetMatchScore(in lyrics: String, snippets: [LyricSnippet]) -> (Double, LyricSnippet?) {
