@@ -41,7 +41,11 @@ describe("StationCard", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "收藏 清晨音乐台" }));
+    const favoriteButton = screen.getByRole("button", { name: "收藏 清晨音乐台" });
+
+    expect(favoriteButton).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(favoriteButton);
     expect(onToggleFavorite).toHaveBeenCalledWith(stationFixture);
     expect(onPlay).not.toHaveBeenCalled();
   });

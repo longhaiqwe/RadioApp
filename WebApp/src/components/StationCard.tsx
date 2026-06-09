@@ -50,6 +50,7 @@ export function StationCard({
         <IconButton
           label={`${isFavorite ? "取消收藏" : "收藏"} ${station.name}`}
           active={isFavorite}
+          aria-pressed={isFavorite}
           onClick={() => onToggleFavorite(station)}
         >
           <Heart size={18} fill={isFavorite ? "currentColor" : "none"} />

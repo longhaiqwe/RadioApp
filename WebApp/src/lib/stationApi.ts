@@ -19,10 +19,12 @@ export async function getTopStations(): Promise<Station[]> {
 }
 
 export async function searchStations(query: string): Promise<Station[]> {
-  if (query.trim().length === 0) return [];
+  const normalizedQuery = query.trim();
+
+  if (normalizedQuery.length === 0) return [];
 
   const data = await fetchJson<StationsResponse>(
-    `/api/stations/search?q=${encodeURIComponent(query)}`,
+    `/api/stations/search?q=${encodeURIComponent(normalizedQuery)}`,
   );
   return data.stations;
 }

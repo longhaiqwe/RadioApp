@@ -8,8 +8,10 @@ export function useTopStations() {
 }
 
 export function useStationSearch(query: string) {
+  const normalizedQuery = query.trim();
+
   return useSWR(
-    query.trim().length > 0 ? ["stations:search", query] : null,
+    normalizedQuery.length > 0 ? ["stations:search", normalizedQuery] : null,
     ([, value]) => searchStations(value),
   );
 }
