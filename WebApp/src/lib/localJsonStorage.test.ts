@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readJson, writeJson } from "./localJsonStorage";
 
 describe("localJsonStorage", () => {
@@ -18,5 +18,17 @@ describe("localJsonStorage", () => {
   it("returns fallback for invalid JSON", () => {
     window.localStorage.setItem("broken", "{");
     expect(readJson("broken", [])).toEqual([]);
+  });
+
+  it("swallows storage write failures", () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new DOMException("QuotaExceededError", "QuotaExceededError");
+      });
+
+    expect(() => writeJson("items", [{ id: "one" }])).not.toThrow();
+
+    setItemSpy.mockRestore();
   });
 });

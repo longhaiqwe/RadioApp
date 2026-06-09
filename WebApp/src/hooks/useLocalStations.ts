@@ -43,10 +43,19 @@ function normalizeStations(stations: Station[], limit: number): Station[] {
 }
 
 function isStation(value: unknown): value is Station {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const station = value as Partial<Station>;
+  const id = typeof station.id === "string" ? station.id.trim() : "";
+  const urlResolved =
+    typeof station.urlResolved === "string" ? station.urlResolved.trim() : "";
+  const url = typeof station.url === "string" ? station.url.trim() : "";
+
   return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { id?: unknown }).id === "string"
+    id.length > 0 &&
+    (urlResolved.length > 0 || url.length > 0)
   );
 }
 
