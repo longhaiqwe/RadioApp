@@ -104,6 +104,27 @@ describe("AudioPlayerProvider", () => {
     expect(onPlayedStation).toHaveBeenCalledWith(stationFixture);
   });
 
+  it("records played stations even when playback starts synchronously", async () => {
+    const onPlayedStation = vi.fn();
+    const user = userEvent.setup();
+
+    audio.play.mockImplementationOnce(async () => {
+      audio.emit("playing");
+    });
+
+    render(
+      <AudioPlayerProvider onPlayedStation={onPlayedStation}>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "播放" }));
+
+    await waitFor(() => {
+      expect(onPlayedStation).toHaveBeenCalledWith(stationFixture);
+    });
+  });
+
   it("forces a reload when retrying the current station", async () => {
     const user = userEvent.setup();
 

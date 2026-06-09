@@ -54,6 +54,7 @@ export function AudioPlayerProvider({
   const onPlayedStationRef = useRef(onPlayedStation);
   const playAttemptIdRef = useRef(0);
   const reportedPlayAttemptIdRef = useRef(0);
+  const currentPlaybackStationRef = useRef<Station | null>(null);
   const [state, dispatch] = useReducer(
     audioPlayerReducer,
     initialAudioPlayerState,
@@ -82,6 +83,7 @@ export function AudioPlayerProvider({
     }
 
     const source = station.urlResolved || station.url;
+    currentPlaybackStationRef.current = station;
     if (options.forceReload || audio.src !== source) {
       audio.src = source;
       audio.load();
@@ -118,7 +120,8 @@ export function AudioPlayerProvider({
 
     const onPlaying = () => {
       dispatch({ type: "playbackStarted" });
-      const currentStation = stateRef.current.currentStation;
+      const currentStation =
+        currentPlaybackStationRef.current ?? stateRef.current.currentStation;
       if (
         currentStation &&
         reportedPlayAttemptIdRef.current !== playAttemptIdRef.current
