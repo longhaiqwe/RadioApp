@@ -38,6 +38,7 @@ Package.resolved
 ## Local / Tools
 .claude/
 .superpowers/
+.worktrees/
 import_assets.py
 *.json
 *.png
