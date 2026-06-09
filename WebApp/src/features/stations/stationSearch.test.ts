@@ -10,6 +10,17 @@ describe("stationSearch", () => {
     expect(buildSearchKeywords("FM1017")).toEqual(["FM", "1017"]);
   });
 
+  it("matches a compact fm frequency search end to end", () => {
+    const keywords = buildSearchKeywords("FM1017");
+
+    expect(
+      stationMatchesKeywords(
+        { name: "FM 101.7 City Radio", tags: "music" },
+        keywords
+      )
+    ).toBe(true);
+  });
+
   it("matches frequency numbers with decimal form", () => {
     expect(
       stationMatchesKeywords(

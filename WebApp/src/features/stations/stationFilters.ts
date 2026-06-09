@@ -19,10 +19,34 @@ const MUSIC_KEYWORDS = [
   "之声",
 ];
 
+const BROAD_MUSIC_KEYWORDS = ["radio", "fm"];
+
+const NON_MUSIC_KEYWORDS = [
+  "news",
+  "talk",
+  "traffic",
+  "sports",
+  "新闻",
+  "资讯",
+  "交通",
+  "体育",
+];
+
 export function filterMusicStations(stations: Station[]): Station[] {
   return stations.filter((station) => {
     const haystack = `${station.name} ${station.tags}`.toLowerCase();
-    return MUSIC_KEYWORDS.some((keyword) => haystack.includes(keyword));
+    const hasMusicKeyword = MUSIC_KEYWORDS.some((keyword) =>
+      haystack.includes(keyword)
+    );
+    if (!hasMusicKeyword) return false;
+
+    const hasSpecificMusicKeyword = MUSIC_KEYWORDS.some(
+      (keyword) =>
+        !BROAD_MUSIC_KEYWORDS.includes(keyword) && haystack.includes(keyword)
+    );
+    if (hasSpecificMusicKeyword) return true;
+
+    return !NON_MUSIC_KEYWORDS.some((keyword) => haystack.includes(keyword));
   });
 }
 
