@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { stationFixture } from "@/test/fixtures";
 import Home from "./page";
 
 class MockAudio {
@@ -31,6 +33,19 @@ vi.mock("@/hooks/useStations", () => ({
 vi.stubGlobal("Audio", vi.fn(() => new MockAudio()));
 
 describe("Home page", () => {
+  it("shows favorites preview on the home tab when local favorites exist", () => {
+    window.localStorage.setItem(
+      "radioapp:web:favorites",
+      JSON.stringify([stationFixture]),
+    );
+
+    render(<Home />);
+
+    expect(screen.getByRole("heading", { name: "你的收藏" })).toBeInTheDocument();
+    expect(screen.getByText("下次回来，不用重新找。")).toBeInTheDocument();
+    expect(screen.getByText("清晨音乐台")).toBeInTheDocument();
+  });
+
   it("renders the RadioApp web shell", () => {
     render(<Home />);
 
@@ -47,6 +62,22 @@ describe("Home page", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "最近" })
+    ).toBeInTheDocument();
+  });
+
+  it("shows a no-results state after entering a search query with no matches", async () => {
+    const user = userEvent.setup();
+
+    render(<Home />);
+
+    await user.type(
+      screen.getByPlaceholderText("搜索电台、风格、地区..."),
+      "ambient"
+    );
+
+    expect(screen.getByText("还没有找到匹配电台")).toBeInTheDocument();
+    expect(
+      screen.getByText("换个关键词，或者试试地区和频率。")
     ).toBeInTheDocument();
   });
 });

@@ -21,6 +21,7 @@ type StationsSnapshotCacheEntry = {
 };
 
 const stationsSnapshotCache = new Map<string, StationsSnapshotCacheEntry>();
+const EMPTY_STATIONS: Station[] = [];
 
 const stringValue = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -141,7 +142,11 @@ export function useLocalStations(
     () => readStationsSnapshot(key, limit),
     [key, limit]
   );
-  const stations = useSyncExternalStore(subscribe, getSnapshot, () => []);
+  const stations = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    () => EMPTY_STATIONS
+  );
 
   return useMemo(
     () => ({

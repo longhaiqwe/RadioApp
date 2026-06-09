@@ -43,6 +43,18 @@ function parseSource(value: unknown): WaitlistSource {
   return "recognition";
 }
 
+export function normalizeWaitlistEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+export function isValidWaitlistEmail(email: string): boolean {
+  return (
+    email.length > 0 &&
+    email.length <= MAX_WAITLIST_EMAIL_LENGTH &&
+    EMAIL_PATTERN.test(email)
+  );
+}
+
 export function parseWaitlistRequest(
   input: unknown
 ): ParseWaitlistRequestResult {
@@ -50,13 +62,9 @@ export function parseWaitlistRequest(
     input !== null && typeof input === "object"
       ? (input as Record<string, unknown>)
       : {};
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const email = normalizeWaitlistEmail(body.email);
 
-  if (
-    email.length === 0 ||
-    email.length > MAX_WAITLIST_EMAIL_LENGTH ||
-    !EMAIL_PATTERN.test(email)
-  ) {
+  if (!isValidWaitlistEmail(email)) {
     return {
       ok: false,
       error: "请输入有效邮箱地址。",
