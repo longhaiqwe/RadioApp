@@ -22,6 +22,12 @@ type StationsSnapshotCacheEntry = {
 
 const stationsSnapshotCache = new Map<string, StationsSnapshotCacheEntry>();
 
+const stringValue = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+const numberValue = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : 0;
+
 function normalizeStations(stations: Station[], limit: number): Station[] {
   const seen = new Set<string>();
   const normalized: Station[] = [];
@@ -42,21 +48,54 @@ function normalizeStations(stations: Station[], limit: number): Station[] {
   return normalized;
 }
 
-function isStation(value: unknown): value is Station {
+function sanitizeStation(value: unknown): Station | null {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return null;
   }
 
-  const station = value as Partial<Station>;
-  const id = typeof station.id === "string" ? station.id.trim() : "";
-  const urlResolved =
-    typeof station.urlResolved === "string" ? station.urlResolved.trim() : "";
-  const url = typeof station.url === "string" ? station.url.trim() : "";
+  const record = value as Record<string, unknown>;
+  const stationuuid = stringValue(record.stationuuid) || stringValue(record.id);
+  const name = stringValue(record.name).trim();
+  const url = stringValue(record.url);
+  const urlResolved = stringValue(record.urlResolved) || url;
+  const id = stationuuid.trim();
 
-  return (
-    id.length > 0 &&
-    (urlResolved.length > 0 || url.length > 0)
-  );
+  if (id.length === 0 || name.length === 0 || urlResolved.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    changeuuid: stringValue(record.changeuuid),
+    stationuuid,
+    id,
+    name,
+    url,
+    urlResolved,
+    homepage: stringValue(record.homepage),
+    favicon: stringValue(record.favicon),
+    tags: stringValue(record.tags),
+    country: stringValue(record.country),
+    countrycode: stringValue(record.countrycode),
+    state: stringValue(record.state),
+    language: stringValue(record.language),
+    languagecodes:
+      typeof record.languagecodes === "string" ? record.languagecodes : null,
+    votes: numberValue(record.votes),
+    codec: stringValue(record.codec),
+    bitrate: numberValue(record.bitrate),
+    hls: numberValue(record.hls),
+    lastcheckok: numberValue(record.lastcheckok),
+    clickcount: numberValue(record.clickcount),
+    clicktrend: numberValue(record.clicktrend),
+  };
+}
+
+function readStorageSnapshot(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function readStationsSnapshot(key: string, limit: number): Station[] {
@@ -65,7 +104,7 @@ function readStationsSnapshot(key: string, limit: number): Station[] {
   }
 
   const cacheKey = `${key}:${limit}`;
-  const raw = window.localStorage.getItem(key);
+  const raw = readStorageSnapshot(key);
   const cached = stationsSnapshotCache.get(cacheKey);
 
   if (cached && cached.raw === raw) {
@@ -74,7 +113,12 @@ function readStationsSnapshot(key: string, limit: number): Station[] {
 
   const stored = readJson<unknown>(key, []);
   const stations = Array.isArray(stored)
-    ? normalizeStations(stored.filter(isStation), limit)
+    ? normalizeStations(
+        stored
+          .map(sanitizeStation)
+          .filter((station): station is Station => station !== null),
+        limit
+      )
     : [];
 
   stationsSnapshotCache.set(cacheKey, {

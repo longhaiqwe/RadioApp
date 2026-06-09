@@ -101,7 +101,13 @@ describe("useLocalStations", () => {
   it("drops shape-mismatched stored payloads", () => {
     window.localStorage.setItem(
       "radioapp:web:favorites",
-      JSON.stringify([null, { id: 123 }, { id: "station-bad" }, stationFixture])
+      JSON.stringify([
+        null,
+        { id: 123 },
+        { id: "station-bad" },
+        { id: "playable-but-partial", url: "https://example.com/live.mp3" },
+        stationFixture,
+      ])
     );
 
     const { result } = renderHook(() =>
