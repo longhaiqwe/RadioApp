@@ -19,7 +19,7 @@ const MUSIC_KEYWORDS = [
   "之声",
 ];
 
-const BROAD_MUSIC_KEYWORDS = ["radio", "fm"];
+const BROAD_MUSIC_KEYWORDS = ["radio", "fm", "电台", "之声"];
 
 const NON_MUSIC_KEYWORDS = [
   "news",

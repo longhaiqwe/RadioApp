@@ -72,6 +72,73 @@ describe("stationFilters", () => {
     ]);
   });
 
+  it("keeps broad-only radio stations when no negative terms exist", () => {
+    const cityFmStation = {
+      ...stationFixture,
+      id: "city-fm",
+      stationuuid: "city-fm",
+      name: "City FM",
+      tags: "",
+    };
+    const communityRadioStation = {
+      ...stationFixture,
+      id: "community-radio",
+      stationuuid: "community-radio",
+      name: "Community Radio",
+      tags: "",
+    };
+
+    expect(
+      filterMusicStations([cityFmStation, communityRadioStation]).map(
+        (station) => station.id
+      )
+    ).toEqual(["city-fm", "community-radio"]);
+  });
+
+  it("keeps stations with negative terms when a specific music term exists", () => {
+    const rockNewsStation = {
+      ...stationFixture,
+      id: "rock-news",
+      stationuuid: "rock-news",
+      name: "Rock News FM",
+      tags: "news",
+    };
+
+    expect(filterMusicStations([rockNewsStation])).toEqual([rockNewsStation]);
+  });
+
+  it("excludes Chinese non-music broad stations without specific music terms", () => {
+    const trafficStation = {
+      ...stationFixture,
+      id: "traffic-radio",
+      stationuuid: "traffic-radio",
+      name: "交通电台",
+      tags: "",
+    };
+    const newsVoiceStation = {
+      ...stationFixture,
+      id: "news-voice",
+      stationuuid: "news-voice",
+      name: "新闻之声",
+      tags: "",
+    };
+    const musicNewsVoiceStation = {
+      ...stationFixture,
+      id: "music-news-voice",
+      stationuuid: "music-news-voice",
+      name: "音乐新闻之声",
+      tags: "",
+    };
+
+    expect(
+      filterMusicStations([
+        trafficStation,
+        newsVoiceStation,
+        musicNewsVoiceStation,
+      ]).map((station) => station.id)
+    ).toEqual(["music-news-voice"]);
+  });
+
   it("deduplicates by station id", () => {
     const stations = dedupeStationsById([
       stationFixture,
