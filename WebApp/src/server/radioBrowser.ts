@@ -22,6 +22,8 @@ const MIRRORS = [
   "https://all.api.radio-browser.info/json",
 ];
 
+const REQUEST_TIMEOUT_MS = 8000;
+
 type StationSearchPayload = Record<string, boolean | number | string>;
 
 type NextFetchInit = RequestInit & {
@@ -44,6 +46,10 @@ export async function postStationSearch(
           "User-Agent": "RadioApp-Web/1.0",
         },
         body: JSON.stringify(payload),
+        signal:
+          typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+            : undefined,
         next: { revalidate: 120 },
       } satisfies NextFetchInit);
 
@@ -77,7 +83,12 @@ export async function fetchTopStations(limit = 20): Promise<Station[]> {
       hidebroken: true,
     });
 
-    return filterMusicStations(stations).slice(0, limit);
+    const musicStations = filterMusicStations(stations);
+    if (musicStations.length === 0) {
+      return presetStations.slice(0, limit);
+    }
+
+    return musicStations.slice(0, limit);
   } catch {
     return presetStations.slice(0, limit);
   }
@@ -111,7 +122,10 @@ export async function fetchRandomStation(
       hidebroken: true,
     });
 
-    return pickRandomStation(filterMusicStations(stations), excludedId);
+    return (
+      pickRandomStation(filterMusicStations(stations), excludedId) ??
+      pickRandomStation(presetStations, excludedId)
+    );
   } catch {
     return pickRandomStation(presetStations, excludedId);
   }
