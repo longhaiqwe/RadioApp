@@ -29,6 +29,10 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
 const PLAYBACK_ERROR_MESSAGE = "该电台暂不支持浏览器播放。";
 const USER_ACTION_REQUIRED_MESSAGE = "请点击播放以开始收听。";
 
+type StartPlaybackOptions = {
+  forceReload?: boolean;
+};
+
 function currentPlaylistIndex(state: AudioPlayerState): number {
   if (!state.currentStation) {
     return -1;
@@ -67,15 +71,19 @@ export function AudioPlayerProvider({
     onPlayedStationRef.current = onPlayedStation;
   }, [onPlayedStation]);
 
-  const startPlayback = useCallback(async (station: Station) => {
+  const startPlayback = useCallback(async (
+    station: Station,
+    options: StartPlaybackOptions = {}
+  ) => {
     const audio = audioRef.current;
     if (!audio) {
       return;
     }
 
     const source = station.urlResolved || station.url;
-    if (audio.src !== source) {
+    if (options.forceReload || audio.src !== source) {
       audio.src = source;
+      audio.load();
     }
     audio.volume = stateRef.current.volume;
 
@@ -142,8 +150,9 @@ export function AudioPlayerProvider({
 
   const playStation = useCallback(
     (station: Station, playlist: Station[], playlistTitle: string) => {
+      const shouldForceReload = stateRef.current.currentStation?.id === station.id;
       dispatch({ type: "playStation", station, playlist, playlistTitle });
-      void startPlayback(station);
+      void startPlayback(station, { forceReload: shouldForceReload });
     },
     [startPlayback]
   );

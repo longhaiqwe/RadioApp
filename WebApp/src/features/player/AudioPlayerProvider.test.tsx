@@ -11,6 +11,7 @@ class MockAudio {
   volume = 0.5;
   play = vi.fn(async () => undefined);
   pause = vi.fn();
+  load = vi.fn();
   private listeners = new Map<string, Set<AudioListener>>();
 
   addEventListener(type: string, listener: AudioListener) {
@@ -95,5 +96,21 @@ describe("AudioPlayerProvider", () => {
     });
 
     expect(onPlayedStation).toHaveBeenCalledWith(stationFixture);
+  });
+
+  it("forces a reload when retrying the current station", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "播放" }));
+    await user.click(screen.getByRole("button", { name: "播放" }));
+
+    expect(audio.load).toHaveBeenCalledTimes(2);
+    expect(audio.play).toHaveBeenCalledTimes(2);
   });
 });
