@@ -11,11 +11,20 @@ describe("useLocalStations", () => {
   it("hydrates from local storage on first render", () => {
     window.localStorage.setItem(
       "radioapp:web:favorites",
-      JSON.stringify([stationFixture])
+      JSON.stringify([
+        stationFixture,
+        stationFixture,
+        {
+          ...stationFixture,
+          id: "station-2",
+          stationuuid: "station-2",
+          name: "Second",
+        },
+      ])
     );
 
     const { result } = renderHook(() =>
-      useLocalStations("radioapp:web:favorites", 30)
+      useLocalStations("radioapp:web:favorites", 1)
     );
 
     expect(result.current.stations).toEqual([stationFixture]);
@@ -37,7 +46,7 @@ describe("useLocalStations", () => {
 
   it("keeps the newest station at the front and caps length", () => {
     const { result } = renderHook(() =>
-      useLocalStations("radioapp:web:recent", 1)
+      useLocalStations("radioapp:web:recent", 2)
     );
 
     act(() => result.current.addStation(stationFixture));
@@ -52,6 +61,7 @@ describe("useLocalStations", () => {
 
     expect(result.current.stations.map((station) => station.id)).toEqual([
       "station-2",
+      "station-1",
     ]);
   });
 });

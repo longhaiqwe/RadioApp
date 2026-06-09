@@ -11,12 +11,32 @@ type LocalStationsState = {
   hasStation: (stationId: string) => boolean;
 };
 
+function normalizeStations(stations: Station[], limit: number): Station[] {
+  const seen = new Set<string>();
+  const normalized: Station[] = [];
+
+  for (const station of stations) {
+    if (seen.has(station.id)) {
+      continue;
+    }
+
+    seen.add(station.id);
+    normalized.push(station);
+
+    if (normalized.length >= limit) {
+      break;
+    }
+  }
+
+  return normalized;
+}
+
 export function useLocalStations(
   key: string,
   limit: number
 ): LocalStationsState {
   const [stations, setStations] = useState<Station[]>(() =>
-    readJson<Station[]>(key, [])
+    normalizeStations(readJson<Station[]>(key, []), limit)
   );
 
   useEffect(() => {
@@ -31,7 +51,7 @@ export function useLocalStations(
           const withoutDuplicate = current.filter(
             (item) => item.id !== station.id
           );
-          return [station, ...withoutDuplicate].slice(0, limit);
+          return normalizeStations([station, ...withoutDuplicate], limit);
         });
       },
       removeStation: (stationId: string) => {
