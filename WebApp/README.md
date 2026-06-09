@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RadioApp Web MVP
 
-## Getting Started
+Browser client for `拾音 FM`.
 
-First, run the development server:
+The web MVP is intentionally focused: open the site, discover stations, and start listening fast. Song recognition stays as a macOS-directed upgrade path for now.
+
+## Scope
+
+This version includes:
+
+- station discovery
+- station search
+- browser playback with mini player and expanded player
+- local favorites
+- local recent plays
+- macOS waitlist capture for recognition interest
+
+This version does not include:
+
+- web song recognition
+- web payments or subscriptions
+- account sync
+- iOS distribution
+
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and set:
 
-## Learn More
+```dotenv
+SUPABASE_URL=https://example.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_replace_me
+```
 
-To learn more about Next.js, take a look at the following resources:
+`SUPABASE_SECRET_KEY` must only be used by server-side route handlers.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+If `.env.local` is missing, the waitlist API will return an error response, but the station APIs and core listening flow will still work locally.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Checks
 
-## Deploy on Vercel
+```bash
+npm run test
+npm run lint
+npm run build
+npm run e2e
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- UI tokens and visual language are ported from the existing SwiftUI neon/glass design system.
+- Favorites, recent plays, and volume are stored locally in the browser.
+- `radio-browser.info` data is proxied through Next.js route handlers instead of being fetched directly in UI components.
+- Waitlist submissions are handled server-side and upserted into Supabase by email.
