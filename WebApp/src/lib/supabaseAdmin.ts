@@ -2,7 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export function createSupabaseAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseSecretKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseSecretKey) {
     throw new Error("Missing Supabase server environment variables");
