@@ -12,6 +12,9 @@ type ParseWaitlistRequestResult =
   | { ok: false; error: string };
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MAX_WAITLIST_EMAIL_LENGTH = 320;
+export const MAX_WAITLIST_STATION_ID_LENGTH = 128;
+export const MAX_WAITLIST_USER_AGENT_LENGTH = 512;
 
 const VALID_SOURCES = new Set<WaitlistSource>([
   "recognition",
@@ -19,13 +22,17 @@ const VALID_SOURCES = new Set<WaitlistSource>([
   "settings",
 ]);
 
-function nullableTrimmedString(value: unknown): string | null {
+function nullableTrimmedString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return trimmed.slice(0, maxLength);
 }
 
 function parseSource(value: unknown): WaitlistSource {
@@ -45,7 +52,11 @@ export function parseWaitlistRequest(
       : {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
-  if (!EMAIL_PATTERN.test(email)) {
+  if (
+    email.length === 0 ||
+    email.length > MAX_WAITLIST_EMAIL_LENGTH ||
+    !EMAIL_PATTERN.test(email)
+  ) {
     return {
       ok: false,
       error: "请输入有效邮箱地址。",
@@ -57,8 +68,14 @@ export function parseWaitlistRequest(
     value: {
       email,
       source: parseSource(body.source),
-      stationId: nullableTrimmedString(body.stationId),
-      userAgent: nullableTrimmedString(body.userAgent),
+      stationId: nullableTrimmedString(
+        body.stationId,
+        MAX_WAITLIST_STATION_ID_LENGTH
+      ),
+      userAgent: nullableTrimmedString(
+        body.userAgent,
+        MAX_WAITLIST_USER_AGENT_LENGTH
+      ),
     },
   };
 }

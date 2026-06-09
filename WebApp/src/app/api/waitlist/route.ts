@@ -24,11 +24,15 @@ export async function POST(request: Request) {
     return Response.json({ error: WAITLIST_SAVE_ERROR }, { status: 502 });
   }
 
-  const result = await saveWaitlistSubmission(clientResult.client, parsed.value);
+  try {
+    const result = await saveWaitlistSubmission(clientResult.client, parsed.value);
 
-  if (!result.ok) {
+    if (!result.ok) {
+      return Response.json({ error: WAITLIST_SAVE_ERROR }, { status: 502 });
+    }
+
+    return Response.json({ ok: true });
+  } catch {
     return Response.json({ error: WAITLIST_SAVE_ERROR }, { status: 502 });
   }
-
-  return Response.json({ ok: true });
 }
