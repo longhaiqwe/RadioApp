@@ -26,6 +26,18 @@ type AudioPlayerContextValue = {
 };
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
+const PLAYBACK_ERROR_MESSAGE = "该电台暂不支持浏览器播放。";
+const USER_ACTION_REQUIRED_MESSAGE = "请点击播放以开始收听。";
+
+function currentPlaylistIndex(state: AudioPlayerState): number {
+  if (!state.currentStation) {
+    return -1;
+  }
+
+  return state.playlist.findIndex(
+    (station) => station.id === state.currentStation?.id
+  );
+}
 
 export function AudioPlayerProvider({
   children,
@@ -35,50 +47,90 @@ export function AudioPlayerProvider({
   onPlayedStation?: (station: Station) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [state, dispatch] = useReducer(audioPlayerReducer, {
-    ...initialAudioPlayerState,
-    volume: readJson<number>("radioapp:web:volume", 0.5),
-  });
+  const onPlayedStationRef = useRef(onPlayedStation);
+  const playAttemptIdRef = useRef(0);
+  const [state, dispatch] = useReducer(
+    audioPlayerReducer,
+    initialAudioPlayerState,
+    (initialState) => ({
+      ...initialState,
+      volume: readJson<number>("radioapp:web:volume", 0.5),
+    })
+  );
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    onPlayedStationRef.current = onPlayedStation;
+  }, [onPlayedStation]);
+
+  const startPlayback = useCallback(async (station: Station) => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    const source = station.urlResolved || station.url;
+    if (audio.src !== source) {
+      audio.src = source;
+    }
+    audio.volume = stateRef.current.volume;
+
+    const playAttemptId = ++playAttemptIdRef.current;
+
+    try {
+      await audio.play();
+    } catch (error) {
+      if (playAttemptId !== playAttemptIdRef.current) {
+        return;
+      }
+
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      dispatch({
+        type: "playbackError",
+        message:
+          error instanceof DOMException && error.name === "NotAllowedError"
+            ? USER_ACTION_REQUIRED_MESSAGE
+            : PLAYBACK_ERROR_MESSAGE,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
-
-    return () => {
-      audio.pause();
-      audioRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!audioRef.current || !state.currentStation) return;
-
-    const audio = audioRef.current;
-    const currentStation = state.currentStation;
-
-    audio.src = currentStation.urlResolved || currentStation.url;
-    audio.volume = state.volume;
+    audio.volume = stateRef.current.volume;
 
     const onPlaying = () => {
       dispatch({ type: "playbackStarted" });
-      onPlayedStation?.(currentStation);
+      const currentStation = stateRef.current.currentStation;
+      if (currentStation) {
+        onPlayedStationRef.current?.(currentStation);
+      }
     };
     const onError = () => {
       dispatch({
         type: "playbackError",
-        message: "该电台暂不支持浏览器播放。",
+        message: PLAYBACK_ERROR_MESSAGE,
       });
     };
 
     audio.addEventListener("playing", onPlaying);
     audio.addEventListener("error", onError);
-    void audio.play().catch(() => onError());
 
     return () => {
       audio.removeEventListener("playing", onPlaying);
       audio.removeEventListener("error", onError);
+      audio.pause();
+      audioRef.current = null;
     };
-  }, [onPlayedStation, state.currentStation, state.volume]);
+  }, []);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -91,40 +143,73 @@ export function AudioPlayerProvider({
   const playStation = useCallback(
     (station: Station, playlist: Station[], playlistTitle: string) => {
       dispatch({ type: "playStation", station, playlist, playlistTitle });
+      void startPlayback(station);
     },
-    [],
+    [startPlayback]
   );
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || !state.currentStation) return;
+    const currentStation = stateRef.current.currentStation;
+    if (!audio || !currentStation) return;
 
-    if (state.isPlaying) {
+    if (stateRef.current.isPlaying) {
       audio.pause();
       dispatch({ type: "pause" });
       return;
     }
 
-    void audio.play().catch(() =>
-      dispatch({
-        type: "playbackError",
-        message: "该电台暂不支持浏览器播放。",
-      }),
-    );
-  }, [state.currentStation, state.isPlaying]);
+    void startPlayback(currentStation);
+  }, [startPlayback]);
+
+  const next = useCallback(() => {
+    const currentState = stateRef.current;
+    const index = currentPlaylistIndex(currentState);
+    if (index < 0 || currentState.playlist.length === 0) {
+      return;
+    }
+
+    const station =
+      currentState.playlist[(index + 1) % currentState.playlist.length];
+    if (!station) {
+      return;
+    }
+
+    dispatch({ type: "next" });
+    void startPlayback(station);
+  }, [startPlayback]);
+
+  const previous = useCallback(() => {
+    const currentState = stateRef.current;
+    const index = currentPlaylistIndex(currentState);
+    if (index < 0 || currentState.playlist.length === 0) {
+      return;
+    }
+
+    const station =
+      currentState.playlist[
+        (index - 1 + currentState.playlist.length) % currentState.playlist.length
+      ];
+    if (!station) {
+      return;
+    }
+
+    dispatch({ type: "previous" });
+    void startPlayback(station);
+  }, [startPlayback]);
 
   const value = useMemo<AudioPlayerContextValue>(
     () => ({
       state,
       playStation,
       togglePlayPause,
-      next: () => dispatch({ type: "next" }),
-      previous: () => dispatch({ type: "previous" }),
+      next,
+      previous,
       setVolume: (volume: number) => dispatch({ type: "setVolume", volume }),
       setExpanded: (expanded: boolean) =>
         dispatch({ type: "setExpanded", expanded }),
     }),
-    [playStation, state, togglePlayPause],
+    [next, playStation, previous, state, togglePlayPause],
   );
 
   return (
