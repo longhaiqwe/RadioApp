@@ -15,11 +15,9 @@ export function useLocalStations(
   key: string,
   limit: number
 ): LocalStationsState {
-  const [stations, setStations] = useState<Station[]>([]);
-
-  useEffect(() => {
-    setStations(readJson<Station[]>(key, []));
-  }, [key]);
+  const [stations, setStations] = useState<Station[]>(() =>
+    readJson<Station[]>(key, [])
+  );
 
   useEffect(() => {
     writeJson(key, stations);

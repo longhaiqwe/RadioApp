@@ -8,6 +8,20 @@ describe("useLocalStations", () => {
     window.localStorage.clear();
   });
 
+  it("hydrates from local storage on first render", () => {
+    window.localStorage.setItem(
+      "radioapp:web:favorites",
+      JSON.stringify([stationFixture])
+    );
+
+    const { result } = renderHook(() =>
+      useLocalStations("radioapp:web:favorites", 30)
+    );
+
+    expect(result.current.stations).toEqual([stationFixture]);
+    expect(result.current.hasStation(stationFixture.id)).toBe(true);
+  });
+
   it("adds and removes favorite stations", () => {
     const { result } = renderHook(() =>
       useLocalStations("radioapp:web:favorites", 30)
