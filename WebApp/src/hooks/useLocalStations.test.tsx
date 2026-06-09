@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { stationFixture } from "@/test/fixtures";
+import { secondStationFixture, stationFixture } from "@/test/fixtures";
 import { useLocalStations } from "./useLocalStations";
 
 describe("useLocalStations", () => {
@@ -63,5 +63,51 @@ describe("useLocalStations", () => {
       "station-2",
       "station-1",
     ]);
+  });
+
+  it("syncs multiple consumers of the same key", () => {
+    const first = renderHook(() => useLocalStations("radioapp:web:recent", 30));
+    const second = renderHook(() => useLocalStations("radioapp:web:recent", 30));
+
+    act(() => first.result.current.addStation(stationFixture));
+
+    expect(second.result.current.stations).toEqual([stationFixture]);
+    expect(second.result.current.hasStation(stationFixture.id)).toBe(true);
+  });
+
+  it("re-hydrates when the storage key changes", () => {
+    window.localStorage.setItem(
+      "radioapp:web:favorites",
+      JSON.stringify([stationFixture])
+    );
+    window.localStorage.setItem(
+      "radioapp:web:recent",
+      JSON.stringify([secondStationFixture])
+    );
+
+    const { result, rerender } = renderHook(
+      ({ storageKey }) => useLocalStations(storageKey, 30),
+      {
+        initialProps: { storageKey: "radioapp:web:favorites" },
+      }
+    );
+
+    expect(result.current.stations).toEqual([stationFixture]);
+
+    rerender({ storageKey: "radioapp:web:recent" });
+    expect(result.current.stations).toEqual([secondStationFixture]);
+  });
+
+  it("drops shape-mismatched stored payloads", () => {
+    window.localStorage.setItem(
+      "radioapp:web:favorites",
+      JSON.stringify([null, { id: 123 }, stationFixture])
+    );
+
+    const { result } = renderHook(() =>
+      useLocalStations("radioapp:web:favorites", 30)
+    );
+
+    expect(result.current.stations).toEqual([stationFixture]);
   });
 });

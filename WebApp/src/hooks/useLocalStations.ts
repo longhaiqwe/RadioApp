@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { Station } from "@/features/stations/stationTypes";
-import { readJson, writeJson } from "@/lib/localJsonStorage";
+import {
+  readJson,
+  subscribeJsonStorage,
+  writeJson,
+} from "@/lib/localJsonStorage";
 
 type LocalStationsState = {
   stations: Station[];
@@ -10,6 +14,13 @@ type LocalStationsState = {
   removeStation: (stationId: string) => void;
   hasStation: (stationId: string) => boolean;
 };
+
+type StationsSnapshotCacheEntry = {
+  raw: string | null;
+  stations: Station[];
+};
+
+const stationsSnapshotCache = new Map<string, StationsSnapshotCacheEntry>();
 
 function normalizeStations(stations: Station[], limit: number): Station[] {
   const seen = new Set<string>();
@@ -31,35 +42,70 @@ function normalizeStations(stations: Station[], limit: number): Station[] {
   return normalized;
 }
 
+function isStation(value: unknown): value is Station {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function readStationsSnapshot(key: string, limit: number): Station[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const cacheKey = `${key}:${limit}`;
+  const raw = window.localStorage.getItem(key);
+  const cached = stationsSnapshotCache.get(cacheKey);
+
+  if (cached && cached.raw === raw) {
+    return cached.stations;
+  }
+
+  const stored = readJson<unknown>(key, []);
+  const stations = Array.isArray(stored)
+    ? normalizeStations(stored.filter(isStation), limit)
+    : [];
+
+  stationsSnapshotCache.set(cacheKey, {
+    raw,
+    stations,
+  });
+
+  return stations;
+}
+
 export function useLocalStations(
   key: string,
   limit: number
 ): LocalStationsState {
-  const [stations, setStations] = useState<Station[]>(() =>
-    normalizeStations(readJson<Station[]>(key, []), limit)
+  const subscribe = useCallback(
+    (onChange: () => void) => subscribeJsonStorage(key, onChange),
+    [key]
   );
-
-  useEffect(() => {
-    writeJson(key, stations);
-  }, [key, stations]);
+  const getSnapshot = useCallback(
+    () => readStationsSnapshot(key, limit),
+    [key, limit]
+  );
+  const stations = useSyncExternalStore(subscribe, getSnapshot, () => []);
 
   return useMemo(
     () => ({
       stations,
       addStation: (station: Station) => {
-        setStations((current) => {
-          const withoutDuplicate = current.filter(
-            (item) => item.id !== station.id
-          );
-          return normalizeStations([station, ...withoutDuplicate], limit);
-        });
+        const withoutDuplicate = stations.filter((item) => item.id !== station.id);
+        writeJson(key, normalizeStations([station, ...withoutDuplicate], limit));
       },
       removeStation: (stationId: string) => {
-        setStations((current) => current.filter((item) => item.id !== stationId));
+        writeJson(
+          key,
+          stations.filter((item) => item.id !== stationId)
+        );
       },
       hasStation: (stationId: string) =>
         stations.some((station) => station.id === stationId),
     }),
-    [limit, stations]
+    [key, limit, stations]
   );
 }
