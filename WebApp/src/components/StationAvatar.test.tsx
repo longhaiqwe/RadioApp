@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StationAvatar } from "./StationAvatar";
 
@@ -22,5 +22,40 @@ describe("StationAvatar", () => {
     render(<StationAvatar name="清晨音乐台" stationId="station-1" favicon="" />);
 
     expect(screen.getByText("清")).toBeInTheDocument();
+  });
+
+  it("falls back to the branded initial when a remote favicon fails", () => {
+    render(
+      <StationAvatar
+        name="清晨音乐台"
+        stationId="station-1"
+        favicon="https://example.com/broken.png"
+      />,
+    );
+
+    fireEvent.error(screen.getByAltText("清晨音乐台"));
+
+    expect(screen.queryByAltText("清晨音乐台")).not.toBeInTheDocument();
+    expect(screen.getByText("清")).toBeInTheDocument();
+  });
+
+  it("derives fallback gradient styling from stationId", () => {
+    const { container } = render(
+      <>
+        <StationAvatar name="清晨音乐台" stationId="station-1" favicon="" />
+        <StationAvatar name="清晨音乐台" stationId="station-2" favicon="" />
+      </>,
+    );
+
+    const firstAvatar = container.querySelector('[data-station-id="station-1"]');
+    const secondAvatar = container.querySelector('[data-station-id="station-2"]');
+
+    expect(firstAvatar).toBeInTheDocument();
+    expect(secondAvatar).toBeInTheDocument();
+    expect(firstAvatar?.getAttribute("style")).toBeTruthy();
+    expect(secondAvatar?.getAttribute("style")).toBeTruthy();
+    expect(firstAvatar?.getAttribute("style")).not.toEqual(
+      secondAvatar?.getAttribute("style"),
+    );
   });
 });
