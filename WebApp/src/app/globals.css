@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --neon-cyan: #00d9ff;
+  --neon-magenta: #ff006e;
+  --neon-purple: #8338ec;
+  --neon-electric: #7b2cbf;
+  --neon-warm-pink: #ff5e78;
+  --neon-mint: #00f5d4;
+  --neon-gold: #ffd23f;
+  --neon-red: #ff3b30;
+  --neon-dark-bg: #0a0a0f;
+  --neon-card-bg: #151520;
+  --neon-surface-bg: #1a1a2e;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.68);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
+  background: var(--neon-dark-bg);
+  color: var(--text-primary);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.neon-glow-cyan {
+  box-shadow:
+    0 0 8px rgba(0, 217, 255, 0.6),
+    0 0 18px rgba(0, 217, 255, 0.35);
+}
+
+.neon-glow-magenta {
+  box-shadow:
+    0 0 10px rgba(255, 0, 110, 0.6),
+    0 0 22px rgba(255, 0, 110, 0.35);
 }
