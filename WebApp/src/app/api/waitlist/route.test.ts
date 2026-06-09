@@ -92,6 +92,23 @@ describe("/api/waitlist", () => {
     expect(await readJson(response)).toEqual({ error: SAFE_SAVE_ERROR });
   });
 
+  it("does not expose repository error details", async () => {
+    vi.mocked(saveWaitlistSubmission).mockResolvedValue({
+      ok: false,
+      error: "supabase exploded",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/waitlist", {
+        method: "POST",
+        body: JSON.stringify({ email: "user@example.com" }),
+      })
+    );
+
+    expect(response.status).toBe(502);
+    expect(await readJson(response)).toEqual({ error: SAFE_SAVE_ERROR });
+  });
+
   it("returns ok on success", async () => {
     const response = await POST(
       new Request("http://localhost/api/waitlist", {

@@ -8,6 +8,7 @@ create table if not exists public.waitlist_submissions (
   updated_at timestamptz not null default now()
 );
 
+-- RLS intentionally has no anon/public policies; writes use the server service role.
 alter table public.waitlist_submissions enable row level security;
 
 create index if not exists waitlist_submissions_created_at_idx

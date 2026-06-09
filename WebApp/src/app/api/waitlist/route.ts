@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const result = await saveWaitlistSubmission(clientResult.client, parsed.value);
 
   if (!result.ok) {
-    return Response.json({ error: result.error }, { status: 502 });
+    return Response.json({ error: WAITLIST_SAVE_ERROR }, { status: 502 });
   }
 
   return Response.json({ ok: true });
