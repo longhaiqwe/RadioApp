@@ -53,6 +53,7 @@ export function AudioPlayerProvider({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const onPlayedStationRef = useRef(onPlayedStation);
   const playAttemptIdRef = useRef(0);
+  const reportedPlayAttemptIdRef = useRef(0);
   const [state, dispatch] = useReducer(
     audioPlayerReducer,
     initialAudioPlayerState,
@@ -118,7 +119,11 @@ export function AudioPlayerProvider({
     const onPlaying = () => {
       dispatch({ type: "playbackStarted" });
       const currentStation = stateRef.current.currentStation;
-      if (currentStation) {
+      if (
+        currentStation &&
+        reportedPlayAttemptIdRef.current !== playAttemptIdRef.current
+      ) {
+        reportedPlayAttemptIdRef.current = playAttemptIdRef.current;
         onPlayedStationRef.current?.(currentStation);
       }
     };
@@ -168,7 +173,9 @@ export function AudioPlayerProvider({
       return;
     }
 
-    void startPlayback(currentStation);
+    void startPlayback(currentStation, {
+      forceReload: stateRef.current.playbackError !== null,
+    });
   }, [startPlayback]);
 
   const next = useCallback(() => {
@@ -185,7 +192,9 @@ export function AudioPlayerProvider({
     }
 
     dispatch({ type: "next" });
-    void startPlayback(station);
+    void startPlayback(station, {
+      forceReload: currentState.currentStation?.id === station.id,
+    });
   }, [startPlayback]);
 
   const previous = useCallback(() => {
@@ -204,7 +213,9 @@ export function AudioPlayerProvider({
     }
 
     dispatch({ type: "previous" });
-    void startPlayback(station);
+    void startPlayback(station, {
+      forceReload: currentState.currentStation?.id === station.id,
+    });
   }, [startPlayback]);
 
   const value = useMemo<AudioPlayerContextValue>(

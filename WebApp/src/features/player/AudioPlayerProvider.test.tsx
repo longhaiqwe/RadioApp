@@ -30,7 +30,7 @@ class MockAudio {
 }
 
 function AudioHarness() {
-  const { playStation, setVolume } = useAudioPlayer();
+  const { next, playStation, setVolume, togglePlayPause } = useAudioPlayer();
 
   return (
     <div>
@@ -42,6 +42,12 @@ function AudioHarness() {
       </button>
       <button type="button" onClick={() => setVolume(0.8)}>
         音量
+      </button>
+      <button type="button" onClick={togglePlayPause}>
+        切换
+      </button>
+      <button type="button" onClick={next}>
+        下一台
       </button>
     </div>
   );
@@ -109,6 +115,42 @@ describe("AudioPlayerProvider", () => {
 
     await user.click(screen.getByRole("button", { name: "播放" }));
     await user.click(screen.getByRole("button", { name: "播放" }));
+
+    expect(audio.load).toHaveBeenCalledTimes(2);
+    expect(audio.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads the current station when recovering from a playback error", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "播放" }));
+    act(() => {
+      audio.emit("error");
+    });
+
+    await user.click(screen.getByRole("button", { name: "切换" }));
+
+    expect(audio.load).toHaveBeenCalledTimes(2);
+    expect(audio.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads when next resolves to the same station", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "播放" }));
+    await user.click(screen.getByRole("button", { name: "下一台" }));
 
     expect(audio.load).toHaveBeenCalledTimes(2);
     expect(audio.play).toHaveBeenCalledTimes(2);
