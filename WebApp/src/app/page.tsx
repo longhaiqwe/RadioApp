@@ -109,15 +109,15 @@ function WebRadioExperience() {
             key={value as string}
             type="button"
             aria-label={label as string}
-            data-label={label as string}
             onClick={() => setTab(value as Tab)}
-            className={`rounded-2xl border px-3 py-3 text-sm font-bold after:mt-1 after:block after:content-[attr(data-label)] ${
+            className={`rounded-2xl border px-3 py-3 text-sm font-bold ${
               tab === value
                 ? "border-[rgba(0,217,255,0.7)] bg-[rgba(0,217,255,0.16)] text-white neon-glow-cyan"
                 : "border-white/10 bg-white/[0.04] text-white/55"
             }`}
           >
             <Icon className="mx-auto mb-1" size={18} />
+            <span className="mt-1 block">{label as string}</span>
           </button>
         ))}
       </nav>

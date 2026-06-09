@@ -34,7 +34,7 @@ describe("Home page", () => {
   it("renders the RadioApp web shell", () => {
     render(<Home />);
 
-    expect(screen.getByText("发现")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "发现" })).toBeInTheDocument();
     expect(screen.getByText("探索全球电台")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "发现" })
