@@ -10,7 +10,10 @@ const submission: WaitlistSubmission = {
 };
 
 function createSupabaseClient(error: unknown = null) {
-  const upsert = vi.fn(async () => ({ error }));
+  const upsert = vi.fn(async (...args: unknown[]) => {
+    void args;
+    return { error };
+  });
   const from = vi.fn(() => ({ upsert }));
 
   return {
@@ -34,9 +37,12 @@ describe("waitlistRepository", () => {
         source: "recognition",
         station_id: "station-1",
         user_agent: "Mozilla",
+        updated_at: expect.any(String),
       },
       { onConflict: "email" }
     );
+    const [row] = upsert.mock.calls[0] as [{ updated_at: string }, unknown];
+    expect(Date.parse(row.updated_at)).not.toBeNaN();
   });
 
   it("returns a safe error when Supabase fails", async () => {

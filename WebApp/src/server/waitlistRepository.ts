@@ -7,6 +7,7 @@ type WaitlistRow = {
   source: string;
   station_id: string | null;
   user_agent: string | null;
+  updated_at: string;
 };
 
 type SupabaseUpsertResult = {
@@ -37,6 +38,7 @@ export async function saveWaitlistSubmission(
         source: submission.source,
         station_id: submission.stationId,
         user_agent: submission.userAgent,
+        updated_at: new Date().toISOString(),
       },
       { onConflict: "email" }
     );
