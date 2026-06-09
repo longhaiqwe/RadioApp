@@ -55,7 +55,6 @@ export function audioPlayerReducer(
             ...state,
             currentStation: station,
             isLoading: true,
-            isPlaying: false,
             playbackError: null,
           }
         : state;
@@ -71,7 +70,6 @@ export function audioPlayerReducer(
             ...state,
             currentStation: station,
             isLoading: true,
-            isPlaying: false,
             playbackError: null,
           }
         : state;
