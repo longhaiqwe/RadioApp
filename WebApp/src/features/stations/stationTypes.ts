@@ -1,0 +1,46 @@
+export type Station = {
+  changeuuid: string;
+  stationuuid: string;
+  id: string;
+  name: string;
+  url: string;
+  urlResolved: string;
+  homepage: string;
+  favicon: string;
+  tags: string;
+  country: string;
+  countrycode: string;
+  state: string;
+  language: string;
+  languagecodes: string | null;
+  votes: number;
+  codec: string;
+  bitrate: number;
+  hls: number;
+  lastcheckok: number;
+  clickcount: number;
+  clicktrend: number;
+};
+
+export type RadioBrowserStation = Partial<{
+  changeuuid: string;
+  stationuuid: string;
+  name: string;
+  url: string;
+  url_resolved: string;
+  homepage: string;
+  favicon: string;
+  tags: string;
+  country: string;
+  countrycode: string;
+  state: string;
+  language: string;
+  languagecodes: string | null;
+  votes: number;
+  codec: string;
+  bitrate: number;
+  hls: number;
+  lastcheckok: number;
+  clickcount: number;
+  clicktrend: number;
+}>;
