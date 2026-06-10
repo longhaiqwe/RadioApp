@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { AnimatedMeshBackground } from "@/components/AnimatedMeshBackground";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassCard } from "@/components/GlassCard";
+import { IconButton } from "@/components/IconButton";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { StationGrid } from "@/components/StationGrid";
@@ -31,6 +32,7 @@ type HomeClientProps = {
 function WebRadioExperience({ initialTopStations }: HomeClientProps) {
   const [query, setQuery] = useState("");
   const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
   const favorites = useLocalStations("radioapp:web:favorites", 100);
   const recent = useLocalStations("radioapp:web:recent", 30);
   const topStations = useTopStations(initialTopStations);
@@ -39,6 +41,8 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
   const normalizedQuery = query.trim();
   const isSearching = normalizedQuery.length > 0;
   const topStationList = topStations.data ?? initialTopStations;
+  const hasRecentStations = recent.stations.length > 0;
+  const showRecentPanel = !isSearching && recentOpen && hasRecentStations;
 
   const favoriteIds = useMemo(
     () => new Set(favorites.stations.map((station) => station.id)),
@@ -74,14 +78,27 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
             探索全球电台
           </p>
         </div>
-        <button
-          type="button"
-          onClick={playRandom}
-          className="ml-auto grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--neon-magenta),var(--neon-purple))] text-white neon-glow-magenta active:scale-95"
-          aria-label="随便听听"
-        >
-          <Shuffle size={20} />
-        </button>
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {hasRecentStations ? (
+            <IconButton
+              label={recentOpen ? "收起最近听过" : "查看最近听过"}
+              active={recentOpen}
+              aria-expanded={recentOpen}
+              aria-controls="recent-stations-panel"
+              onClick={() => setRecentOpen((isOpen) => !isOpen)}
+            >
+              <Clock3 size={20} />
+            </IconButton>
+          ) : null}
+          <button
+            type="button"
+            onClick={playRandom}
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--neon-magenta),var(--neon-purple))] text-white neon-glow-magenta active:scale-95"
+            aria-label="随便听听"
+          >
+            <Shuffle size={20} />
+          </button>
+        </div>
       </header>
 
       <GlassCard className="mb-4 p-3">
@@ -146,8 +163,8 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
             </div>
           ) : null}
 
-          {recent.stations.length > 0 ? (
-            <div className="space-y-3">
+          {showRecentPanel ? (
+            <div id="recent-stations-panel" className="space-y-3">
               <div>
                 <h2 className="text-xl font-black text-white">最近听过</h2>
                 <p className="mt-1 text-sm text-white/55">

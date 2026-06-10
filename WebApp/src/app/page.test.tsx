@@ -73,13 +73,21 @@ describe("Home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the recent section on the main page when local history exists", () => {
+  it("opens recent stations from the top-right action instead of showing them by default", async () => {
+    const user = userEvent.setup();
+
     window.localStorage.setItem(
       "radioapp:web:recent",
       JSON.stringify([stationFixture]),
     );
 
     render(<Home />);
+
+    expect(
+      screen.queryByRole("heading", { name: "最近听过" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "查看最近听过" }));
 
     expect(screen.getByRole("heading", { name: "最近听过" })).toBeInTheDocument();
     expect(
