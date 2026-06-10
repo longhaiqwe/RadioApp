@@ -24,6 +24,19 @@ describe("StationAvatar", () => {
     expect(screen.getByText("清")).toBeInTheDocument();
   });
 
+  it("renders branded initials for insecure favicons blocked on https pages", () => {
+    render(
+      <StationAvatar
+        name="怀集音乐之声"
+        stationId="station-2"
+        favicon="http://www.hj0758.cn/favicon.ico"
+      />,
+    );
+
+    expect(screen.queryByAltText("怀集音乐之声")).not.toBeInTheDocument();
+    expect(screen.getByText("怀")).toBeInTheDocument();
+  });
+
   it("falls back to the branded initial when a remote favicon fails", () => {
     render(
       <StationAvatar

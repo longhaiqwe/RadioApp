@@ -34,6 +34,15 @@ function hashStationId(stationId: string) {
   return hash;
 }
 
+function getRenderableFavicon(favicon: string) {
+  const trimmedFavicon = favicon.trim();
+
+  if (!trimmedFavicon || trimmedFavicon.startsWith("bundle://")) return null;
+  if (trimmedFavicon.startsWith("http://")) return null;
+
+  return trimmedFavicon;
+}
+
 export function StationAvatar({
   name,
   stationId,
@@ -46,22 +55,20 @@ export function StationAvatar({
     () => FALLBACK_GRADIENTS[hashStationId(stationId) % FALLBACK_GRADIENTS.length],
     [stationId],
   );
-  const shouldRenderImage =
-    Boolean(favicon) &&
-    !favicon.startsWith("bundle://") &&
-    failedFavicon !== favicon;
+  const renderableFavicon = getRenderableFavicon(favicon);
+  const shouldRenderImage = renderableFavicon && failedFavicon !== renderableFavicon;
 
   if (shouldRenderImage) {
     return (
       <img
-        src={favicon}
+        src={renderableFavicon}
         alt={name}
         loading="lazy"
         decoding="async"
         fetchPriority="low"
         className={`${sizeClassName} shrink-0 rounded-2xl bg-[var(--neon-card-bg)] object-cover`}
         onError={() => {
-          setFailedFavicon(favicon);
+          setFailedFavicon(renderableFavicon);
         }}
       />
     );
