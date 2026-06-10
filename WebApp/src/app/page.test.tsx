@@ -52,17 +52,9 @@ describe("Home page", () => {
     expect(screen.getByRole("heading", { name: "发现" })).toBeInTheDocument();
     expect(screen.getByText("探索全球电台")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "发现" })
+      screen.getByPlaceholderText("搜索电台、风格、地区...")
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "搜索" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "收藏" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "最近" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "推荐电台" })).toBeInTheDocument();
   });
 
   it("shows a no-results state after entering a search query with no matches", async () => {
@@ -78,6 +70,20 @@ describe("Home page", () => {
     expect(screen.getByText("还没有找到匹配电台")).toBeInTheDocument();
     expect(
       screen.getByText("换个关键词，或者试试地区和频率。")
+    ).toBeInTheDocument();
+  });
+
+  it("shows the recent section on the main page when local history exists", () => {
+    window.localStorage.setItem(
+      "radioapp:web:recent",
+      JSON.stringify([stationFixture]),
+    );
+
+    render(<Home />);
+
+    expect(screen.getByRole("heading", { name: "最近听过" })).toBeInTheDocument();
+    expect(
+      screen.getByText("刚刚路过的好声音，会先留在这里。")
     ).toBeInTheDocument();
   });
 });

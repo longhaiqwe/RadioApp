@@ -75,8 +75,9 @@ test("renders the main listening shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "发现" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "推荐电台" })).toBeVisible();
   await expect(page.getByText("清晨音乐台")).toBeVisible();
-  await expect(page.getByRole("button", { name: "发现" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "搜索" })).toBeVisible();
+  await expect(
+    page.getByPlaceholder("搜索电台、风格、地区...")
+  ).toBeVisible();
 });
 
 test("shows empty search feedback for unmatched keywords", async ({ page }) => {

@@ -2,10 +2,7 @@
 
 import {
   Clock3,
-  Heart,
-  History,
   Loader2,
-  Radio,
   Search,
   Shuffle,
   Sparkles,
@@ -27,10 +24,7 @@ import { useLocalStations } from "@/hooks/useLocalStations";
 import { useStationSearch, useTopStations } from "@/hooks/useStations";
 import { getRandomStation } from "@/lib/stationApi";
 
-type Tab = "home" | "search" | "favorites" | "recent";
-
 function WebRadioExperience() {
-  const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const favorites = useLocalStations("radioapp:web:favorites", 100);
@@ -38,7 +32,8 @@ function WebRadioExperience() {
   const topStations = useTopStations();
   const searchResults = useStationSearch(query);
   const player = useAudioPlayer();
-  const favoritePreview = favorites.stations.slice(0, 3);
+  const normalizedQuery = query.trim();
+  const isSearching = normalizedQuery.length > 0;
 
   const favoriteIds = useMemo(
     () => new Set(favorites.stations.map((station) => station.id)),
@@ -89,10 +84,7 @@ function WebRadioExperience() {
           <Search className="text-[var(--neon-cyan)]" size={20} />
           <input
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setTab("search");
-            }}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索电台、风格、地区..."
             className="min-w-0 flex-1 bg-transparent py-2 text-white outline-none placeholder:text-white/40"
           />
@@ -100,54 +92,68 @@ function WebRadioExperience() {
         </label>
       </GlassCard>
 
-      <nav className="mb-6 grid grid-cols-4 gap-2">
-        {[
-          ["home", "发现", Radio],
-          ["search", "搜索", Search],
-          ["favorites", "收藏", Heart],
-          ["recent", "最近", History],
-        ].map(([value, label, Icon]) => (
-          <button
-            key={value as string}
-            type="button"
-            aria-label={label as string}
-            onClick={() => setTab(value as Tab)}
-            className={`rounded-2xl border px-3 py-3 text-sm font-bold ${
-              tab === value
-                ? "border-[rgba(0,217,255,0.7)] bg-[rgba(0,217,255,0.16)] text-white neon-glow-cyan"
-                : "border-white/10 bg-white/[0.04] text-white/55"
-            }`}
-          >
-            <Icon className="mx-auto mb-1" size={18} />
-            <span className="mt-1 block">{label as string}</span>
-          </button>
-        ))}
-      </nav>
-
-      {tab === "home" ? (
-        <section className="space-y-4">
-          {favoritePreview.length > 0 ? (
+      {isSearching ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-xl font-black text-white">搜索结果</h2>
+            <p className="mt-1 text-sm text-white/55">“{normalizedQuery}”</p>
+          </div>
+          {searchResults.isLoading ? (
+            <div className="flex items-center justify-center py-12 text-[var(--neon-cyan)]">
+              <Loader2 className="animate-spin" />
+            </div>
+          ) : searchResults.error ? (
+            <EmptyState title="搜索暂时失败" description="请保留关键词稍后重试。" />
+          ) : (searchResults.data ?? []).length > 0 ? (
+            <StationGrid
+              stations={searchResults.data ?? []}
+              currentStationId={currentStationId}
+              favoriteIds={favoriteIds}
+              playlistTitle="搜索"
+              onPlayStation={playStation}
+              onToggleFavorite={toggleFavorite}
+            />
+          ) : (
+            <EmptyState
+              title="还没有找到匹配电台"
+              description="换个关键词，或者试试地区和频率。"
+            />
+          )}
+        </section>
+      ) : (
+        <section className="space-y-8">
+          {favorites.stations.length > 0 ? (
             <div className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-black text-white">你的收藏</h2>
-                  <p className="mt-1 text-sm text-white/55">
-                    下次回来，不用重新找。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTab("favorites")}
-                  className="text-sm font-semibold text-[var(--neon-cyan)]"
-                >
-                  查看全部
-                </button>
+              <div>
+                <h2 className="text-xl font-black text-white">你的收藏</h2>
+                <p className="mt-1 text-sm text-white/55">
+                  下次回来，不用重新找。
+                </p>
               </div>
               <StationGrid
-                stations={favoritePreview}
+                stations={favorites.stations}
                 currentStationId={currentStationId}
                 favoriteIds={favoriteIds}
                 playlistTitle="收藏"
+                onPlayStation={playStation}
+                onToggleFavorite={toggleFavorite}
+              />
+            </div>
+          ) : null}
+
+          {recent.stations.length > 0 ? (
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-xl font-black text-white">最近听过</h2>
+                <p className="mt-1 text-sm text-white/55">
+                  刚刚路过的好声音，会先留在这里。
+                </p>
+              </div>
+              <StationGrid
+                stations={recent.stations}
+                currentStationId={currentStationId}
+                favoriteIds={favoriteIds}
+                playlistTitle="最近播放"
                 onPlayStation={playStation}
                 onToggleFavorite={toggleFavorite}
               />
@@ -185,74 +191,7 @@ function WebRadioExperience() {
             )}
           </div>
         </section>
-      ) : null}
-
-      {tab === "search" ? (
-        <section>
-          {query.trim().length === 0 ? (
-            <EmptyState
-              title="输入关键词开始搜索"
-              description="可以搜索电台名、风格、地区或频率。"
-            />
-          ) : searchResults.isLoading ? (
-            <div className="flex items-center justify-center py-12 text-[var(--neon-cyan)]">
-              <Loader2 className="animate-spin" />
-            </div>
-          ) : searchResults.error ? (
-            <EmptyState title="搜索暂时失败" description="请保留关键词稍后重试。" />
-          ) : (searchResults.data ?? []).length > 0 ? (
-            <StationGrid
-              stations={searchResults.data ?? []}
-              currentStationId={currentStationId}
-              favoriteIds={favoriteIds}
-              playlistTitle="搜索"
-              onPlayStation={playStation}
-              onToggleFavorite={toggleFavorite}
-            />
-          ) : (
-            <EmptyState
-              title="还没有找到匹配电台"
-              description="换个关键词，或者试试地区和频率。"
-            />
-          )}
-        </section>
-      ) : null}
-
-      {tab === "favorites" ? (
-        favorites.stations.length === 0 ? (
-          <EmptyState
-            title="还没有收藏"
-            description="在发现或搜索里点亮心形，就能把电台留在这里。"
-          />
-        ) : (
-          <StationGrid
-            stations={favorites.stations}
-            currentStationId={currentStationId}
-            favoriteIds={favoriteIds}
-            playlistTitle="收藏"
-            onPlayStation={playStation}
-            onToggleFavorite={toggleFavorite}
-          />
-        )
-      ) : null}
-
-      {tab === "recent" ? (
-        recent.stations.length === 0 ? (
-          <EmptyState
-            title="最近播放为空"
-            description="听过的电台会自动出现在这里。"
-          />
-        ) : (
-          <StationGrid
-            stations={recent.stations}
-            currentStationId={currentStationId}
-            favoriteIds={favoriteIds}
-            playlistTitle="最近播放"
-            onPlayStation={playStation}
-            onToggleFavorite={toggleFavorite}
-          />
-        )
-      ) : null}
+      )}
 
       <button
         type="button"
