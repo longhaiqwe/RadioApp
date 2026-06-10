@@ -21,7 +21,7 @@ export function StationGrid({
   onToggleFavorite,
 }: StationGridProps) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid w-full min-w-0 max-w-full gap-3 md:grid-cols-2 xl:grid-cols-3">
       {stations.map((station) => (
         <StationCard
           key={station.id}

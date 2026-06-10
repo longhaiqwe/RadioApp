@@ -66,9 +66,9 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
   const currentStationId = player.state.currentStation?.id;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-28 pt-12 md:px-8">
+    <main className="mx-auto flex min-h-screen w-full min-w-0 max-w-6xl flex-col px-4 pb-28 pt-12 md:px-8">
       <header className="mb-6 flex items-start gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-5xl font-black tracking-normal text-white">发现</h1>
           <p className="mt-2 text-base font-medium text-[var(--neon-cyan)]">
             探索全球电台
@@ -77,7 +77,7 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
         <button
           type="button"
           onClick={playRandom}
-          className="ml-auto grid h-12 w-12 place-items-center rounded-full bg-[linear-gradient(135deg,var(--neon-magenta),var(--neon-purple))] text-white neon-glow-magenta active:scale-95"
+          className="ml-auto grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--neon-magenta),var(--neon-purple))] text-white neon-glow-magenta active:scale-95"
           aria-label="随便听听"
         >
           <Shuffle size={20} />

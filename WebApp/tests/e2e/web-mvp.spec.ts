@@ -25,6 +25,29 @@ const topStations = {
       clickcount: 120,
       clicktrend: 12,
     },
+    {
+      changeuuid: "change-2",
+      stationuuid: "station-2",
+      id: "station-2",
+      name: "一个名字特别长但仍然应该适配屏幕宽度的推荐音乐电台",
+      url: "https://example.com/long-live.mp3",
+      urlResolved: "https://example.com/long-live.mp3",
+      homepage: "https://example.com/long",
+      favicon: "",
+      tags: "internet radio,oldies,indie,pop,music",
+      country: "China",
+      countrycode: "CN",
+      state: "Guangdong",
+      language: "chinese",
+      languagecodes: "zh",
+      votes: 18,
+      codec: "MP3",
+      bitrate: 128,
+      hls: 0,
+      lastcheckok: 1,
+      clickcount: 60,
+      clicktrend: 6,
+    },
   ],
 };
 
@@ -78,6 +101,40 @@ test("renders the main listening shell", async ({ page }) => {
   await expect(
     page.getByPlaceholder("搜索电台、风格、地区...")
   ).toBeVisible();
+});
+
+test("keeps station cards inside the mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/");
+
+  const favoriteButtons = page.getByRole("button", { name: /^收藏 / });
+  await expect(favoriteButtons.first()).toBeVisible();
+
+  const metrics = await page.evaluate(() => ({
+    bodyClientWidth: document.body.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    documentClientWidth: document.documentElement.clientWidth,
+    documentScrollWidth: document.documentElement.scrollWidth,
+  }));
+
+  expect(metrics.bodyScrollWidth).toBeLessThanOrEqual(metrics.bodyClientWidth + 1);
+  expect(metrics.documentScrollWidth).toBeLessThanOrEqual(
+    metrics.documentClientWidth + 1,
+  );
+
+  const viewport = page.viewportSize();
+
+  expect(viewport).not.toBeNull();
+
+  for (let index = 0; index < await favoriteButtons.count(); index += 1) {
+    const favoriteBox = await favoriteButtons.nth(index).boundingBox();
+
+    expect(favoriteBox).not.toBeNull();
+    expect(favoriteBox!.x).toBeGreaterThanOrEqual(0);
+    expect(favoriteBox!.x + favoriteBox!.width).toBeLessThanOrEqual(
+      viewport!.width,
+    );
+  }
 });
 
 test("shows empty search feedback for unmatched keywords", async ({ page }) => {

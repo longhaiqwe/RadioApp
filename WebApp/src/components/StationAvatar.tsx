@@ -59,7 +59,7 @@ export function StationAvatar({
         loading="lazy"
         decoding="async"
         fetchPriority="low"
-        className={`${sizeClassName} rounded-2xl object-cover bg-[var(--neon-card-bg)]`}
+        className={`${sizeClassName} shrink-0 rounded-2xl bg-[var(--neon-card-bg)] object-cover`}
         onError={() => {
           setFailedFavicon(favicon);
         }}
@@ -70,7 +70,7 @@ export function StationAvatar({
   return (
     <div
       data-station-id={stationId}
-      className={`${sizeClassName} grid place-items-center rounded-2xl text-xl font-black text-white shadow-lg`}
+      className={`${sizeClassName} grid shrink-0 place-items-center rounded-2xl text-xl font-black text-white shadow-lg`}
       style={{
         backgroundImage: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
       }}

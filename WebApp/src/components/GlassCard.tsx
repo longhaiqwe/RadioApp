@@ -15,7 +15,7 @@ export function GlassCard({
   return (
     <div
       className={clsx(
-        "rounded-2xl border bg-[rgba(21,21,32,0.72)] backdrop-blur-xl",
+        "min-w-0 max-w-full rounded-2xl border bg-[rgba(21,21,32,0.72)] backdrop-blur-xl",
         active
           ? "border-[rgba(0,217,255,0.72)] neon-glow-cyan"
           : "border-[rgba(255,255,255,0.12)]",

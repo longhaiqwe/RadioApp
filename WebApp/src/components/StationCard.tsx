@@ -23,11 +23,11 @@ export function StationCard({
 }: StationCardProps) {
   return (
     <GlassCard active={isPlaying} className="p-3">
-      <div className="flex gap-3">
+      <div className="flex min-w-0 max-w-full items-center gap-3">
         <button
           type="button"
           aria-label={`播放 ${station.name}`}
-          className="min-w-0 flex flex-1 gap-3 text-left"
+          className="flex min-w-0 flex-1 gap-3 overflow-hidden text-left"
           onClick={() => onPlay(station)}
         >
           <StationAvatar
