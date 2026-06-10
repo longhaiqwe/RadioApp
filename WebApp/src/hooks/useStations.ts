@@ -1,10 +1,13 @@
 "use client";
 
 import useSWR from "swr";
+import type { Station } from "@/features/stations/stationTypes";
 import { getTopStations, searchStations } from "@/lib/stationApi";
 
-export function useTopStations() {
-  return useSWR("stations:top", getTopStations);
+export function useTopStations(fallbackData?: Station[]) {
+  return useSWR("stations:top", getTopStations, {
+    fallbackData,
+  });
 }
 
 export function useStationSearch(query: string) {

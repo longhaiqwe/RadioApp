@@ -56,6 +56,9 @@ export function StationAvatar({
       <img
         src={favicon}
         alt={name}
+        loading="lazy"
+        decoding="async"
+        fetchPriority="low"
         className={`${sizeClassName} rounded-2xl object-cover bg-[var(--neon-card-bg)]`}
         onError={() => {
           setFailedFavicon(favicon);
