@@ -23,6 +23,9 @@ struct CustomMatchResult {
     let releaseDate: Date? // 发行日期，用于时光机功能
 }
 
+nonisolated private final class AudioConverterInputState: @unchecked Sendable {
+    var isEndOfStream = false
+}
 
 @MainActor
 class ShazamMatcher: NSObject, ObservableObject {
@@ -69,6 +72,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     
     // 自定义匹配结果 (用于 QQ 音乐等非 Shazam 源)
     @Published var customMatchResult: CustomMatchResult?
+    @Published var matchedVersions: [LyricResolvedSong] = []
     
     // 内部记录当前正在匹配的文件
     var currentMatchingFileURL: URL?
@@ -113,7 +117,7 @@ class ShazamMatcher: NSObject, ObservableObject {
     }
 
     var lyricRecognitionGuidanceText: String {
-        "尽量选主唱清晰、少主持人口播的片段开始识别"
+        "尽量选主歌或主唱清晰、少主持人口播的片段开始识别（主歌更容易精准定位时间轴）"
     }
     
     override init() {
@@ -137,8 +141,8 @@ class ShazamMatcher: NSObject, ObservableObject {
         lastError = nil
         lastMatch = nil
         customMatchResult = nil // Reset custom match
-        customMatchResult = nil // Reset custom match
         lyrics = nil // Reset lyrics
+        matchedVersions = [] // Reset matched versions
         isFetchingLyrics = false
         showAdvancedRecognitionPrompt = false
         matchDate = nil // Reset match date
@@ -417,11 +421,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             throw NSError(domain: "ShazamMatcher", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建输出缓冲区"])
         }
         
-        // Use a class to wrap the state for thread safety in closures
-        class ConverterState: @unchecked Sendable {
-            var isEndOfStream = false
-        }
-        let state = ConverterState()
+        let state = AudioConverterInputState()
         
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
             if state.isEndOfStream {
@@ -452,6 +452,7 @@ class ShazamMatcher: NSObject, ObservableObject {
             self.lastMatch = nil
             self.customMatchResult = nil
             self.lyrics = nil
+            self.matchedVersions = []
             self.isFetchingLyrics = false
             self.matchDate = nil // Reset match date
             self.matchOffset = 0 // Reset offset
@@ -597,8 +598,10 @@ class ShazamMatcher: NSObject, ObservableObject {
                 }
 
                 self.matchingProgress = "正在根据歌词搜索歌曲..."
-
-                guard let resolvedSong = await MusicPlatformService.shared.resolveSongFromLyricSnippets(snippets) else {
+ 
+                let streamTitle = AudioPlayerManager.shared.currentStreamTitle
+                let resolvedSongs = await MusicPlatformService.shared.resolveSongsFromLyricSnippets(snippets, currentStreamTitle: streamTitle)
+                guard let resolvedSong = resolvedSongs.first else {
                     throw NSError(
                         domain: "ShazamMatcher",
                         code: -6,
@@ -606,7 +609,7 @@ class ShazamMatcher: NSObject, ObservableObject {
                     )
                 }
 
-                self.applyLyricFallbackResult(resolvedSong)
+                self.applyLyricFallbackResult(resolvedSong, allVersions: resolvedSongs)
             } catch is CancellationError {
                 print("ShazamMatcher: lyric fallback cancelled")
             } catch {
@@ -621,27 +624,35 @@ class ShazamMatcher: NSObject, ObservableObject {
         }
     }
 
-    private func applyLyricFallbackResult(_ result: LyricResolvedSong) {
+    private func applyLyricFallbackResult(_ result: LyricResolvedSong, allVersions: [LyricResolvedSong] = []) {
         self.isMatching = false
         self.matchingProgress = ""
         self.currentMatchingFileURL = nil
         self.isLockScreenTriggered = false
         self.lastError = nil
         self.lastMatch = nil
+        
+        let artworkURL = result.artworkURL.flatMap { URL(string: $0) }
         self.customMatchResult = CustomMatchResult(
             title: result.title,
             artist: result.artist,
             album: result.album,
-            artworkURL: nil,
-            releaseDate: nil
+            artworkURL: artworkURL,
+            releaseDate: result.releaseDate
         )
         self.lyrics = result.lyrics
+        self.matchedVersions = allVersions.isEmpty ? [result] : allVersions
         self.isFetchingLyrics = false
 
         if let captureStartTime = self.captureStartTime,
+           let captureEndTime = self.captureEndTime,
            let estimatedSongOffset = result.estimatedSongOffsetAtClipStart {
+            let physicalDuration = captureEndTime.timeIntervalSince(captureStartTime)
+            let audioDuration: TimeInterval = 12.0
+            let compensation = physicalDuration > 0.05 ? max(0, audioDuration - physicalDuration) : 0
+            
             self.matchDate = captureStartTime
-            self.matchOffset = estimatedSongOffset
+            self.matchOffset = estimatedSongOffset + compensation
         } else {
             self.matchDate = nil
             self.matchOffset = 0
@@ -652,14 +663,108 @@ class ShazamMatcher: NSObject, ObservableObject {
             title: result.title,
             artist: result.artist,
             album: result.album,
-            artworkURL: nil,
+            artworkURL: artworkURL,
             stationName: currentStationName,
             source: result.source,
-            releaseDate: nil
+            releaseDate: result.releaseDate
         )
 
-        self.updateLiveActivity(title: result.title, artist: result.artist, coverURL: nil, releaseDate: nil)
+        self.updateLiveActivity(title: result.title, artist: result.artist, coverURL: artworkURL, releaseDate: result.releaseDate)
         print("ShazamMatcher: lyric fallback success - \(result.title) / \(result.artist)")
+    }
+
+    func selectLyricVersion(at index: Int) {
+        guard index >= 0 && index < matchedVersions.count else { return }
+        let selectedSong = matchedVersions[index]
+        
+        let artworkURL = selectedSong.artworkURL.flatMap { URL(string: $0) }
+        self.customMatchResult = CustomMatchResult(
+            title: selectedSong.title,
+            artist: selectedSong.artist,
+            album: selectedSong.album,
+            artworkURL: artworkURL,
+            releaseDate: selectedSong.releaseDate
+        )
+        self.lyrics = selectedSong.lyrics
+        
+        if let captureStartTime = self.captureStartTime,
+           let captureEndTime = self.captureEndTime,
+           let estimatedSongOffset = selectedSong.estimatedSongOffsetAtClipStart {
+            let physicalDuration = captureEndTime.timeIntervalSince(captureStartTime)
+            let audioDuration: TimeInterval = 12.0
+            let compensation = physicalDuration > 0.05 ? max(0, audioDuration - physicalDuration) : 0
+            
+            self.matchDate = captureStartTime
+            self.matchOffset = estimatedSongOffset + compensation
+        } else {
+            self.matchDate = nil
+            self.matchOffset = 0
+        }
+        
+        let currentStationName = AudioPlayerManager.shared.currentStation?.name ?? "未知电台"
+        HistoryManager.shared.addSong(
+            title: selectedSong.title,
+            artist: selectedSong.artist,
+            album: selectedSong.album,
+            artworkURL: artworkURL,
+            stationName: currentStationName,
+            source: selectedSong.source,
+            releaseDate: selectedSong.releaseDate
+        )
+        
+        self.updateLiveActivity(title: selectedSong.title, artist: selectedSong.artist, coverURL: artworkURL, releaseDate: selectedSong.releaseDate)
+        print("ShazamMatcher: 手动切换歌词版本为 - \(selectedSong.title) / \(selectedSong.artist)")
+    }
+
+    /// 获取当前播放歌词行在整首歌中所有重复出现的时间点
+    private func getRepeatTimesForCurrentLine(lyricLines: [LyricLine]) -> [TimeInterval] {
+        guard !lyricLines.isEmpty else { return [] }
+        let currentTime = self.currentSongTime
+        guard let activeLine = lyricLines.last(where: { $0.time <= currentTime }) else { return [] }
+        
+        let normalizedActiveText = activeLine.text.lowercased()
+            .replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+        guard normalizedActiveText.count >= 2 else { return [] }
+        
+        var repeatTimes: [TimeInterval] = []
+        for line in lyricLines {
+            let normalizedLineText = line.text.lowercased()
+                .replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+            if normalizedLineText.contains(normalizedActiveText) || normalizedActiveText.contains(normalizedLineText) {
+                repeatTimes.append(line.time)
+            }
+        }
+        return repeatTimes.sorted()
+    }
+    
+    /// 跳转到下一段相似歌词或默认快进 90 秒
+    func jumpToNextSection(lyricLines: [LyricLine]) {
+        let repeatTimes = getRepeatTimesForCurrentLine(lyricLines: lyricLines)
+        let currentTime = self.currentSongTime
+        
+        if let nextTime = repeatTimes.first(where: { $0 > currentTime + 1.0 }) {
+            let delta = nextTime - currentTime
+            self.lyricsOffset -= delta
+            print("ShazamMatcher: 手动跳转到下一段相似歌词, 偏移调整 \(delta)s")
+        } else {
+            self.lyricsOffset -= 90.0
+            print("ShazamMatcher: 未找到相似歌词，默认快进 90s")
+        }
+    }
+    
+    /// 跳转到上一段相似歌词或默认后退 90 秒
+    func jumpToPreviousSection(lyricLines: [LyricLine]) {
+        let repeatTimes = getRepeatTimesForCurrentLine(lyricLines: lyricLines)
+        let currentTime = self.currentSongTime
+        
+        if let prevTime = repeatTimes.last(where: { $0 < currentTime - 1.0 }) {
+            let delta = currentTime - prevTime
+            self.lyricsOffset += delta
+            print("ShazamMatcher: 手动跳转到上一段相似歌词, 偏移调整 -\(delta)s")
+        } else {
+            self.lyricsOffset += 90.0
+            print("ShazamMatcher: 未找到相似歌词，默认后退 90s")
+        }
     }
 
     private func transcriptionLanguageHint() -> String? {

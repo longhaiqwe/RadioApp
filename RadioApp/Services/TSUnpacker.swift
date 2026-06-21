@@ -70,9 +70,6 @@ class TSUnpacker {
             return Data()
         }
         
-        let audioPidValue = finalAudioPid // distinct name to avoid confusion in closure
-
-        
         // 第二遍：提取 Payload
         offset = 0
         while offset + packetSize <= tsData.count {
@@ -278,7 +275,7 @@ class TSUnpacker {
     private static func isAudioPID(_ targetPid: Int, in tsData: Data, packetSize: Int) -> Bool {
         var offset = 0
         var foundPayloads = 0
-        var maxCheck = 20 // 只检查前 20 个包，提高效率
+        let maxCheck = 20 // 只检查前 20 个包，提高效率
         
         while offset + packetSize <= tsData.count && foundPayloads < maxCheck {
             if tsData[offset] != 0x47 {

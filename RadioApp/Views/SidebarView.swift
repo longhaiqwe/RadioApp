@@ -30,13 +30,22 @@ enum SidebarItem: Hashable, CaseIterable {
 
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
+    let onItemSelected: (SidebarItem) -> Void
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
+
+    init(
+        selection: Binding<SidebarItem?>,
+        onItemSelected: @escaping (SidebarItem) -> Void = { _ in }
+    ) {
+        self._selection = selection
+        self.onItemSelected = onItemSelected
+    }
     
     var body: some View {
         List(selection: $selection) {
             Section {
-                SidebarRow(item: .home, selection: selection)
-                SidebarRow(item: .search, selection: selection)
+                SidebarRow(item: .home, selection: selection, onSelect: onItemSelected)
+                SidebarRow(item: .search, selection: selection, onSelect: onItemSelected)
             } header: {
                 Text("浏览")
                     .foregroundColor(.white.opacity(0.6))
@@ -45,7 +54,7 @@ struct SidebarView: View {
             }
             
             Section {
-                SidebarRow(item: .favorites, selection: selection)
+                SidebarRow(item: .favorites, selection: selection, onSelect: onItemSelected)
                 
                 NavigationLink(value: SidebarItem.history) {
                     HStack {
@@ -70,6 +79,9 @@ struct SidebarView: View {
                     }
                 }
                 .listRowBackground(rowBackground(for: .history))
+                .simultaneousGesture(TapGesture().onEnded {
+                    onItemSelected(.history)
+                })
             } header: {
                 Text("我的")
                     .foregroundColor(.white.opacity(0.6))
@@ -78,7 +90,7 @@ struct SidebarView: View {
             }
             
             Section {
-                SidebarRow(item: .settings, selection: selection)
+                SidebarRow(item: .settings, selection: selection, onSelect: onItemSelected)
             } header: {
                 Text("应用")
                     .foregroundColor(.white.opacity(0.6))
@@ -149,6 +161,7 @@ struct SidebarView: View {
 struct SidebarRow: View {
     let item: SidebarItem
     let selection: SidebarItem?
+    let onSelect: (SidebarItem) -> Void
     
     var body: some View {
         NavigationLink(value: item) {
@@ -178,5 +191,8 @@ struct SidebarRow: View {
                 .padding(.horizontal, 4)
             : nil
         )
+        .simultaneousGesture(TapGesture().onEnded {
+            onSelect(item)
+        })
     }
 }

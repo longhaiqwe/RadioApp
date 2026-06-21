@@ -14,6 +14,8 @@ private struct MusicSearchCandidate: Hashable {
     let title: String
     let artist: String
     let album: String?
+    let artworkURL: String?
+    let releaseDate: Date?
 }
 
 struct LyricResolvedSong {
@@ -25,6 +27,10 @@ struct LyricResolvedSong {
     let confidenceScore: Double
     let estimatedSongOffsetAtClipStart: TimeInterval?
     let source: String
+    let originalIndex: Int
+    let matchedSnippetsCount: Int
+    let artworkURL: String?
+    let releaseDate: Date?
 }
 
 class MusicPlatformService {
@@ -101,12 +107,31 @@ class MusicPlatformService {
         let album = ((albumObject?["name"] as? String) ?? (albumObject?["title"] as? String) ?? (song["albumname"] as? String))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        var artworkURL: String? = nil
+        if let albummid = albumObject?["mid"] as? String, !albummid.isEmpty {
+            artworkURL = "https://y.gtimg.cn/music/photo_new/T002R300x300M000\(albummid).jpg?max_age=2592000"
+        }
+
+        var releaseDate: Date? = nil
+        if let timePublic = song["time_public"] as? String, !timePublic.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let date = formatter.date(from: timePublic) {
+                releaseDate = date
+            } else {
+                formatter.dateFormat = "yyyy"
+                releaseDate = formatter.date(from: timePublic)
+            }
+        }
+
         return MusicSearchCandidate(
             platform: .qqMusic,
             id: id,
             title: title,
             artist: artist,
-            album: album
+            album: album,
+            artworkURL: artworkURL,
+            releaseDate: releaseDate
         )
     }
 
@@ -165,7 +190,9 @@ class MusicPlatformService {
                     id: song.id,
                     title: song.title,
                     artist: song.artist,
-                    album: song.album
+                    album: song.album,
+                    artworkURL: song.artworkURL,
+                    releaseDate: song.releaseDate
                 )
             }
         } catch {
@@ -340,6 +367,17 @@ class MusicPlatformService {
     /// 检查是否为衍生版本 (伴奏、DJ、Remix 等)
     private func isDerivative(_ title: String) -> Bool {
         let keywords = ["伴奏", "Instrumental", "Inst.", "Off Vocal", "DJ", "Remix", "Club Mix"]
+        for keyword in keywords {
+            if title.localizedCaseInsensitiveContains(keyword) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 检查是否是 Live / 现场 / 综艺节目版本（用于非 Live 原唱提权）
+    private func isLiveOrShow(_ title: String) -> Bool {
+        let keywords = ["Live", "现场", "综艺", "歌手", "第", "季", "期", "会现场"]
         for keyword in keywords {
             if title.localizedCaseInsensitiveContains(keyword) {
                 return true
@@ -564,8 +602,13 @@ class MusicPlatformService {
     }
 
     func resolveSongFromLyricSnippets(_ snippets: [LyricSnippet]) async -> LyricResolvedSong? {
+        let songs = await resolveSongsFromLyricSnippets(snippets)
+        return songs.first
+    }
+
+    func resolveSongsFromLyricSnippets(_ snippets: [LyricSnippet], currentStreamTitle: String? = nil) async -> [LyricResolvedSong] {
         let usableSnippets = snippets.filter { normalizedLyricSearchText($0.text).count >= 6 }
-        guard !usableSnippets.isEmpty else { return nil }
+        guard !usableSnippets.isEmpty else { return [] }
 
         var candidates: [MusicSearchCandidate] = []
         var seenQueries = Set<String>()
@@ -588,45 +631,141 @@ class MusicPlatformService {
             uniqueCandidates.append(candidate)
         }
 
-        var bestCandidate: (candidate: MusicSearchCandidate, lyrics: String, snippet: LyricSnippet, score: Double)?
+        var matchedSongs: [LyricResolvedSong] = []
 
-        for candidate in uniqueCandidates.prefix(12) {
+        for (index, candidate) in uniqueCandidates.prefix(12).enumerated() {
             guard let lyrics = await fetchLyrics(for: candidate) else { continue }
-            let (score, matchedSnippet) = bestSnippetMatchScore(in: lyrics, snippets: usableSnippets)
-            guard let matchedSnippet else { continue }
+            let (score, matchedSnippet, matchCount) = bestSnippetMatchScore(in: lyrics, snippets: usableSnippets)
+            guard let matchedSnippet, score >= 0.55 else { continue }
 
-            if score > (bestCandidate?.score ?? 0) {
-                bestCandidate = (candidate, lyrics, matchedSnippet, score)
+            var finalTitle = cleanTitle(toSimplifiedChinese(candidate.title))
+            var finalArtist = toSimplifiedChinese(candidate.artist)
+            let finalAlbum = cleanAlbum(toSimplifiedChinese(candidate.album ?? ""))
+
+            if isPinyinOrRomanized(finalTitle),
+               let chineseMeta = await fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
+                finalTitle = chineseMeta.title
+                finalArtist = chineseMeta.artist
+            }
+
+            let song = LyricResolvedSong(
+                title: finalTitle,
+                artist: finalArtist,
+                album: finalAlbum.isEmpty ? nil : finalAlbum,
+                lyrics: lyrics,
+                matchedSnippet: matchedSnippet.text,
+                confidenceScore: score,
+                estimatedSongOffsetAtClipStart: estimateSongOffsetAtClipStart(
+                    lyrics: lyrics,
+                    matchedSnippet: matchedSnippet
+                ),
+                source: candidate.platform == .qqMusic ? "qq" : "netease",
+                originalIndex: index,
+                matchedSnippetsCount: matchCount,
+                artworkURL: candidate.artworkURL,
+                releaseDate: candidate.releaseDate
+            )
+            matchedSongs.append(song)
+        }
+
+        let sortedSongs = matchedSongs.sorted { lhs, rhs in
+            // 1. 优先根据匹配到的不同歌词片段数量排序
+            if lhs.matchedSnippetsCount != rhs.matchedSnippetsCount {
+                return lhs.matchedSnippetsCount > rhs.matchedSnippetsCount
+            }
+            
+            // 2. 数量一样时，优先选择非 Live/非现场/非综艺的版本（录音室原版优先）
+            let lhsIsLive = self.isLiveOrShow(lhs.title)
+            let rhsIsLive = self.isLiveOrShow(rhs.title)
+            if lhsIsLive != rhsIsLive {
+                return !lhsIsLive && rhsIsLive
+            }
+            
+            // 3. 数量和 Live 状态一样时，如果置信度非常接近 (相差在 0.02 以内)
+            if abs(lhs.confidenceScore - rhs.confidenceScore) < 0.02 {
+                if let currentStreamTitle = currentStreamTitle {
+                    let lhsMetaScore = self.scoreCandidateAgainstMetadata(title: lhs.title, artist: lhs.artist, streamTitle: currentStreamTitle)
+                    let rhsMetaScore = self.scoreCandidateAgainstMetadata(title: rhs.title, artist: rhs.artist, streamTitle: currentStreamTitle)
+                    if lhsMetaScore != rhsMetaScore {
+                        return lhsMetaScore > rhsMetaScore
+                    }
+                }
+                // 优先选择原始搜索更靠前的候选 (更可能是流行度高/原唱版本)
+                return lhs.originalIndex < rhs.originalIndex
+            }
+            return lhs.confidenceScore > rhs.confidenceScore
+        }
+        var finalSongs: [LyricResolvedSong] = []
+        var seenKeys = Set<String>()
+        
+        for song in sortedSongs {
+            let nTitle = song.title.lowercased().replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+            let nArtist = song.artist.lowercased().replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+            
+            // 使用渲染副标题来去重，如果展示副标题（专辑名，若无则歌名）相同，则进行合并
+            let displaySubtitle = song.album ?? song.title
+            let nSubtitle = displaySubtitle.lowercased().replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+            
+            let key = "\(nTitle)::\(nArtist)::\(nSubtitle)"
+            if !seenKeys.contains(key) {
+                seenKeys.insert(key)
+                finalSongs.append(song)
             }
         }
-
-        guard let bestCandidate, bestCandidate.score >= 0.72 else {
-            return nil
+        
+        return finalSongs
+    }
+    
+    private func scoreCandidateAgainstMetadata(title: String, artist: String, streamTitle: String?) -> Double {
+        guard let streamTitle = streamTitle, !streamTitle.isEmpty else { return 0 }
+        
+        let cleanedStream = streamTitle.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        var streamArtist = ""
+        var streamTitlePart = cleanedStream
+        
+        let separators = [" - ", " — ", " – ", " ~ "]
+        for sep in separators {
+            if let range = cleanedStream.range(of: sep) {
+                streamArtist = String(cleanedStream[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                streamTitlePart = String(cleanedStream[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                break
+            }
         }
-
-        var finalTitle = cleanTitle(toSimplifiedChinese(bestCandidate.candidate.title))
-        var finalArtist = toSimplifiedChinese(bestCandidate.candidate.artist)
-        let finalAlbum = cleanAlbum(toSimplifiedChinese(bestCandidate.candidate.album ?? ""))
-
-        if isPinyinOrRomanized(finalTitle),
-           let chineseMeta = await fetchChineseMetadata(title: finalTitle, artist: finalArtist) {
-            finalTitle = chineseMeta.title
-            finalArtist = chineseMeta.artist
+        
+        if streamArtist.isEmpty {
+            let parts = cleanedStream.components(separatedBy: "-")
+            if parts.count >= 2 {
+                streamArtist = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                streamTitlePart = parts[1...].joined(separator: "-").trimmingCharacters(in: .whitespacesAndNewlines)
+            }
         }
-
-        return LyricResolvedSong(
-            title: finalTitle,
-            artist: finalArtist,
-            album: finalAlbum.isEmpty ? nil : finalAlbum,
-            lyrics: bestCandidate.lyrics,
-            matchedSnippet: bestCandidate.snippet.text,
-            confidenceScore: bestCandidate.score,
-            estimatedSongOffsetAtClipStart: estimateSongOffsetAtClipStart(
-                lyrics: bestCandidate.lyrics,
-                matchedSnippet: bestCandidate.snippet
-            ),
-            source: "OpenRouterLyrics"
-        )
+        
+        let normStreamTitle = normalizeSongTextForCompare(streamTitlePart)
+        let normStreamArtist = normalizeSongTextForCompare(streamArtist)
+        let normCandidateTitle = normalizeSongTextForCompare(title)
+        let normCandidateArtist = normalizeSongTextForCompare(artist)
+        
+        let titleScore = scoreTextMatch(normCandidateTitle, normStreamTitle) * 0.6
+        let artistScore = scoreTextMatch(normCandidateArtist, normStreamArtist) * 0.4
+        
+        return min(titleScore + artistScore, 1.0)
+    }
+    
+    private func normalizeSongTextForCompare(_ text: String) -> String {
+        let simplified = toSimplifiedChinese(text).lowercased()
+        let withoutParentheses = simplified.replacingOccurrences(of: "[（\\(].*?[）\\)]", with: "", options: .regularExpression)
+        let cleaned = withoutParentheses.replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
+        return cleaned
+    }
+    
+    private func scoreTextMatch(_ candidateText: String, _ metadataText: String) -> Double {
+        if candidateText.isEmpty || metadataText.isEmpty { return 0 }
+        if candidateText == metadataText { return 1.0 }
+        if candidateText.contains(metadataText) || metadataText.contains(candidateText) {
+            return Double(min(candidateText.count, metadataText.count)) / Double(max(candidateText.count, metadataText.count))
+        }
+        return 0
     }
     
     // QQ Music ID Search (Refactored for public use if needed, or private)
@@ -836,25 +975,99 @@ class MusicPlatformService {
         return candidates.filter { !isDerivative($0.title) }
     }
 
-    private func bestSnippetMatchScore(in lyrics: String, snippets: [LyricSnippet]) -> (Double, LyricSnippet?) {
-        let normalizedLyrics = normalizedLyricSearchText(lyrics)
-        guard !normalizedLyrics.isEmpty else { return (0, nil) }
+    private struct LyricWindow {
+        let time: TimeInterval
+        let text: String
+    }
 
+    private func buildLyricWindows(lines: [LyricLine]) -> [LyricWindow] {
+        var windows = [LyricWindow]()
+        for (index, line) in lines.enumerated() {
+            windows.append(LyricWindow(time: line.time, text: line.text))
+            
+            if index + 1 < lines.count {
+                let nextLine = lines[index + 1]
+                windows.append(LyricWindow(time: line.time, text: line.text + nextLine.text))
+                
+                if index + 2 < lines.count {
+                    let thirdLine = lines[index + 2]
+                    windows.append(LyricWindow(time: line.time, text: line.text + nextLine.text + thirdLine.text))
+                }
+            }
+        }
+        return windows
+    }
+
+    private func bigramDiceScore(lhs: String, rhs: String) -> Double {
+        let lhsBigrams = makeBigrams(lhs)
+        let rhsBigrams = makeBigrams(rhs)
+        if lhsBigrams.isEmpty || rhsBigrams.isEmpty { return 0 }
+
+        var rhsCounts = [String: Int]()
+        for bigram in rhsBigrams {
+            rhsCounts[bigram] = (rhsCounts[bigram] ?? 0) + 1
+        }
+
+        var overlap = 0
+        for bigram in lhsBigrams {
+            if let count = rhsCounts[bigram], count > 0 {
+                overlap += 1
+                rhsCounts[bigram] = count - 1
+            }
+        }
+
+        let dice = Double(2 * overlap) / Double(lhsBigrams.count + rhsBigrams.count)
+        let overlapRatio = Double(overlap) / Double(min(lhsBigrams.count, rhsBigrams.count))
+        
+        return max(dice, overlapRatio * 0.85)
+    }
+
+    private func makeBigrams(_ text: String) -> [String] {
+        if text.count < 2 { return [] }
+        let chars = Array(text)
+        var bigrams = [String]()
+        for index in 0..<(chars.count - 1) {
+            bigrams.append(String(chars[index...index+1]))
+        }
+        return bigrams
+    }
+
+    private func bestSnippetMatchScore(in lyrics: String, snippets: [LyricSnippet]) -> (score: Double, matchedSnippet: LyricSnippet?, matchCount: Int) {
+        let lines = LRCParser.parse(lrc: lyrics)
+        guard !lines.isEmpty else { return (0, nil, 0) }
+
+        let windows = buildLyricWindows(lines: lines)
         var bestScore = 0.0
         var bestSnippet: LyricSnippet?
+        var matchCount = 0
 
         for snippet in snippets {
             let normalizedSnippet = normalizedLyricSearchText(snippet.text)
             guard normalizedSnippet.count >= 6 else { continue }
 
-            let overlapScore: Double
-            if normalizedLyrics.contains(normalizedSnippet) {
-                overlapScore = 1.0
-            } else {
-                overlapScore = nGramOverlapScore(needle: normalizedSnippet, haystack: normalizedLyrics)
+            var bestScoreForThisSnippet = 0.0
+            for window in windows {
+                let normalizedWindow = normalizedLyricSearchText(window.text)
+                guard normalizedWindow.count >= 4 else { continue }
+
+                let score: Double
+                if normalizedWindow.contains(normalizedSnippet) || normalizedSnippet.contains(normalizedWindow) {
+                    score = Double(min(normalizedWindow.count, normalizedSnippet.count)) / Double(max(normalizedWindow.count, normalizedSnippet.count))
+                } else {
+                    score = bigramDiceScore(lhs: normalizedSnippet, rhs: normalizedWindow)
+                }
+
+                if score > bestScoreForThisSnippet {
+                    bestScoreForThisSnippet = score
+                }
             }
 
-            let weightedScore = overlapScore * (0.85 + (snippet.confidenceScore * 0.15))
+            let weightedScore = bestScoreForThisSnippet * (0.85 + (snippet.confidenceScore * 0.15))
+            
+            if bestScoreForThisSnippet >= 0.55 {
+                matchCount += 1
+            }
+
             let bestSnippetHasTiming = bestSnippet?.start != nil
             let snippetHasTiming = snippet.start != nil
 
@@ -865,7 +1078,7 @@ class MusicPlatformService {
             }
         }
 
-        return (bestScore, bestSnippet)
+        return (bestScore, bestSnippet, matchCount)
     }
 
     private func estimateSongOffsetAtClipStart(lyrics: String, matchedSnippet: LyricSnippet) -> TimeInterval? {
@@ -877,20 +1090,29 @@ class MusicPlatformService {
         let normalizedSnippet = normalizedLyricSearchText(matchedSnippet.text)
         guard !normalizedSnippet.isEmpty else { return nil }
 
-        for line in lines {
-            let normalizedLine = normalizedLyricSearchText(line.text)
-            guard !normalizedLine.isEmpty else { continue }
+        let windows = buildLyricWindows(lines: lines)
+        var bestWindow: LyricWindow? = nil
+        var maxScore: Double = -1.0
+
+        for window in windows {
+            let normalizedWindow = normalizedLyricSearchText(window.text)
+            guard !normalizedWindow.isEmpty else { continue }
 
             let score: Double
-            if normalizedLine.contains(normalizedSnippet) || normalizedSnippet.contains(normalizedLine) {
-                score = 1.0
+            if normalizedWindow.contains(normalizedSnippet) || normalizedSnippet.contains(normalizedWindow) {
+                score = Double(min(normalizedWindow.count, normalizedSnippet.count)) / Double(max(normalizedWindow.count, normalizedSnippet.count))
             } else {
-                score = nGramOverlapScore(needle: normalizedSnippet, haystack: normalizedLine)
+                score = bigramDiceScore(lhs: normalizedSnippet, rhs: normalizedWindow)
             }
 
-            if score >= 0.75 {
-                return max(0, line.time - snippetStart)
+            if score > maxScore {
+                maxScore = score
+                bestWindow = window
             }
+        }
+
+        if let bestWindow = bestWindow, maxScore >= 0.55 {
+            return max(0, bestWindow.time - snippetStart)
         }
 
         return nil
@@ -926,24 +1148,5 @@ class MusicPlatformService {
         return withoutTimestamps
             .lowercased()
             .replacingOccurrences(of: "[^\\p{Han}\\p{Latin}\\p{Nd}]", with: "", options: .regularExpression)
-    }
-
-    private func nGramOverlapScore(needle: String, haystack: String) -> Double {
-        guard !needle.isEmpty, !haystack.isEmpty else { return 0 }
-        if haystack.contains(needle) { return 1.0 }
-
-        let needleCharacters = Array(needle)
-        let gramLength = min(5, max(3, needleCharacters.count / 3))
-        guard needleCharacters.count >= gramLength else { return 0 }
-
-        var grams = Set<String>()
-        for index in 0...(needleCharacters.count - gramLength) {
-            grams.insert(String(needleCharacters[index..<(index + gramLength)]))
-        }
-
-        guard !grams.isEmpty else { return 0 }
-
-        let matches = grams.filter { haystack.contains($0) }.count
-        return Double(matches) / Double(grams.count)
     }
 }

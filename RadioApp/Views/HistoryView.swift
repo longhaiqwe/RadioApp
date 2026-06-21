@@ -287,6 +287,9 @@ struct HistoryListView: View {
                                 showSharePreview = false
                             }
                         },
+                        onDownload: {
+                            exportShareCardImage(image)
+                        },
                         onDismiss: {
                             showSharePreview = false
                         }
@@ -316,6 +319,29 @@ struct HistoryListView: View {
         ) {
             self.shareCardImage = image
             self.showSharePreview = true
+        }
+    }
+    
+    // MARK: - 导出分享卡片至本地文件 (下载能力)
+    private func exportShareCardImage(_ image: UIImage) {
+        let safeFileName = "拾音FM分享图.png"
+        guard let tempURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent(safeFileName) else { return }
+        guard let data = image.pngData() else { return }
+        
+        do {
+            try data.write(to: tempURL)
+            let picker = UIDocumentPickerViewController(forExporting: [tempURL], asCopy: true)
+            picker.modalPresentationStyle = .formSheet
+            
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootVC = windowScene.windows.first?.rootViewController else { return }
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            topVC.present(picker, animated: true)
+        } catch {
+            print("HistoryView: 导出分享图失败 - \(error.localizedDescription)")
         }
     }
 }

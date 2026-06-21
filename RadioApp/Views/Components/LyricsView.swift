@@ -8,6 +8,11 @@ struct LyricsView: View {
     @State private var isUserScrolling = false
     @State private var scrollResumeItem: DispatchWorkItem?
     
+    @State private var isAutoScrolling = false
+    @State private var autoScrollResetTask: DispatchWorkItem?
+    @State private var lastOffset: CGFloat = 0
+    @State private var scrollProxy: ScrollViewProxy? = nil
+    
     var body: some View {
         VStack(spacing: 0) {
             // 歌词滚动区域
@@ -18,6 +23,14 @@ struct LyricsView: View {
                     ScrollViewReader { proxy in
                         ScrollView(showsIndicators: false) {
                             VStack(spacing: 20) {
+                                // 用于检测滚动位置变化的隐藏 View
+                                GeometryReader { geom in
+                                    let minY = geom.frame(in: .named("lyricsScrollView")).minY
+                                    Color.clear
+                                        .preference(key: ViewOffsetKey.self, value: minY)
+                                }
+                                .frame(height: 0)
+                                
                                 // Top padding to push first line to center
                                 Color.clear.frame(height: geometry.size.height / 2 - 20)
                                 
@@ -41,6 +54,10 @@ struct LyricsView: View {
                             }
                             .frame(maxWidth: .infinity)
                         }
+                        .coordinateSpace(name: "lyricsScrollView")
+                        .onPreferenceChange(ViewOffsetKey.self) { offset in
+                            handleOffsetChange(offset)
+                        }
                         .simultaneousGesture(
                             DragGesture()
                                 .onChanged { _ in
@@ -49,24 +66,28 @@ struct LyricsView: View {
                                     scrollResumeItem = nil
                                 }
                                 .onEnded { _ in
-                                    let item = DispatchWorkItem {
-                                        withAnimation {
-                                            isUserScrolling = false
-                                        }
-                                    }
-                                    scrollResumeItem = item
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: item)
+                                    scheduleScrollResume()
                                 }
                         )
-                        .onChange(of: context.date) { _ in
+                        .onChange(of: context.date) { _, _ in
                             // Auto-scroll only if user is not interacting
                             if !isUserScrolling {
                                 if let activeLine = lyricLines.last(where: { $0.time <= currentTime }) {
+                                    isAutoScrolling = true
+                                    autoScrollResetTask?.cancel()
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         proxy.scrollTo(activeLine.id, anchor: .center)
                                     }
+                                    let task = DispatchWorkItem {
+                                        isAutoScrolling = false
+                                    }
+                                    autoScrollResetTask = task
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: task)
                                 }
                             }
+                        }
+                        .onAppear {
+                            self.scrollProxy = proxy
                         }
                     }
                 }
@@ -75,12 +96,31 @@ struct LyricsView: View {
             // 底部控制区域：调整按钮 + 免责声明
             VStack(spacing: 24) {
                 // 歌词调整按钮组（横向排列）
-                HStack(spacing: 40) {
+                HStack(spacing: 24) {
+                    // 上一段按钮
+                    Button(action: {
+                        matcher.jumpToPreviousSection(lyricLines: lyricLines)
+                    }) {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.1))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "chevron.backward.2")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                            Text("上一段")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                    
                     // 后退按钮 - 歌词显示更早（逆时针箭头）
                     Button(action: {
                         matcher.adjustLyricsBackward()
                     }) {
-                        VStack(spacing: 1) {
+                        VStack(spacing: 6) {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.1))
@@ -132,6 +172,25 @@ struct LyricsView: View {
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     }
+                    
+                    // 下一段按钮
+                    Button(action: {
+                        matcher.jumpToNextSection(lyricLines: lyricLines)
+                    }) {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.1))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "chevron.forward.2")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                            Text("下一段")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
                 }
                 .padding(.top, 4)
                 
@@ -149,7 +208,7 @@ struct LyricsView: View {
         .onAppear {
             self.lyricLines = LRCParser.parse(lrc: lyrics)
         }
-        .onChange(of: lyrics) { newLyrics in
+        .onChange(of: lyrics) { _, newLyrics in
             self.lyricLines = LRCParser.parse(lrc: newLyrics)
         }
     }
@@ -171,5 +230,50 @@ struct LyricsView: View {
         }
         
         return currentTime >= startTime && currentTime < endTime
+    }
+    
+    private func scheduleScrollResume() {
+        scrollResumeItem?.cancel()
+        let item = DispatchWorkItem {
+            withAnimation {
+                isUserScrolling = false
+            }
+            if let activeLine = lyricLines.last(where: { $0.time <= matcher.currentSongTime }) {
+                isAutoScrolling = true
+                autoScrollResetTask?.cancel()
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    scrollProxy?.scrollTo(activeLine.id, anchor: .center)
+                }
+                let task = DispatchWorkItem {
+                    isAutoScrolling = false
+                }
+                autoScrollResetTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: task)
+            }
+        }
+        scrollResumeItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: item)
+    }
+    
+    private func handleOffsetChange(_ offset: CGFloat) {
+        let delta = abs(offset - lastOffset)
+        lastOffset = offset
+        
+        guard delta > 0.5 else { return }
+        
+        if isAutoScrolling {
+            return
+        }
+        
+        isUserScrolling = true
+        scheduleScrollResume()
+    }
+}
+
+struct ViewOffsetKey: PreferenceKey {
+    typealias Value = CGFloat
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

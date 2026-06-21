@@ -29,7 +29,18 @@ struct SidebarLayout: View {
     
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selection)
+            SidebarView(selection: $selection) { selectedItem in
+                guard SidebarPlayerPresentationPolicy.shouldDismissPlayerOnSidebarActivation(
+                    activatedSelection: selectedItem,
+                    isPlayerPresented: showPlayer
+                ) else {
+                    return
+                }
+
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showPlayer = false
+                }
+            }
                 #if targetEnvironment(macCatalyst)
                 .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 240)
                 #endif
@@ -92,6 +103,19 @@ struct SidebarLayout: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(NeonColors.darkBg)
+        .onChange(of: selection) { oldSelection, newSelection in
+            guard SidebarPlayerPresentationPolicy.shouldDismissPlayerOnSelectionChange(
+                from: oldSelection,
+                to: newSelection,
+                isPlayerPresented: showPlayer
+            ) else {
+                return
+            }
+
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showPlayer = false
+            }
+        }
         #if targetEnvironment(macCatalyst)
         .frame(minWidth: 1000, maxWidth: .infinity, minHeight: 860, maxHeight: .infinity)
         #endif

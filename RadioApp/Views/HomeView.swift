@@ -306,7 +306,7 @@ struct HomeView: View {
             // 此时 L1/L2 数据已经在 init 中加载完成，UI 应该是有内容的
              viewModel.fetchStations()
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 // App 回到前台，检查更新
                 viewModel.fetchStations()

@@ -47,15 +47,30 @@ class ShareCardGenerator {
     
     // MARK: - 预加载封面图
     
+    // 内存缓存，确保一旦封面图下载成功（或者界面上加载过），生成分享图时可“立即看见封面图”而无需重复请求
+    private static let artworkCache = NSCache<NSURL, UIImage>()
+    
     /// 异步下载封面图片（ImageRenderer 不支持 AsyncImage）
     /// - Parameter url: 封面图 URL
     /// - Returns: 下载后的 UIImage
     static func preloadArtwork(from url: URL?) async -> UIImage? {
         guard let url = url else { return nil }
         
+        // 优先使用缓存实现“立即秒开看见封面”
+        if let cachedImage = artworkCache.object(forKey: url as NSURL) {
+            print("ShareCardGenerator: 命中封面图内存缓存")
+            return cachedImage
+        }
+        
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            return UIImage(data: data)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 4.0 // 限制 4 秒超时，防止国内到 mzstatic.com 慢速网络握手卡死
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let image = UIImage(data: data) {
+                artworkCache.setObject(image, forKey: url as NSURL)
+                return image
+            }
+            return nil
         } catch {
             print("ShareCardGenerator: 封面图下载失败 - \(error.localizedDescription)")
             return nil

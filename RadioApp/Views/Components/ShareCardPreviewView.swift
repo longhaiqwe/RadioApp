@@ -3,6 +3,7 @@ import SwiftUI
 struct ShareCardPreviewView: View {
     let image: UIImage
     let onShare: () -> Void
+    let onDownload: () -> Void
     let onDismiss: () -> Void
     
     var body: some View {
@@ -36,16 +37,35 @@ struct ShareCardPreviewView: View {
                 Spacer()
                 
                 // 底部按钮区域
-                HStack(spacing: 20) {
-                    Button(action: onShare) { // 调用系统分享
+                HStack(spacing: 16) {
+                    // 保存到文件按钮 (提供下载能力)
+                    Button(action: onDownload) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("保存到文件")
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(Color.white.opacity(0.12))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.18), lineWidth: 1.5)
+                        )
+                    }
+                    
+                    // 系统分享按钮
+                    Button(action: onShare) {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                            Text("分享")
+                            Text("系统分享")
                                 .fontWeight(.semibold)
                         }
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 15)
                         .background(Color.white)
                         .cornerRadius(16)
                     }

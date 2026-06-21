@@ -9,7 +9,7 @@ class SubscriptionManager: ObservableObject {
     
     // MARK: - 产品 ID
     // ⚠️ 请将此 ID 替换为你在 App Store Connect 配置的实际产品 ID
-    static let proLifetimeProductID = "com.shiyinFM.pro.lifetime"
+    nonisolated static let proLifetimeProductID = "com.shiyinFM.pro.lifetime"
     
     // MARK: - Published 属性
     @Published var isPro: Bool = false
@@ -45,6 +45,10 @@ class SubscriptionManager: ObservableObject {
         // 开始同步
         iCloudStore.synchronize()
         
+        #if targetEnvironment(macCatalyst)
+        // Mac Catalyst 独立版不监听 App Store 交易，也不自动在后台跟苹果校验 entitlements
+        print("SubscriptionManager: 正在运行 macOS Catalyst 独立版")
+        #else
         // 异步加载产品和验证购买
         Task {
             await loadProducts()
@@ -53,7 +57,46 @@ class SubscriptionManager: ObservableObject {
         
         // 监听交易更新
         listenForTransactions()
+        #endif
     }
+    
+    // MARK: - Mac 激活码验证
+    #if targetEnvironment(macCatalyst)
+    /// 验证 Mac 独立版的激活码
+    func verifyLicenseKey(_ key: String) async -> Bool {
+        guard !purchaseInProgress else { return false }
+        
+        purchaseInProgress = true
+        errorMessage = nil
+        
+        // 模拟网络请求延迟
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
+        
+        // 清理激活码格式（去空格，转大写）
+        let cleanedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        
+        if cleanedKey == "SHIYIN-FM-MAC-TEST" {
+            // 激活 Pro
+            isPro = true
+            UserDefaults.standard.set(true, forKey: isPurchasedKey)
+            
+            // 初始化 50 次配额
+            UserDefaults.standard.set(initialCredits, forKey: creditsKey)
+            iCloudStore.set(Int64(initialCredits), forKey: creditsKey)
+            iCloudStore.synchronize()
+            
+            self.objectWillChange.send()
+            purchaseInProgress = false
+            print("SubscriptionManager: 使用测试激活码成功激活 Pro!")
+            return true
+        } else {
+            errorMessage = "激活码无效，请检查后重试"
+            purchaseInProgress = false
+            print("SubscriptionManager: 激活码验证失败: \(cleanedKey)")
+            return false
+        }
+    }
+    #endif
     
     // MARK: - iCloud 同步
     
@@ -212,16 +255,12 @@ class SubscriptionManager: ObservableObject {
     // MARK: - 监听交易更新
     
     private func listenForTransactions() {
-        Task.detached {
+        Task.detached { [weak self] in
             for await result in Transaction.updates {
                 switch result {
                 case .verified(let transaction):
                     if transaction.productID == Self.proLifetimeProductID {
-                        await MainActor.run {
-                            Task {
-                                await self.unlockPro(transaction: transaction)
-                            }
-                        }
+                        await self?.unlockPro(transaction: transaction)
                         await transaction.finish()
                     }
                 case .unverified:

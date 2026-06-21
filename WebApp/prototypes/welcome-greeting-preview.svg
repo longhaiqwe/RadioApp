@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1100" viewBox="0 0 1440 1100">
+  <defs>
+    <radialGradient id="cyanGlow" cx="20%" cy="12%" r="45%">
+      <stop offset="0%" stop-color="#00D9FF" stop-opacity="0.28"/>
+      <stop offset="72%" stop-color="#00D9FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="magentaGlow" cx="80%" cy="4%" r="42%">
+      <stop offset="0%" stop-color="#FF006E" stop-opacity="0.22"/>
+      <stop offset="72%" stop-color="#FF006E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="purpleGlow" cx="76%" cy="76%" r="44%">
+      <stop offset="0%" stop-color="#8338EC" stop-opacity="0.26"/>
+      <stop offset="78%" stop-color="#8338EC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="darkBase" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#08080D"/>
+      <stop offset="48%" stop-color="#0A0A0F"/>
+      <stop offset="100%" stop-color="#11111C"/>
+    </linearGradient>
+    <linearGradient id="pinkPurple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF006E"/>
+      <stop offset="100%" stop-color="#8338EC"/>
+    </linearGradient>
+    <linearGradient id="greetingFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00D9FF" stop-opacity="0.14"/>
+      <stop offset="62%" stop-color="#151520" stop-opacity="0.78"/>
+      <stop offset="100%" stop-color="#FF006E" stop-opacity="0.10"/>
+    </linearGradient>
+    <linearGradient id="coverFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00D9FF"/>
+      <stop offset="52%" stop-color="#8338EC"/>
+      <stop offset="100%" stop-color="#FF006E"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+    <filter id="cyanShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#00D9FF" flood-opacity="0.55"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="22" flood-color="#00D9FF" flood-opacity="0.24"/>
+    </filter>
+    <filter id="magentaShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#FF006E" flood-opacity="0.56"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="24" flood-color="#FF006E" flood-opacity="0.30"/>
+    </filter>
+    <pattern id="grid" width="58" height="58" patternUnits="userSpaceOnUse">
+      <path d="M 58 0 L 0 0 0 58" fill="none" stroke="#FFFFFF" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+    <style>
+      .ui { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: 0; }
+      .title { font-size: 86px; font-weight: 900; fill: #FFFFFF; }
+      .subtitle { font-size: 25px; font-weight: 750; fill: #00D9FF; }
+      .body { font-size: 25px; font-weight: 700; fill: rgba(255,255,255,0.88); }
+      .small { font-size: 19px; font-weight: 700; fill: rgba(255,255,255,0.56); }
+      .label { font-size: 19px; font-weight: 850; fill: rgba(255,255,255,0.82); }
+      .section { font-size: 30px; font-weight: 900; fill: #FFFFFF; }
+      .cardTitle { font-size: 22px; font-weight: 850; fill: #FFFFFF; }
+      .cyan { fill: #00D9FF; }
+      .muted { fill: rgba(255,255,255,0.46); }
+      .strokeRound { stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="1100" fill="url(#darkBase)"/>
+  <rect width="1440" height="1100" fill="url(#cyanGlow)"/>
+  <rect width="1440" height="1100" fill="url(#magentaGlow)"/>
+  <rect width="1440" height="1100" fill="url(#purpleGlow)"/>
+  <rect width="1440" height="1100" fill="url(#grid)" opacity="0.72"/>
+
+  <g class="ui" transform="translate(190 74)">
+    <g>
+      <text class="title" x="0" y="84">发现</text>
+      <text class="subtitle" x="2" y="128">探索全球电台</text>
+      <g transform="translate(984 8)" filter="url(#magentaShadow)">
+        <circle cx="42" cy="42" r="42" fill="url(#pinkPurple)"/>
+        <path d="M31 24h23v23M25 61 62 24M54 61h8v-8M30 31l11 11M49 49l13 13" fill="none" stroke="#FFFFFF" stroke-width="4.2" class="strokeRound"/>
+      </g>
+    </g>
+
+    <g transform="translate(0 172)" filter="url(#softShadow)">
+      <rect x="0" y="0" width="1060" height="124" rx="28" fill="url(#greetingFill)" stroke="#00D9FF" stroke-opacity="0.36" stroke-width="1.5"/>
+      <circle cx="898" cy="-28" r="130" fill="#FFD23F" opacity="0.12"/>
+      <g transform="translate(24 31)">
+        <rect width="62" height="62" rx="20" fill="#00D9FF" opacity="0.13" stroke="#00D9FF" stroke-opacity="0.30"/>
+        <path d="M18 31a13 13 0 0 1 26 0M12 31a19 19 0 0 1 38 0M25 31a6 6 0 0 1 12 0M31 42v17" fill="none" stroke="#00D9FF" stroke-width="3.7" class="strokeRound"/>
+      </g>
+      <text class="body" x="108" y="52">
+        <tspan>是缘分让我们偶遇，从</tspan>
+        <tspan fill="#FFFFFF" filter="url(#cyanShadow)">「清晨音乐台」</tspan>
+        <tspan>开始吧，</tspan>
+      </text>
+      <text class="body" x="108" y="88">希望你能遇到心仪的歌曲～</text>
+      <g transform="translate(856 38)">
+        <rect width="160" height="48" rx="24" fill="#FFFFFF" opacity="0.065" stroke="#FFFFFF" stroke-opacity="0.14"/>
+        <circle cx="29" cy="24" r="5" fill="#FFD23F"/>
+        <text class="label" x="48" y="31">今日第一站</text>
+      </g>
+    </g>
+
+    <g transform="translate(0 326)">
+      <rect width="1060" height="78" rx="22" fill="#151520" opacity="0.78" stroke="#FFFFFF" stroke-opacity="0.13"/>
+      <g transform="translate(24 23)">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="#00D9FF" stroke-width="3"/>
+        <path d="m25 25 15 15" stroke="#00D9FF" stroke-width="3.5" class="strokeRound"/>
+      </g>
+      <text class="small" x="84" y="49" fill-opacity="0.76">搜索电台、风格、地区...</text>
+      <path d="M1008 22l7 21 21 7-21 7-7 21-7-21-21-7 21-7z" fill="none" stroke="#8338EC" stroke-width="3.2" class="strokeRound"/>
+    </g>
+
+    <g transform="translate(0 462)">
+      <text class="section" x="0" y="30">推荐电台</text>
+      <text class="small" x="0" y="66">先从熟悉又稳定的台开始。</text>
+      <text class="label cyan" x="821" y="36">为你亮起清晨音乐台</text>
+    </g>
+
+    <g transform="translate(0 562)">
+      <g filter="url(#cyanShadow)">
+        <rect width="336" height="116" rx="24" fill="#151520" fill-opacity="0.78" stroke="#00D9FF" stroke-opacity="0.62" stroke-width="1.5"/>
+      </g>
+      <g transform="translate(18 18)">
+        <rect width="80" height="80" rx="22" fill="url(#coverFill)"/>
+        <circle cx="24" cy="22" r="17" fill="#FFD23F" opacity="0.72"/>
+        <path d="M42 55V24l30-6v31M37 57a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM72 51a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" fill="none" stroke="#FFFFFF" stroke-width="3.2" class="strokeRound"/>
+      </g>
+      <text class="cardTitle" x="116" y="47">清晨音乐台</text>
+      <text class="small cyan" x="116" y="76">music, pop music</text>
+      <path d="M118 92v12l10-6z" fill="rgba(255,255,255,0.50)"/>
+      <text class="small muted" x="136" y="104">MP3</text>
+      <circle cx="298" cy="58" r="25" fill="#FFFFFF" opacity="0.052" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <path d="M309 49a13 13 0 0 0-18 0l-3 3-3-3a13 13 0 0 0-18 18l3 3 18 17 18-17 3-3a13 13 0 0 0 0-18Z" transform="scale(.58) translate(322 50)" fill="none" stroke="rgba(255,255,255,0.66)" stroke-width="3.3"/>
+
+      <g transform="translate(362 0)">
+        <rect width="336" height="116" rx="24" fill="#151520" fill-opacity="0.78" stroke="#FFFFFF" stroke-opacity="0.13"/>
+        <rect x="18" y="18" width="80" height="80" rx="22" fill="url(#coverFill)" opacity="0.84"/>
+        <text class="cardTitle" x="116" y="47">CNR-3 音乐之声</text>
+        <text class="small cyan" x="116" y="76">classic, live</text>
+        <path d="M118 92v12l10-6z" fill="rgba(255,255,255,0.50)"/>
+        <text class="small muted" x="136" y="104">HLS</text>
+        <circle cx="298" cy="58" r="25" fill="#FFFFFF" opacity="0.052" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      </g>
+
+      <g transform="translate(724 0)">
+        <rect width="336" height="116" rx="24" fill="#151520" fill-opacity="0.78" stroke="#FFFFFF" stroke-opacity="0.13"/>
+        <rect x="18" y="18" width="80" height="80" rx="22" fill="url(#coverFill)" opacity="0.84"/>
+        <text class="cardTitle" x="116" y="47">AsiaFM 亚洲经典</text>
+        <text class="small cyan" x="116" y="76">chinese, music</text>
+        <path d="M118 92v12l10-6z" fill="rgba(255,255,255,0.50)"/>
+        <text class="small muted" x="136" y="104">MP3</text>
+        <circle cx="298" cy="58" r="25" fill="#FFFFFF" opacity="0.052" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      </g>
+    </g>
+  </g>
+
+  <g class="ui" transform="translate(360 978)" filter="url(#softShadow)">
+    <rect width="720" height="82" rx="30" fill="#10101A" fill-opacity="0.92" stroke="#00D9FF" stroke-opacity="0.32"/>
+    <circle cx="48" cy="41" r="28" fill="url(#pinkPurple)" filter="url(#magentaShadow)"/>
+    <path d="M39 29v24l20-12z" fill="#FFFFFF"/>
+    <text class="label" x="96" y="35">从清晨音乐台开始</text>
+    <text class="small" x="96" y="61">希望你能遇到心仪的歌曲</text>
+  </g>
+</svg>

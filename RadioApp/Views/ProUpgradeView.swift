@@ -11,6 +11,11 @@ struct ProUpgradeView: View {
     // 使用 Timer.publish 避免在 struct 中捕获 mutating self 的问题
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    #if targetEnvironment(macCatalyst)
+    @State private var licenseKeyInput: String = ""
+    @State private var activationSuccess: Bool = false
+    #endif
+
     var body: some View {
         ZStack {
             // 背景
@@ -100,7 +105,103 @@ struct ProUpgradeView: View {
                         }
                         .padding(.horizontal, 24)
                         
-                        // 价格卡片
+                        #if targetEnvironment(macCatalyst)
+                        // macOS 独立版激活码验证 UI
+                        VStack(spacing: 20) {
+                            VStack(spacing: 8) {
+                                Text("Mac 独立版激活")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                Text("请输入购买后获得的激活码")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            
+                            TextField("激活码 (如: SHIYIN-FM-MAC-TEST)", text: $licenseKeyInput)
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .padding()
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
+                                )
+                                .foregroundColor(.white)
+                                .font(.system(size: 16, design: .monospaced))
+                                .padding(.horizontal, 20)
+                                .autocorrectionDisabled()
+                                #if os(iOS)
+                                .textInputAutocapitalization(.characters)
+                                #endif
+                            
+                            Button(action: {
+                                Task {
+                                    let success = await subscriptionManager.verifyLicenseKey(licenseKeyInput)
+                                    if success {
+                                        activationSuccess = true
+                                        try? await Task.sleep(nanoseconds: 800_000_000) // 延迟 0.8s
+                                        dismiss()
+                                    }
+                                }
+                            }) {
+                                HStack {
+                                    if subscriptionManager.purchaseInProgress {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .padding(.trailing, 8)
+                                    }
+                                    Text(subscriptionManager.purchaseInProgress ? "验证中..." : (activationSuccess ? "已激活 Pro!" : "验证并激活"))
+                                        .font(.system(size: 18, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: activationSuccess ? [Color.green, Color.teal] : [NeonColors.magenta, NeonColors.purple],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                )
+                                .shadow(color: (activationSuccess ? Color.green : NeonColors.magenta).opacity(0.4), radius: 12, y: 4)
+                            }
+                            .disabled(licenseKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || subscriptionManager.purchaseInProgress || activationSuccess)
+                            .padding(.horizontal, 20)
+                            
+                            if let error = subscriptionManager.errorMessage {
+                                Text(error)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(NeonColors.magenta)
+                                    .padding(.horizontal, 20)
+                            }
+                            
+                            VStack(spacing: 6) {
+                                Text("没有激活码？")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.white.opacity(0.5))
+                                
+                                Link("前往官方渠道购买激活码 ↗", destination: URL(string: "https://afdian.com/@shiyinFM")!)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(NeonColors.cyan)
+                            }
+                            .padding(.top, 10)
+                        }
+                        .padding(.vertical, 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white.opacity(0.02))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(NeonColors.cyan.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                        .padding(.horizontal, 20)
+                        #else
+                        // iOS 价格卡片
                         VStack(spacing: 12) {
                             if let product = subscriptionManager.proProduct {
                                 Text(product.displayPrice)
@@ -153,7 +254,7 @@ struct ProUpgradeView: View {
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
                                         .stroke(NeonColors.cyan.opacity(0.3), lineWidth: 1)
-                                )
+                                    )
                         )
                         .padding(.horizontal, 20)
                         
@@ -231,6 +332,7 @@ struct ProUpgradeView: View {
                         }
                         .disabled(subscriptionManager.purchaseInProgress)
                         .padding(.bottom, 30)
+                        #endif
                     }
                 }
             }

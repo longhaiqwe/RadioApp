@@ -5,6 +5,8 @@ struct NetEaseSearchSong: Hashable {
     let title: String
     let artist: String
     let album: String?
+    let artworkURL: String?
+    let releaseDate: Date?
 }
 
 enum NetEaseSearchResolver {
@@ -123,12 +125,24 @@ enum NetEaseSearchResolver {
 
         let albumObject = (song["album"] as? [String: Any]) ?? (song["al"] as? [String: Any])
         let album = (albumObject?["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artworkURL = albumObject?["picUrl"] as? String
+        
+        var releaseDate: Date? = nil
+        if let publishTime = song["publishTime"] as? Double {
+            releaseDate = Date(timeIntervalSince1970: publishTime / 1000.0)
+        } else if let publishTime = song["publishTime"] as? Int64 {
+            releaseDate = Date(timeIntervalSince1970: Double(publishTime) / 1000.0)
+        } else if let publishTime = song["publishTime"] as? Int {
+            releaseDate = Date(timeIntervalSince1970: Double(publishTime) / 1000.0)
+        }
 
         return NetEaseSearchSong(
             id: id,
             title: title,
             artist: artist,
-            album: album
+            album: album,
+            artworkURL: artworkURL,
+            releaseDate: releaseDate
         )
     }
 

@@ -265,7 +265,7 @@ final class OpenRouterLyricsTranscriptionService {
             return plistValue.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        return "xiaomi/mimo-v2-omni"
+        return "xiaomi/mimo-v2.5"
     }
 
     private func normalizedLanguageHint(_ languageHint: String?) -> String? {

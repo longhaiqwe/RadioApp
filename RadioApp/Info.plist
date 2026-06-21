@@ -25,7 +25,7 @@
 	<key>CFBundleName</key>
 	<string>拾音 FM</string>
 	<key>OPENROUTER_LYRIC_MODEL</key>
-	<string>xiaomi/mimo-v2-omni</string>
+	<string>xiaomi/mimo-v2.5</string>
 	<key>MUSIC_RECOGNITION_FORCE_LYRIC_FALLBACK_ONLY</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>

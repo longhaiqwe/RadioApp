@@ -144,6 +144,9 @@ struct PlayerView: View {
                              showSharePreview = false
                         }
                     },
+                    onDownload: {
+                        exportShareCardImage(image)
+                    },
                     onDismiss: {
                         showSharePreview = false
                     }
@@ -184,7 +187,7 @@ struct PlayerView: View {
                     .background(Circle().fill(Color.white.opacity(0.1)))
             }
         }
-        .onChange(of: showSleepTimerSheet) { show in
+        .onChange(of: showSleepTimerSheet) { _, show in
             if show {
                 activeActionSheet = ActionSheetConfig(
                     title: "定时关闭",
@@ -220,7 +223,7 @@ struct PlayerView: View {
                 .foregroundColor(.white.opacity(0.8))
                 .frame(width: 44, height: 44)
         }
-        .onChange(of: showMenuActionSheet) { show in
+        .onChange(of: showMenuActionSheet) { _, show in
             if show {
                 presentReportActionSheet()
                 showMenuActionSheet = false
@@ -466,7 +469,7 @@ struct PlayerView: View {
                         startRotation()
                     }
                 }
-                .onChange(of: playerManager.isPlaying) { isPlaying in
+                .onChange(of: playerManager.isPlaying) { _, isPlaying in
                     if isPlaying {
                         startRotation()
                     }
@@ -539,7 +542,7 @@ struct PlayerView: View {
                             .padding(8)
                             .background(Circle().fill(NeonColors.red.opacity(0.15)))
                     }
-                    .onChange(of: showReportButtonActionSheet) { show in
+                    .onChange(of: showReportButtonActionSheet) { _, show in
                         if show {
                             presentReportActionSheet()
                             showReportButtonActionSheet = false
@@ -931,6 +934,59 @@ struct PlayerView: View {
                         if let releaseDate = shazamMatcher.customMatchResult?.releaseDate {
                             TimeMachineTagView(releaseDate: releaseDate)
                         }
+                        
+                        // 版本候选切换按钮 (如果有多个版本)
+                        if shazamMatcher.matchedVersions.count > 1 {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(0..<shazamMatcher.matchedVersions.count, id: \.self) { index in
+                                        let version = shazamMatcher.matchedVersions[index]
+                                        let isSelected = shazamMatcher.customMatchResult?.title == version.title && shazamMatcher.customMatchResult?.artist == version.artist
+                                        
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                shazamMatcher.selectLyricVersion(at: index)
+                                            }
+                                        }) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: version.source == "qq" ? "music.note.house.fill" : "music.note.list")
+                                                    .font(.system(size: 11))
+                                                    .foregroundColor(isSelected ? NeonColors.cyan : .white.opacity(0.6))
+                                                
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    // 主行：歌手
+                                                    Text(version.artist.isEmpty ? "未知歌手" : version.artist)
+                                                        .font(.system(size: 11, weight: .bold))
+                                                        .foregroundColor(isSelected ? .white : .white.opacity(0.85))
+                                                    
+                                                    // 副行：平台 | 专辑 (或歌名)
+                                                    let platformName = version.source == "qq" ? "QQ" : "网易"
+                                                    let subtitle = version.album ?? version.title
+                                                    Text("\(platformName) | \(subtitle)")
+                                                        .font(.system(size: 9))
+                                                        .foregroundColor(isSelected ? NeonColors.cyan.opacity(0.8) : .white.opacity(0.5))
+                                                }
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule()
+                                                    .fill(isSelected ? NeonColors.cyan.opacity(0.2) : Color.white.opacity(0.05))
+                                            )
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(isSelected ? NeonColors.cyan : Color.clear, lineWidth: 1)
+                                            )
+                                            .foregroundColor(isSelected ? NeonColors.cyan : .white)
+                                            .neonGlow(color: isSelected ? NeonColors.cyan : .clear, radius: 4)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                            .frame(height: 42)
+                            .padding(.top, 4)
+                        }
                     }
                 }
                 .padding(.horizontal, 8)
@@ -1202,6 +1258,35 @@ struct PlayerView: View {
         ) {
             self.shareCardImage = image
             self.showSharePreview = true
+        }
+    }
+    
+    // MARK: - 导出分享卡片至本地文件 (下载能力)
+    private func exportShareCardImage(_ image: UIImage) {
+        let title = shazamMatcher.customMatchResult?.title ?? shazamMatcher.lastMatch?.title ?? "拾音FM分享图"
+        // 移除非法文件名字符
+        let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
+        let safeTitle = title.components(separatedBy: invalidCharacters).joined(separator: "_")
+        let safeFileName = "\(safeTitle)_分享图.png"
+        
+        guard let tempURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent(safeFileName) else { return }
+        guard let data = image.pngData() else { return }
+        
+        do {
+            try data.write(to: tempURL)
+            // 提示：UIDocumentPickerViewController 适用于在 iOS 和 Mac Catalyst 上导出文件至 Finder / Files App
+            let picker = UIDocumentPickerViewController(forExporting: [tempURL], asCopy: true)
+            picker.modalPresentationStyle = .formSheet
+            
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootVC = windowScene.windows.first?.rootViewController else { return }
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            topVC.present(picker, animated: true)
+        } catch {
+            print("PlayerView: 导出分享图失败 - \(error.localizedDescription)")
         }
     }
 

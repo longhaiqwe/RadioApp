@@ -4,7 +4,7 @@ import Combine
 import MediaPlayer
 
 @MainActor
-class AudioPlayerManager: NSObject, ObservableObject {
+class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerItemMetadataOutputPushDelegate {
     static let shared = AudioPlayerManager()
     
     private var player: AVPlayer?
@@ -25,9 +25,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var sleepTimer: Timer?
     @Published var sleepTimerEndTime: Date?
     
-    // Live Metadata (ICY) - Removed due to low accuracy
-    // @Published var currentStreamTitle: String?
-    // private var metadataObserver: NSKeyValueObservation?
+    // Live Metadata (ICY)
+    @Published var currentStreamTitle: String? = nil
+    private var metadataOutput: AVPlayerItemMetadataOutput?
     
     // Shazam Integration
     private var cancellables = Set<AnyCancellable>()
@@ -187,8 +187,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
             
             // Artwork
              if let url = match.artworkURL {
-                 URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-                     guard let self = self else { return }
+                 URLSession.shared.dataTask(with: url) { data, _, _ in
                      guard let data = data, let image = UIImage(data: data) else { return }
                      let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                      
@@ -271,6 +270,14 @@ class AudioPlayerManager: NSObject, ObservableObject {
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 5.0
         
+        // 重置和观察流媒体元数据
+        currentStreamTitle = nil
+        metadataOutput = AVPlayerItemMetadataOutput(identifiers: nil)
+        metadataOutput?.setDelegate(self, queue: .main)
+        if let metadataOutput {
+            playerItem.add(metadataOutput)
+        }
+        
         // 设置播放器
         if player == nil {
             player = AVPlayer(playerItem: playerItem)
@@ -286,6 +293,38 @@ class AudioPlayerManager: NSObject, ObservableObject {
         updateNowPlayingInfo()
     }
     
+    func metadataOutput(
+        _ output: AVPlayerItemMetadataOutput,
+        didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
+        from track: AVPlayerItemTrack?
+    ) {
+        Task { @MainActor in
+            await handleTimedMetadataChange(groups.flatMap(\.items))
+        }
+    }
+    
+    private func handleTimedMetadataChange(_ metadata: [AVMetadataItem]) async {
+        for item in metadata {
+            if item.commonKey == .commonKeyTitle {
+                if let val = await metadataText(for: item), !val.isEmpty {
+                    self.currentStreamTitle = val
+                    print("AudioPlayerManager: Received ICY stream title: \(val)")
+                    return
+                }
+            }
+            if let key = item.key as? String, key.lowercased() == "streamtitle" {
+                if let val = await metadataText(for: item), !val.isEmpty {
+                    self.currentStreamTitle = val
+                    print("AudioPlayerManager: Received ICY stream title (StreamTitle): \(val)")
+                    return
+                }
+            }
+        }
+    }
+    
+    private func metadataText(for item: AVMetadataItem) async -> String? {
+        try? await item.load(.stringValue)
+    }
     
     func pause() {
         player?.pause()
@@ -298,6 +337,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
         player?.replaceCurrentItem(with: nil)
         isPlaying = false
         currentStation = nil
+        currentStreamTitle = nil
+        metadataOutput = nil
         updateNowPlayingInfo()
     }
     
@@ -420,10 +461,11 @@ class AudioPlayerManager: NSObject, ObservableObject {
             
             // Scheduling timer on main run loop
             self.sleepTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+                guard let manager = self else { return }
                 Task { @MainActor in
                     // 停止播放
-                    self?.stop()
-                    self?.cancelSleepTimer() // Clean up state
+                    manager.stop()
+                    manager.cancelSleepTimer() // Clean up state
                     
                     // 彻底退出应用
                     exit(0)
