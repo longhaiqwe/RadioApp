@@ -24,7 +24,7 @@ class StationBlockManager: ObservableObject {
     // Online Blocklist (Remote Config)
     @Published private(set) var onlineBlockedUUIDs: Set<String> = []
     @Published private(set) var onlineBlockedKeywords: [String] = [
-        "CCTV", "CGTN", "卫视", "凤凰卫视", "VOA", "RFA", "伴音", "新闻联播", "国际新闻"
+        "CCTV", "CGTN", "卫视", "凤凰卫视", "VOA", "RFA", "新闻联播", "国际新闻"
     ]
     
     private var cancellables = Set<AnyCancellable>()
