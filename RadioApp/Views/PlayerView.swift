@@ -290,14 +290,15 @@ struct PlayerView: View {
             // 动态封面模糊背景
             if let station = playerManager.currentStation {
                 Group {
-                    if station.favicon.hasPrefix("bundle://") {
-                         let assetName = String(station.favicon.dropFirst("bundle://".count))
+                    let favicon = Station.sanitizedFavicon(station.favicon)
+                    if favicon.hasPrefix("bundle://") {
+                         let assetName = String(favicon.dropFirst("bundle://".count))
                          Image(assetName)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .blur(radius: 80)
                             .opacity(0.4)
-                    } else if let url = URL(string: station.favicon) {
+                    } else if !favicon.isEmpty, let url = URL(string: favicon) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image

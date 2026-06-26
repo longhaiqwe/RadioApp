@@ -307,7 +307,7 @@ struct PresetStationData {
     "url": "https://live.xmcdn.com/live/764/64.m3u8",
     "url_resolved": "https://live.xmcdn.com/live/764/64.m3u8",
     "homepage": "https://www.radiotaiwan.tw/asia-fm-ya-zhou-dian-tai-wei-xing-liu-xing-yin-le-tai",
-    "favicon": "bundle://asiafm_new_cover",
+    "favicon": "",
     "tags": "music,pop",
     "country": "China",
     "countrycode": "CN",

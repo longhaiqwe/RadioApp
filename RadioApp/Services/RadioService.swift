@@ -302,9 +302,10 @@ class RadioService {
     
     /// Filter out stations containing blocked keywords OR hidden by user (Local + Online)
     private func filterBlockedStations(_ stations: [Station]) -> [Station] {
-        return stations.filter { station in
+        return stations.compactMap { station in
+            let sanitizedStation = station.withSanitizedFavicon()
             // Unified check for Local Block, Online Block, and Keywords
-            !StationBlockManager.shared.isBlocked(station)
+            return StationBlockManager.shared.isBlocked(sanitizedStation) ? nil : sanitizedStation
         }
     }
 }

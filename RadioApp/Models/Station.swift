@@ -44,3 +44,59 @@ struct Station: Codable, Identifiable, Hashable {
         hasher.combine(stationuuid)
     }
 }
+
+extension Station {
+    static func sanitizedFavicon(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        if trimmed.hasPrefix("bundle://") {
+            let assetName = String(trimmed.dropFirst("bundle://".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return assetName == "asiafm_new_cover" ? "" : trimmed
+        }
+
+        if let url = URL(string: trimmed),
+           let host = url.host?.lowercased(),
+           ["radiotaiwan.tw", "www.radiotaiwan.tw"].contains(host),
+           url.path.lowercased() == "/favicon.ico" {
+            return ""
+        }
+
+        return trimmed
+    }
+
+    func withSanitizedFavicon() -> Station {
+        let sanitized = Self.sanitizedFavicon(favicon)
+        guard sanitized != favicon else { return self }
+
+        return Station(
+            changeuuid: changeuuid,
+            stationuuid: stationuuid,
+            name: name,
+            url: url,
+            urlResolved: urlResolved,
+            homepage: homepage,
+            favicon: sanitized,
+            tags: tags,
+            country: country,
+            countrycode: countrycode,
+            state: state,
+            language: language,
+            languagecodes: languagecodes,
+            votes: votes,
+            lastchangetime: lastchangetime,
+            codec: codec,
+            bitrate: bitrate,
+            hls: hls,
+            lastcheckok: lastcheckok,
+            lastchecktime: lastchecktime,
+            lastcheckoktime: lastcheckoktime,
+            lastlocalchecktime: lastlocalchecktime,
+            clicktimestamp: clicktimestamp,
+            clickcount: clickcount,
+            clicktrend: clicktrend
+        )
+    }
+}

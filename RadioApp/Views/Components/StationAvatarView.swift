@@ -9,16 +9,20 @@ struct StationAvatarView: View {
     @State private var image: Image?
     @State private var isLoading = false
     @State private var hasError = false
+
+    private var sanitizedURLString: String {
+        Station.sanitizedFavicon(urlString)
+    }
     
     var body: some View {
         Group {
-            if urlString.hasPrefix("bundle://") {
+            if sanitizedURLString.hasPrefix("bundle://") {
                 // Local Asset
-                let assetName = String(urlString.dropFirst("bundle://".count))
+                let assetName = String(sanitizedURLString.dropFirst("bundle://".count))
                 Image(assetName)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-            } else if !urlString.isEmpty {
+            } else if !sanitizedURLString.isEmpty {
                 // Remote URL logic
                 if let loadedImage = image {
                     loadedImage
@@ -40,7 +44,7 @@ struct StationAvatarView: View {
                 PlaceholderView(name: placeholderName, id: placeholderId)
             }
         }
-        .task(id: urlString) {
+        .task(id: sanitizedURLString) {
             await loadImage()
         }
     }
@@ -48,9 +52,9 @@ struct StationAvatarView: View {
     // MARK: - Image Loading Logic
     private func loadImage() async {
         // Reset state for new URL
-        guard !urlString.isEmpty, !urlString.hasPrefix("bundle://") else { return }
+        guard !sanitizedURLString.isEmpty, !sanitizedURLString.hasPrefix("bundle://") else { return }
         
-        guard let url = URL(string: urlString) else {
+        guard let url = URL(string: sanitizedURLString) else {
             hasError = true
             return
         }
@@ -79,7 +83,7 @@ struct StationAvatarView: View {
                 throw URLError(.cannotDecodeContentData)
             }
         } catch {
-            print("Image load failed for \(urlString): \(error.localizedDescription)")
+            print("Image load failed for \(sanitizedURLString): \(error.localizedDescription)")
             await MainActor.run {
                 withAnimation {
                     self.hasError = true

@@ -205,7 +205,8 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
                  }.resume()
              } else if let station = currentStation {
                  // Fallback to station artwork
-                  if URL(string: station.favicon) != nil {
+                  let favicon = Station.sanitizedFavicon(station.favicon)
+                  if !favicon.isEmpty, URL(string: favicon) != nil {
                       // ... reuse existing logic or simplify ...
                       // For brevity, let's just trigger the station logic if needed or skip
                   }
@@ -226,7 +227,8 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         
-        if let url = URL(string: station.favicon) {
+        let favicon = Station.sanitizedFavicon(station.favicon)
+        if let url = URL(string: favicon), !favicon.isEmpty {
             let stationId = station.id
             URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
                 guard let self = self else { return }

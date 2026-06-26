@@ -317,7 +317,8 @@ struct SearchResultRow: View {
         HStack(spacing: 14) {
             // 封面
             ZStack(alignment: .bottomTrailing) {
-                if let url = URL(string: station.favicon), !station.favicon.isEmpty {
+                let favicon = Station.sanitizedFavicon(station.favicon)
+                if let url = URL(string: favicon), !favicon.isEmpty {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable().aspectRatio(contentMode: .fill)
