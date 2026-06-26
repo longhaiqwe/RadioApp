@@ -126,7 +126,8 @@ class RadioService {
         
         let (data, _) = try await URLSession.shared.data(for: request)
         let stations = try JSONDecoder().decode([Station].self, from: data)
-        return self.filterBlockedStations(stations)
+        let visibleStations = self.filterBlockedStations(stations)
+        return await StreamPlaybackPreflight.filterPlayableStations(visibleStations)
     }
     
     /// Fetch top stations (prioritizing Music, excluding News)

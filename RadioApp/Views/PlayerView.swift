@@ -556,6 +556,15 @@ struct PlayerView: View {
                 .font(.system(size: 15))
                 .foregroundColor(NeonColors.cyan.opacity(0.7))
                 .lineLimit(1)
+
+            if let message = playerManager.playbackErrorMessage {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(NeonColors.red.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, 20)
+            }
         }
     }
     

@@ -74,7 +74,7 @@ struct MiniPlayerBar: View {
                         .lineLimit(1)
                     
                     HStack(spacing: 4) {
-                        if playerManager.isPlaying {
+                        if playerManager.isPlaying && playerManager.playbackErrorMessage == nil {
                             // 迷你可视化
                             HStack(spacing: 2) {
                                 ForEach(0..<4, id: \.self) { _ in
@@ -84,9 +84,14 @@ struct MiniPlayerBar: View {
                             .frame(width: 20, height: 12)
                         }
                         
-                        Text(playerManager.isPlaying ? "正在播放" : "已暂停")
+                        Text(playerManager.playbackErrorMessage ?? (playerManager.isPlaying ? "正在播放" : "已暂停"))
                             .font(.system(size: 12))
-                            .foregroundColor(playerManager.isPlaying ? NeonColors.cyan : .white.opacity(0.5))
+                            .foregroundColor(
+                                playerManager.playbackErrorMessage == nil
+                                ? (playerManager.isPlaying ? NeonColors.cyan : .white.opacity(0.5))
+                                : NeonColors.red.opacity(0.85)
+                            )
+                            .lineLimit(1)
                     }
                 }
                 

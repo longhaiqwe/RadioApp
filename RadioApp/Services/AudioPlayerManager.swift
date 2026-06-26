@@ -8,8 +8,11 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
     static let shared = AudioPlayerManager()
     
     private var player: AVPlayer?
+    private var playerItemStatusObservation: NSKeyValueObservation?
+    private var activePlaybackRequestID = UUID()
     @Published var isPlaying: Bool = false
     @Published var currentStation: Station?
+    @Published var playbackErrorMessage: String?
     @Published var volume: CGFloat = 0.5 {
         didSet {
             player?.volume = Float(volume)
@@ -265,13 +268,53 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
     
     // Internal helper to start playing a station (fresh start)
     private func playStation(_ station: Station) {
-        guard let url = URL(string: station.urlResolved) else { return }
-        
+        activePlaybackRequestID = UUID()
+        let requestID = activePlaybackRequestID
+
+        guard let url = URL(string: station.urlResolved) else {
+            currentStation = station
+            playbackDidFail(message: "电台地址无效")
+            return
+        }
+
+        if StreamPlaybackPreflight.requiresProbe(for: url) {
+            player?.pause()
+            player?.replaceCurrentItem(with: nil)
+            playerItemStatusObservation?.invalidate()
+            playerItemStatusObservation = nil
+            metadataOutput = nil
+            currentStreamTitle = nil
+            currentStation = station
+            playbackErrorMessage = nil
+            isPlaying = false
+            updateNowPlayingInfo()
+
+            Task { [weak self] in
+                let isPlayable = await StreamPlaybackPreflight.probe(url)
+                await MainActor.run {
+                    guard let self, self.activePlaybackRequestID == requestID else { return }
+
+                    if isPlayable {
+                        self.startPlayer(station, url: url)
+                    } else {
+                        self.playbackDidFail(message: "这个电台的流地址暂时不可用，请试试其他电台")
+                    }
+                }
+            }
+            return
+        }
+
+        startPlayer(station, url: url)
+    }
+
+    private func startPlayer(_ station: Station, url: URL) {
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 5.0
+        observeStatus(of: playerItem)
         
         // 重置和观察流媒体元数据
         currentStreamTitle = nil
+        playbackErrorMessage = nil
         metadataOutput = AVPlayerItemMetadataOutput(identifiers: nil)
         metadataOutput?.setDelegate(self, queue: .main)
         if let metadataOutput {
@@ -290,6 +333,33 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         player?.play()
         isPlaying = true
         currentStation = station
+        updateNowPlayingInfo()
+    }
+
+    private func observeStatus(of playerItem: AVPlayerItem) {
+        playerItemStatusObservation?.invalidate()
+        playerItemStatusObservation = playerItem.observe(\.status, options: [.new]) { [weak self, weak playerItem] item, _ in
+            guard item.status == .failed else { return }
+
+            Task { @MainActor [weak self, weak playerItem] in
+                self?.playbackDidFail(error: playerItem?.error)
+            }
+        }
+    }
+
+    private func playbackDidFail(error: Error? = nil, message: String? = nil) {
+        if let error {
+            print("AudioPlayerManager: Playback failed - \(error.localizedDescription)")
+        }
+
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        playerItemStatusObservation?.invalidate()
+        playerItemStatusObservation = nil
+        metadataOutput = nil
+        currentStreamTitle = nil
+        isPlaying = false
+        playbackErrorMessage = message ?? "这个电台暂时无法播放，请试试其他电台"
         updateNowPlayingInfo()
     }
     
@@ -327,17 +397,23 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
     }
     
     func pause() {
+        activePlaybackRequestID = UUID()
         player?.pause()
         isPlaying = false
+        playbackErrorMessage = nil
         updateNowPlayingInfo()
     }
     
     func stop() {
+        activePlaybackRequestID = UUID()
         player?.pause()
         player?.replaceCurrentItem(with: nil)
+        playerItemStatusObservation?.invalidate()
+        playerItemStatusObservation = nil
         isPlaying = false
         currentStation = nil
         currentStreamTitle = nil
+        playbackErrorMessage = nil
         metadataOutput = nil
         updateNowPlayingInfo()
     }
