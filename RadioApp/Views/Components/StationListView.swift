@@ -3,16 +3,16 @@ import SwiftUI
 struct StationListView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @Environment(\.dismiss) var dismiss
-    
+
     // Optional closure if custom handling is needed, but default is good
     var onStationSelected: ((Station) -> Void)?
-    
+
     var body: some View {
         NavigationView {
             ZStack {
                 // 背景
                 NeonColors.darkBg.ignoresSafeArea()
-                
+
                 // 渐变叠加
                 LinearGradient(
                     colors: [
@@ -23,7 +23,7 @@ struct StationListView: View {
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-                
+
                 if playerManager.playlistStations.isEmpty {
                     // 空状态
                     emptyStateView
@@ -47,21 +47,21 @@ struct StationListView: View {
             }
         }
     }
-    
+
     // MARK: - 空状态视图
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "music.note.list")
                 .font(.system(size: 60))
                 .foregroundColor(NeonColors.cyan.opacity(0.5))
-            
+
             Text("暂无播放列表")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.white.opacity(0.8))
         }
         .padding(40)
     }
-    
+
     // MARK: - 电台列表
     private var stationList: some View {
         ScrollView {
@@ -95,7 +95,7 @@ struct StationListRow: View {
     let isCurrentlyPlaying: Bool
     let isPlaying: Bool
     @ObservedObject var favoritesManager = FavoritesManager.shared
-    
+
     var body: some View {
         HStack(spacing: 14) {
             // 封面图
@@ -112,14 +112,14 @@ struct StationListRow: View {
                     )
             )
             .shadow(color: isCurrentlyPlaying ? NeonColors.cyan.opacity(0.3) : .clear, radius: 8)
-            
+
             // 电台信息
             VStack(alignment: .leading, spacing: 4) {
                 Text(station.name)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(isCurrentlyPlaying ? NeonColors.cyan : .white)
                     .lineLimit(1)
-                
+
                 if !station.tags.isEmpty {
                     Text(station.tags)
                         .font(.system(size: 13))
@@ -127,16 +127,23 @@ struct StationListRow: View {
                         .lineLimit(1)
                 }
             }
-            
+
             Spacer()
-            
+
             // 播放指示器 + 收藏按钮
             HStack(spacing: 12) {
                 if isPlaying {
                     // 播放动画指示器
                     PlayingIndicator()
                 }
-                
+
+                FavoriteGroupAssignmentMenu(station: station) {
+                    Image(systemName: favoritesManager.isFavorite(station) ? "folder.fill" : "folder.badge.plus")
+                        .font(.system(size: 17))
+                        .foregroundColor(favoritesManager.groupID(for: station) == nil ? .white.opacity(0.35) : NeonColors.cyan)
+                }
+                .buttonStyle(.plain)
+
                 // 收藏/取消收藏按钮 (Toggle)
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -146,6 +153,11 @@ struct StationListRow: View {
                     Image(systemName: favoritesManager.isFavorite(station) ? "heart.fill" : "heart")
                         .font(.system(size: 18))
                         .foregroundColor(favoritesManager.isFavorite(station) ? NeonColors.magenta : .white.opacity(0.4))
+                }
+                .contextMenu {
+                    FavoriteGroupAssignmentMenu(station: station) {
+                        Label(favoritesManager.isFavorite(station) ? "移动到分组" : "收藏到分组", systemImage: "folder")
+                    }
                 }
             }
         }
@@ -157,8 +169,8 @@ struct StationListRow: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(
-                            isCurrentlyPlaying 
-                                ? NeonColors.cyan.opacity(0.3) 
+                            isCurrentlyPlaying
+                                ? NeonColors.cyan.opacity(0.3)
                                 : Color.white.opacity(0.05),
                             lineWidth: 1
                         )
@@ -170,7 +182,7 @@ struct StationListRow: View {
 // MARK: - 播放指示器动画 (Reuse)
 struct PlayingIndicator: View {
     @State private var isAnimating = false
-    
+
     var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<3) { index in

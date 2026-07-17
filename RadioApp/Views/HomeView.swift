@@ -12,16 +12,16 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showHistory = false
     @State private var showProUpgrade = false
-    
+
     @ObservedObject var subscriptionManager = SubscriptionManager.shared
-    
+
     @Environment(\.scenePhase) var scenePhase
-    
+
     var body: some View {
         ZStack {
             // 动态霓虹背景
             AnimatedMeshBackground()
-            
+
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     // MARK: - 顶部标题
@@ -36,14 +36,14 @@ struct HomeView: View {
                                         endPoint: .trailing
                                     )
                                 )
-                            
 
-                            
+
+
                             // 随便听听入口 (Placed next to title)
                             NeonRandomButton {
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.impactOccurred()
-                                
+
                                 // 播放随机电台
                                 Task {
                                     do {
@@ -62,9 +62,9 @@ struct HomeView: View {
                                 }
                             }
                             .padding(.leading, 8) // Add some spacing from title
-                            
+
                             Spacer()
-                            
+
                             // [NEW] 历史记录入口 (Pro 专属)
                             Button(action: {
                                 if subscriptionManager.isPro {
@@ -82,7 +82,7 @@ struct HomeView: View {
                                             Circle()
                                                 .fill(.white.opacity(0.1))
                                         )
-                                    
+
                                     // Pro 锁图标 (如果未订阅)
                                     if !subscriptionManager.isPro {
                                         Image(systemName: "lock.fill")
@@ -95,7 +95,7 @@ struct HomeView: View {
                                 }
                             }
                             .padding(.trailing, 8)
-                            
+
                             // 设置入口
                             Button(action: { showSettings = true }) {
                                 Image(systemName: "gearshape.fill")
@@ -108,7 +108,7 @@ struct HomeView: View {
                                     )
                             }
                             .padding(.trailing, 8)
-                            
+
                             // 反馈入口
                             Button(action: { showFeedback = true }) {
                                 Image(systemName: "envelope.fill")
@@ -121,27 +121,27 @@ struct HomeView: View {
                                     )
                             }
                         }
-                        
+
                         Text("探索全球电台")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(NeonColors.cyan.opacity(0.8))
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 60)
-                    
+
                     // MARK: - 搜索入口
                     NavigationLink(destination: SearchView()) {
                         HStack(spacing: 12) {
                             Image(systemName: "magnifyingglass")
                             .font(.system(size: 18, weight: .medium))
                             .foregroundColor(NeonColors.cyan)
-                            
+
                             Text("搜索电台、风格、地区...")
                                 .font(.system(size: 16))
                                 .foregroundColor(.white.opacity(0.5))
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "mic.fill")
                                 .font(.system(size: 14))
                                 .foregroundColor(NeonColors.purple.opacity(0.6))
@@ -153,10 +153,10 @@ struct HomeView: View {
                         )
                     }
                     .padding(.horizontal, 20)
-                    
+
                     // MARK: - 收藏区域
                     let visibleFavorites = favoritesManager.favoriteStations.filter { !stationBlockManager.isBlocked($0) }
-                    
+
                     if !visibleFavorites.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
@@ -165,9 +165,9 @@ struct HomeView: View {
                                 Text("我的收藏")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.white)
-                                
+
                                 Spacer()
-                                
+
                                 Text("\(visibleFavorites.count)")
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(NeonColors.cyan)
@@ -179,7 +179,7 @@ struct HomeView: View {
                                     )
                             }
                             .padding(.horizontal, 20)
-                            
+
                             #if targetEnvironment(macCatalyst)
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
                                 ForEach(visibleFavorites) { station in
@@ -191,6 +191,10 @@ struct HomeView: View {
                                         playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
                                     }
                                     .contextMenu {
+                                        FavoriteGroupAssignmentMenu(station: station) {
+                                            Label("移动到分组", systemImage: "folder")
+                                        }
+
                                         Button(role: .destructive) {
                                             favoritesManager.removeFavorite(station)
                                         } label: {
@@ -202,7 +206,7 @@ struct HomeView: View {
                                         self.draggingStation = station
                                         return NSItemProvider(object: station.id as NSString)
                                     }
-                                    .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
+                                    .onDrop(of: [.text], delegate: StationDropDelegate(item: station, visibleItems: visibleFavorites, favoritesManager: favoritesManager, draggingItem: $draggingStation))
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -218,6 +222,10 @@ struct HomeView: View {
                                             playerManager.play(station: station, in: visibleFavorites, title: "我的收藏")
                                         }
                                         .contextMenu {
+                                            FavoriteGroupAssignmentMenu(station: station) {
+                                                Label("移动到分组", systemImage: "folder")
+                                            }
+
                                             Button(role: .destructive) {
                                                 favoritesManager.removeFavorite(station)
                                             } label: {
@@ -229,7 +237,7 @@ struct HomeView: View {
                                             self.draggingStation = station
                                             return NSItemProvider(object: station.id as NSString)
                                         }
-                                        .onDrop(of: [.text], delegate: StationDropDelegate(item: station, items: $favoritesManager.favoriteStations, favoritesManager: favoritesManager, draggingItem: $draggingStation))
+                                        .onDrop(of: [.text], delegate: StationDropDelegate(item: station, visibleItems: visibleFavorites, favoritesManager: favoritesManager, draggingItem: $draggingStation))
                                     }
                                 }
                                 .padding(.horizontal, 20)
@@ -237,7 +245,7 @@ struct HomeView: View {
                             #endif
                         }
                     }
-                    
+
                     // MARK: - 分割线
                     Rectangle()
                         .fill(
@@ -249,7 +257,7 @@ struct HomeView: View {
                         )
                         .frame(height: 1)
                         .padding(.horizontal, 20)
-                    
+
                     // MARK: - 热门推荐
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
@@ -260,11 +268,11 @@ struct HomeView: View {
                                 .foregroundColor(.white)
                         }
                         .padding(.horizontal, 20)
-                        
-                        .padding(.horizontal, 20)
-                        
 
-                        
+                        .padding(.horizontal, 20)
+
+
+
                         #if targetEnvironment(macCatalyst)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
                             ForEach(viewModel.stations.filter { !stationBlockManager.isBlocked($0) }) { station in
@@ -274,6 +282,11 @@ struct HomeView: View {
                                 )
                                 .onTapGesture {
                                     playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
+                                }
+                                .contextMenu {
+                                    FavoriteGroupAssignmentMenu(station: station) {
+                                        Label(favoritesManager.isFavorite(station) ? "移动到分组" : "收藏到分组", systemImage: "folder")
+                                    }
                                 }
                             }
                         }
@@ -289,13 +302,18 @@ struct HomeView: View {
                                     .onTapGesture {
                                         playerManager.play(station: station, in: viewModel.stations, title: "热门推荐")
                                     }
+                                    .contextMenu {
+                                        FavoriteGroupAssignmentMenu(station: station) {
+                                            Label(favoritesManager.isFavorite(station) ? "移动到分组" : "收藏到分组", systemImage: "folder")
+                                        }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 20)
                         }
                         #endif
                     }
-                    
+
                     // 底部留白给 Mini Player
                     Color.clear.frame(height: 100)
                 }
@@ -330,13 +348,13 @@ struct HomeView: View {
 class HomeViewModel: ObservableObject {
     @Published var stations: [Station] = []
     @Published var isLoading = false
-    
+
     private let kCachedTopStationsKey = "home_top_stations_cache"
-    
+
     init() {
         loadInitialData()
     }
-    
+
     // L1 -> L2 加载策略
     private func loadInitialData() {
         // 1. 尝试读取缓存 (L1)
@@ -345,7 +363,7 @@ class HomeViewModel: ObservableObject {
             self.stations = cached
             return
         }
-        
+
         // 2. 尝试读取预置数据 (L2)
         print("No cache found, loading preset data")
         if let preset = loadFromPreset() {
@@ -353,19 +371,19 @@ class HomeViewModel: ObservableObject {
             self.stations = preset
         }
     }
-    
+
     // L3: 网络更新
     func fetchStations() {
         // 如果当前是空的（极端情况），显示 loading
         if stations.isEmpty {
             isLoading = true
         }
-        
+
         Task {
             do {
                 print("Fetching fresh data from network...")
                 let fetchedStations = try await RadioService.shared.fetchTopStations()
-                
+
                 await MainActor.run {
                     // 只有当数据有变化时才更新，避免 UI 闪烁 (简单判断数量或首个ID)
                     if self.stations.map(\.id) != fetchedStations.map(\.id) {
@@ -385,9 +403,9 @@ class HomeViewModel: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Cache & Preset
-    
+
     private func loadFromCache() -> [Station]? {
         guard let data = UserDefaults.standard.data(forKey: kCachedTopStationsKey) else { return nil }
         do {
@@ -398,7 +416,7 @@ class HomeViewModel: ObservableObject {
             return nil
         }
     }
-    
+
     private func saveToCache(_ stations: [Station]) {
         do {
             let encoder = JSONEncoder()
@@ -408,11 +426,11 @@ class HomeViewModel: ObservableObject {
             print("Failed to encode cache: \(error)")
         }
     }
-    
+
     private func loadFromPreset() -> [Station]? {
         let jsonString = PresetStationData.jsonString
         guard let data = jsonString.data(using: .utf8) else { return nil }
-        
+
         do {
             let decoder = JSONDecoder()
             // Preset data might miss some optional fields, but Station struct uses specific coding keys
@@ -433,9 +451,9 @@ class HomeViewModel: ObservableObject {
 struct NeonStationCard: View {
     let station: Station
     var isPlaying: Bool = false
-    
+
     @State private var isHovered = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 封面
@@ -455,27 +473,27 @@ struct NeonStationCard: View {
                             )
                     )
                     .shadow(color: isPlaying ? NeonColors.cyan.opacity(0.4) : .black.opacity(0.3), radius: isPlaying ? 15 : 8, x: 0, y: 5)
-                
+
                 // 正在播放指示器
                 if isPlaying {
                     ZStack {
                         Circle()
                             .fill(NeonColors.darkBg.opacity(0.8))
                             .frame(width: 32, height: 32)
-                        
+
                         PulsingView(color: NeonColors.cyan)
                     }
                     .offset(x: -8, y: 8)
                 }
             }
-            
+
             // 电台信息
             VStack(alignment: .leading, spacing: 4) {
                 Text(station.name)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                
+
                 Text(station.tags.isEmpty ? "电台" : station.tags)
                     .font(.system(size: 12))
                     .foregroundColor(NeonColors.cyan.opacity(0.7))
@@ -491,7 +509,7 @@ struct NeonStationCard: View {
 // 保留旧的 StationCard 以兼容其他地方可能的引用
 struct StationCard: View {
     let station: Station
-    
+
     var body: some View {
         NeonStationCard(station: station)
     }
@@ -499,25 +517,25 @@ struct StationCard: View {
 
 struct StationDropDelegate: DropDelegate {
     let item: Station
-    @Binding var items: [Station]
+    let visibleItems: [Station]
     var favoritesManager: FavoritesManager
     @Binding var draggingItem: Station?
-    
+
     func performDrop(info: DropInfo) -> Bool {
         self.draggingItem = nil
         return true
     }
-    
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
     func dropEntered(info: DropInfo) {
         guard let draggingItem = draggingItem else { return }
-        
-        guard let fromIndex = items.firstIndex(of: draggingItem) else { return }
-        guard let toIndex = items.firstIndex(of: item) else { return }
-        
-        if fromIndex != toIndex {
-            withAnimation {
-                favoritesManager.moveFavorite(from: IndexSet(integer: fromIndex), to: toIndex > fromIndex ? toIndex + 1 : toIndex)
-            }
+        guard draggingItem.id != item.id else { return }
+
+        withAnimation {
+            favoritesManager.moveFavorite(draggingItem, over: item, visibleStations: visibleItems)
         }
     }
 }
@@ -527,7 +545,7 @@ struct NeonRandomButton: View {
     let action: () -> Void
     @State private var isHovered = false
     @State private var rotation: Double = 0
-    
+
     var body: some View {
         Button(action: {
             // 点击时的旋转动画
@@ -553,7 +571,7 @@ struct NeonRandomButton: View {
                                 )
                             )
                             .opacity(0.8)
-                        
+
                         // 玻璃光泽
                         Circle()
                             .fill(
@@ -564,7 +582,7 @@ struct NeonRandomButton: View {
                                 )
                             )
                             .padding(1)
-                        
+
                         // 边框发光
                         Circle()
                             .stroke(

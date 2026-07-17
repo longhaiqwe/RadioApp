@@ -6,14 +6,14 @@ struct SearchView: View {
     @ObservedObject var playerManager = AudioPlayerManager.shared
     @Environment(\.presentationMode) var presentationMode
     @FocusState private var isFocused: Bool
-    
+
     var showBackButton: Bool = true
-    
+
     var body: some View {
         ZStack {
             // 霓虹背景
             AnimatedMeshBackground()
-            
+
             VStack(spacing: 0) {
                 // MARK: - 顶部栏
                 HStack {
@@ -31,26 +31,26 @@ struct SearchView: View {
                                 )
                         }
                     }
-                    
+
                     Spacer()
-                    
+
                     Text("搜索")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
-                    
+
                     Spacer()
-                    
+
                     Color.clear.frame(width: 44, height: 44)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
-                
+
                 // MARK: - 搜索框
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 18))
                         .foregroundColor(NeonColors.cyan)
-                    
+
                     TextField("输入电台名称...", text: $viewModel.query)
                         .font(.system(size: 16))
                         .foregroundColor(.white)
@@ -59,7 +59,7 @@ struct SearchView: View {
                             viewModel.search()
                         }
                         .submitLabel(.search)
-                    
+
                     if !viewModel.query.isEmpty {
                         Button(action: {
                             viewModel.query = ""
@@ -68,7 +68,7 @@ struct SearchView: View {
                                 .font(.system(size: 18))
                                 .foregroundColor(.white.opacity(0.5))
                         }
-                        
+
                         Button(action: {
                             viewModel.search()
                             isFocused = false
@@ -91,7 +91,7 @@ struct SearchView: View {
                                 .shadow(color: NeonColors.magenta.opacity(0.4), radius: 8)
                         }
                     }
-                    
+
                         // 嵌套菜单结构
                         Menu {
                             // 1. 地区子菜单
@@ -105,7 +105,7 @@ struct SearchView: View {
                             } label: {
                                 Label("按地区筛选", systemImage: "map")
                             }
-                            
+
                             // 2. 风格子菜单
                             Menu {
                                 Picker("选择风格", selection: $viewModel.selectedStyle) {
@@ -117,7 +117,7 @@ struct SearchView: View {
                             } label: {
                                 Label("按风格筛选", systemImage: "music.note")
                             }
-                            
+
                         } label: {
                             Image(systemName: "slider.horizontal.3")
                                 .font(.system(size: 18))
@@ -125,8 +125,8 @@ struct SearchView: View {
                                 .frame(width: 36, height: 36)
                                 .background(
                                     Circle()
-                                        .fill(viewModel.selectedProvince == nil && viewModel.selectedStyle == nil ? 
-                                              Color.white.opacity(0.1) : 
+                                        .fill(viewModel.selectedProvince == nil && viewModel.selectedStyle == nil ?
+                                              Color.white.opacity(0.1) :
                                               NeonColors.cyan.opacity(0.2))
                                 )
                         }
@@ -139,7 +139,7 @@ struct SearchView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
                 .padding(.bottom, 8)
-                
+
                 // MARK: - 筛选标签（如果选中）
                 if viewModel.selectedProvince != nil || viewModel.selectedStyle != nil {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -153,7 +153,7 @@ struct SearchView: View {
                                     onClose: { viewModel.selectedProvince = nil }
                                 )
                             }
-                            
+
                             // 风格标签
                             if let styleTag = viewModel.selectedStyle,
                                let style = viewModel.styles.first(where: { $0.tag == styleTag }) {
@@ -168,7 +168,7 @@ struct SearchView: View {
                         .padding(.bottom, 8)
                     }
                 }
-                
+
                 // MARK: - 加载指示器
                 if viewModel.isLoading {
                     HStack {
@@ -180,7 +180,7 @@ struct SearchView: View {
                     }
                     .padding(.vertical, 20)
                 }
-                
+
                 // MARK: - 搜索结果
                 if !viewModel.stations.isEmpty {
                     ScrollView {
@@ -209,9 +209,9 @@ struct SearchView: View {
                                 Text("最近搜索")
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.white.opacity(0.8))
-                                
+
                                 Spacer()
-                                
+
                                 Button(action: {
                                     viewModel.clearHistory()
                                 }) {
@@ -221,7 +221,7 @@ struct SearchView: View {
                                 }
                             }
                             .padding(.horizontal, 16)
-                            
+
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 10) {
                                     ForEach(viewModel.history, id: \.self) { item in
@@ -264,7 +264,7 @@ struct SearchView: View {
                                 .font(.system(size: 16))
                                 .foregroundColor(.white.opacity(0.6))
                                 .multilineTextAlignment(.center)
-                            
+
                             Button(action: {
                                 viewModel.search()
                             }) {
@@ -312,7 +312,8 @@ struct SearchView: View {
 struct SearchResultRow: View {
     let station: Station
     var isPlaying: Bool = false
-    
+    @ObservedObject var favoritesManager = FavoritesManager.shared
+
     var body: some View {
         HStack(spacing: 14) {
             // 封面
@@ -343,7 +344,7 @@ struct SearchResultRow: View {
                     .stroke(isPlaying ? NeonColors.cyan.opacity(0.8) : .clear, lineWidth: 2)
             )
             .shadow(color: isPlaying ? NeonColors.cyan.opacity(0.4) : .clear, radius: 8)
-            
+
             // 信息
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -351,12 +352,12 @@ struct SearchResultRow: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    
+
                     if isPlaying {
                         PulsingView(color: NeonColors.cyan)
                     }
                 }
-                
+
                 HStack(spacing: 8) {
                     if !station.state.isEmpty {
                         Text(station.state)
@@ -369,20 +370,29 @@ struct SearchResultRow: View {
                                     .fill(NeonColors.cyan.opacity(0.15))
                             )
                     }
-                    
+
                     Text(station.tags.isEmpty ? "电台" : station.tags)
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.5))
                         .lineLimit(1)
                 }
             }
-            
+
             Spacer()
-            
-            // 播放按钮
-            Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
-                .font(.system(size: 16))
-                .foregroundColor(isPlaying ? NeonColors.cyan : .white.opacity(0.4))
+
+            HStack(spacing: 12) {
+                FavoriteGroupAssignmentMenu(station: station) {
+                    Image(systemName: favoritesManager.isFavorite(station) ? "folder.fill" : "folder.badge.plus")
+                        .font(.system(size: 17))
+                        .foregroundColor(favoritesManager.groupID(for: station) == nil ? .white.opacity(0.42) : NeonColors.cyan)
+                }
+                .buttonStyle(.plain)
+
+                // 播放按钮
+                Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(isPlaying ? NeonColors.cyan : .white.opacity(0.4))
+            }
         }
         .padding(12)
         .background(
@@ -399,17 +409,17 @@ struct FilterChip: View {
     let icon: String
     let title: String
     let onClose: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 14))
                 .foregroundColor(NeonColors.cyan)
-            
+
             Text(title)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.white)
-            
+
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
@@ -459,9 +469,9 @@ class SearchViewModel: ObservableObject {
         }
     }
     @Published var errorMessage: String? = nil
-    
+
     private var searchTask: Task<Void, Never>?
-    
+
     let provinces: [Province] = [
         Province(name: "北京市", code: "Beijing"),
         Province(name: "上海市", code: "Shanghai"),
@@ -498,11 +508,11 @@ class SearchViewModel: ObservableObject {
         Province(name: "澳门", code: "Macau"),
         Province(name: "台湾", code: "Taiwan")
     ]
-    
 
-    
+
+
     @Published var styles: [Style] = []
-    
+
     private let tagMappings: [String: String] = [
         "pop": "流行 (Pop)",
         "rock": "摇滚 (Rock)",
@@ -529,38 +539,38 @@ class SearchViewModel: ObservableObject {
         "house": "浩室 (House)",
         "instrumental": "纯音乐 (Instrumental)"
     ]
-    
+
     // 过滤掉无意义的通用标签
     private let blacklistedTags: Set<String> = [
-        "radio", "station", "fm", "online", "music", "webradio", 
-        "internet radio", "live", "web", "hd", "hits", "estacion", 
+        "radio", "station", "fm", "online", "music", "webradio",
+        "internet radio", "live", "web", "hd", "hits", "estacion",
         "broadcasting", "air", "digital", "stream", "streaming", "channel",
         "música", "estación", "radio station"
     ]
-    
+
     init() {
         fetchStyles()
         self.history = SearchHistoryManager.shared.history
     }
-    
+
     func fetchStyles() {
         Task {
             do {
                 let tags = try await RadioService.shared.fetchTopTags(limit: 100)
-                
+
                 let filteredTags = tags
                     .filter { tag in
                         let name = tag.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
                         return !name.isEmpty && !blacklistedTags.contains(name)
                     }
                     .prefix(20) // 只取前 20 个
-                
+
                 let mappedStyles = filteredTags.map { tag -> Style in
                     let name = tag.name.lowercased()
                     let displayName = tagMappings[name] ?? name.capitalized
                     return Style(name: displayName, tag: tag.name)
                 }
-                
+
                 DispatchQueue.main.async {
                     self.styles = mappedStyles
                 }
@@ -579,29 +589,29 @@ class SearchViewModel: ObservableObject {
             }
         }
     }
-    
+
     func search() {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedQuery.isEmpty {
             SearchHistoryManager.shared.addHistory(trimmedQuery)
             self.history = SearchHistoryManager.shared.history
         }
-        
+
         guard !trimmedQuery.isEmpty || selectedProvince != nil || selectedStyle != nil else { return }
-        
+
         isLoading = true
         errorMessage = nil
         stations = [] // 清空旧数据
-        
+
         // 取消上一次搜索
         searchTask?.cancel()
-        
+
         searchTask = Task {
             // 确保任务未被取消
             if Task.isCancelled { return }
             do {
                 let results: [Station]
-                
+
                 if selectedProvince != nil || selectedStyle != nil {
                     var filter = StationFilter()
                     filter.name = query.isEmpty ? nil : query
@@ -612,12 +622,12 @@ class SearchViewModel: ObservableObject {
                     filter.limit = 100
                     filter.order = "clickcount"
                     filter.reverse = true
-                    
+
                     results = try await RadioService.shared.advancedSearch(filter: filter)
                 } else {
                     results = try await RadioService.shared.searchStations(name: query)
                 }
-                
+
                 DispatchQueue.main.async {
                     self.stations = results
                     self.isLoading = false
@@ -649,7 +659,7 @@ class SearchViewModel: ObservableObject {
         SearchHistoryManager.shared.clearHistory()
         self.history = []
     }
-    
+
     func deleteHistory(_ item: String) {
         SearchHistoryManager.shared.removeHistory(item)
         self.history = SearchHistoryManager.shared.history

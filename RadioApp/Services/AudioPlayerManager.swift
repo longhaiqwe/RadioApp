@@ -6,7 +6,7 @@ import MediaPlayer
 @MainActor
 class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerItemMetadataOutputPushDelegate {
     static let shared = AudioPlayerManager()
-    
+
     private var player: AVPlayer?
     private var playerItemStatusObservation: NSKeyValueObservation?
     private var activePlaybackRequestID = UUID()
@@ -18,25 +18,34 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             player?.volume = Float(volume)
         }
     }
-    
+
     // Playlist context
     private var playlist: [Station] = []
     @Published var playlistTitle: String = "播放列表"
     @Published var playlistStations: [Station] = [] // Expose playlist for UI binding if needed, or just access current property
-    
+
     // Sleep Timer
     private var sleepTimer: Timer?
     @Published var sleepTimerEndTime: Date?
-    
+
     // Live Metadata (ICY)
     @Published var currentStreamTitle: String? = nil
     private var metadataOutput: AVPlayerItemMetadataOutput?
-    
+
     // Shazam Integration
     private var cancellables = Set<AnyCancellable>()
     private var lyricsTimer: Timer?
     private var parsedLyrics: [LyricLine] = []
-    
+
+    var currentHLSPlayheadOffset: TimeInterval? {
+        guard let currentItem = player?.currentItem else { return nil }
+        let time = currentItem.currentTime()
+        if time.isValid && !time.isIndefinite {
+            return CMTimeGetSeconds(time)
+        }
+        return nil
+    }
+
     private override init() {
         super.init()
         setupAudioSession()
@@ -44,7 +53,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         setupInterruptionObserver()
         setupShazamObservers()
     }
-    
+
     private func setupInterruptionObserver() {
         NotificationCenter.default.addObserver(
             self,
@@ -53,14 +62,14 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             object: nil
         )
     }
-    
+
     @objc private func handleInterruption(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
         }
-        
+
         switch type {
         case .began:
             // Interruption began (e.g., phone call or other app playing audio)
@@ -70,13 +79,13 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
                 self.isPlaying = false
                 self.updateNowPlayingInfo()
             }
-            
+
         case .ended:
             // Interruption ended
             print("Audio interruption ended")
             guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-            
+
             if options.contains(.shouldResume) {
                 // Resume playback if appropriate
                 print("Should resume playback")
@@ -86,13 +95,13 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
                     // Let's stick to simple play() for interruption resume to be fast,
                     // OR reuse the logic in togglePlayPause if we want live.
                     // Given user request "Jump out and back... restart stream", let's reload.
-                    
+
                     if let station = self.currentStation {
                         self.playStation(station)
                     } else {
                         self.player?.play()
                     }
-                    
+
                     self.isPlaying = true
                     self.updateNowPlayingInfo()
                 }
@@ -101,7 +110,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             break
         }
     }
-    
+
     private func setupAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
@@ -110,10 +119,10 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             print("Failed to set up audio session: \(error)")
         }
     }
-    
+
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
-        
+
         // Play/Pause
         commandCenter.playCommand.addTarget { [weak self] event in
             guard let self = self else { return .commandFailed }
@@ -125,7 +134,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
             return .commandFailed
         }
-        
+
         commandCenter.pauseCommand.addTarget { [weak self] event in
             guard let self = self else { return .commandFailed }
             if self.isPlaying {
@@ -134,7 +143,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
             return .commandFailed
         }
-        
+
         // Next/Previous Track
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget { [weak self] event in
@@ -142,14 +151,14 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             self.playNext()
             return .success
         }
-        
+
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget { [weak self] event in
             guard let self = self else { return .commandFailed }
             self.playPrevious()
             return .success
         }
-        
+
         // Like Command (Used for Song Recognition - Star Icon)
         // 替换 Bookmark 为 Like，因为 iOS 锁屏更容易显示 Like 按钮
         commandCenter.likeCommand.isEnabled = true
@@ -159,11 +168,11 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             self.handleLockScreenRecognition()
             return .success
         }
-        
+
         // Disable Bookmark to avoid confusion
         commandCenter.bookmarkCommand.isEnabled = false
     }
-    
+
     private func updateNowPlayingInfo() {
         // 1. Check Matching State
         if ShazamMatcher.shared.isMatching {
@@ -173,31 +182,31 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
              MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
              return
         }
-        
+
         // 2. Check Match Result
         if let match = ShazamMatcher.shared.customMatchResult {
             var nowPlayingInfo = [String: Any]()
             // Default Title (Song Name) - Will be overwritten by lyrics timer
-            nowPlayingInfo[MPMediaItemPropertyTitle] = match.title 
+            nowPlayingInfo[MPMediaItemPropertyTitle] = match.title
             // Artist: Song Name - Artist (to mimic NetEase style)
             nowPlayingInfo[MPMediaItemPropertyArtist] = "\(match.artist) / \(match.title)"
             nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
-            
+
             // Info Center
             var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
             currentInfo.merge(nowPlayingInfo) { (_, new) in new }
             MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
-            
+
             // Artwork
              if let url = match.artworkURL {
                  URLSession.shared.dataTask(with: url) { data, _, _ in
                      guard let data = data, let image = UIImage(data: data) else { return }
                      let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                     
+
                      DispatchQueue.main.async {
                          // Only update if match is still valid
                          guard ShazamMatcher.shared.customMatchResult?.title == match.title else { return }
-                         
+
                          var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
                          currentInfo[MPMediaItemPropertyArtwork] = artwork
                          MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
@@ -213,20 +222,20 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
              }
              return
         }
-    
+
         guard let station = currentStation else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             return
         }
-        
+
         var nowPlayingInfo = [String: Any]()
         // Use station name for title
         nowPlayingInfo[MPMediaItemPropertyTitle] = station.name
         nowPlayingInfo[MPMediaItemPropertyArtist] = station.tags
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
-        
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
-        
+
         let favicon = Station.sanitizedFavicon(station.favicon)
         if let url = URL(string: favicon), !favicon.isEmpty {
             let stationId = station.id
@@ -234,10 +243,10 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
                 guard let self = self else { return }
                 guard let data = data, let image = UIImage(data: data) else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                
+
                 DispatchQueue.main.async {
                     guard self.currentStation?.id == stationId else { return }
-                    
+
                     var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
                     currentInfo[MPMediaItemPropertyArtwork] = artwork
                     MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
@@ -252,22 +261,22 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             self.playlist = newPlaylist
             self.playlistStations = newPlaylist
         }
-        
+
         if let title = title {
             self.playlistTitle = title
         }
-        
+
         if currentStation?.id == station.id {
             togglePlayPause()
             return
         }
-        
+
         // 切歌时，清空之前的识别信息
         ShazamMatcher.shared.reset()
-        
+
         playStation(station)
     }
-    
+
     // Internal helper to start playing a station (fresh start)
     private func playStation(_ station: Station) {
         activePlaybackRequestID = UUID()
@@ -313,7 +322,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 5.0
         observeStatus(of: playerItem)
-        
+
         // 重置和观察流媒体元数据
         currentStreamTitle = nil
         playbackErrorMessage = nil
@@ -322,7 +331,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         if let metadataOutput {
             playerItem.add(metadataOutput)
         }
-        
+
         // 设置播放器
         if player == nil {
             player = AVPlayer(playerItem: playerItem)
@@ -331,7 +340,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         } else {
             player?.replaceCurrentItem(with: playerItem)
         }
-        
+
         player?.play()
         isPlaying = true
         currentStation = station
@@ -364,7 +373,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         playbackErrorMessage = message ?? "这个电台暂时无法播放，请试试其他电台"
         updateNowPlayingInfo()
     }
-    
+
     func metadataOutput(
         _ output: AVPlayerItemMetadataOutput,
         didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
@@ -374,7 +383,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             await handleTimedMetadataChange(groups.flatMap(\.items))
         }
     }
-    
+
     private func handleTimedMetadataChange(_ metadata: [AVMetadataItem]) async {
         for item in metadata {
             if item.commonKey == .commonKeyTitle {
@@ -393,11 +402,11 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
         }
     }
-    
+
     private func metadataText(for item: AVMetadataItem) async -> String? {
         try? await item.load(.stringValue)
     }
-    
+
     func pause() {
         activePlaybackRequestID = UUID()
         player?.pause()
@@ -405,7 +414,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         playbackErrorMessage = nil
         updateNowPlayingInfo()
     }
-    
+
     func stop() {
         activePlaybackRequestID = UUID()
         player?.pause()
@@ -419,7 +428,7 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
         metadataOutput = nil
         updateNowPlayingInfo()
     }
-    
+
     func togglePlayPause() {
         if isPlaying {
             pause()
@@ -437,38 +446,38 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
         }
     }
-    
+
     func playNext() {
         guard !playlist.isEmpty, let current = currentStation else { return }
-        
+
         if let index = playlist.firstIndex(where: { $0.id == current.id }) {
             let nextIndex = (index + 1) % playlist.count
             play(station: playlist[nextIndex])
         }
     }
-    
+
     func playPrevious() {
         guard !playlist.isEmpty, let current = currentStation else { return }
-        
+
         if let index = playlist.firstIndex(where: { $0.id == current.id }) {
             let prevIndex = (index - 1 + playlist.count) % playlist.count
             play(station: playlist[prevIndex])
         }
     }
-    
+
     // MARK: - Shazam / Lyrics Integration
-    
+
     private func setupShazamObservers() {
         ShazamMatcher.shared.$isMatching
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateNowPlayingInfo() }
             .store(in: &cancellables)
-            
+
         ShazamMatcher.shared.$customMatchResult
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateNowPlayingInfo() }
             .store(in: &cancellables)
-            
+
         ShazamMatcher.shared.$lyrics
             .receive(on: DispatchQueue.main)
             .sink { [weak self] lyrics in
@@ -482,18 +491,18 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
             .store(in: &cancellables)
     }
-    
+
     private func handleLockScreenRecognition() {
         // Check Pro
         if !SubscriptionManager.shared.isPro {
             return
         }
-        
+
         // Trigger
         ShazamMatcher.shared.startMatching(fromLockScreen: true)
         updateNowPlayingInfo()
     }
-    
+
     private func startLyricsTimer() {
         stopLyricsTimer()
         lyricsTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -502,41 +511,41 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
             }
         }
     }
-    
+
     private func stopLyricsTimer() {
         lyricsTimer?.invalidate()
         lyricsTimer = nil
     }
-    
+
     private func updateLyricsOnLockScreen() {
         guard let _ = ShazamMatcher.shared.customMatchResult,
               !parsedLyrics.isEmpty else { return }
-              
+
         let currentTime = ShazamMatcher.shared.currentSongTime
-        
+
         if let currentLine = parsedLyrics.last(where: { $0.time <= currentTime }) {
              var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
              let newTitle = currentLine.text
-             
+
              if let existingTitle = currentInfo[MPMediaItemPropertyTitle] as? String, existingTitle == newTitle {
                  return
              }
-             
+
              currentInfo[MPMediaItemPropertyTitle] = newTitle
              MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
         }
         }
-    
+
     // MARK: - Sleep Timer
-    
+
     func startSleepTimer(duration: TimeInterval) {
         cancelSleepTimer()
-        
+
         // Ensure strictly on MainActor
         Task { @MainActor in
             let endTime = Date().addingTimeInterval(duration)
             self.sleepTimerEndTime = endTime
-            
+
             // Scheduling timer on main run loop
             self.sleepTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
                 guard let manager = self else { return }
@@ -544,14 +553,14 @@ class AudioPlayerManager: NSObject, ObservableObject, @preconcurrency AVPlayerIt
                     // 停止播放
                     manager.stop()
                     manager.cancelSleepTimer() // Clean up state
-                    
+
                     // 彻底退出应用
                     exit(0)
                 }
             }
         }
     }
-    
+
     func cancelSleepTimer() {
         sleepTimer?.invalidate()
         sleepTimer = nil

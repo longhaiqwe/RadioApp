@@ -37,18 +37,18 @@ struct PlayerView: View {
                 playerBackground
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
-                
+
                 VStack(spacing: 0) {
                     // MARK: - 顶部栏
                     topBar(horizontalPadding: chromeHorizontalPadding(for: proxy.size.width))
                         .padding(.top, 20)
-                    
+
                     Spacer()
-                    
+
                     // MARK: - 封面区域 (仅在没有识别结果时显示)
                     if shazamMatcher.lastMatch == nil {
                         albumArtSection
-                        
+
                         // 波形可视化
                         if playerManager.isPlaying {
                             EnhancedVisualizerView(isPlaying: playerManager.isPlaying)
@@ -58,29 +58,29 @@ struct PlayerView: View {
                             Spacer().frame(height: 100)
                         }
                     }
-                    
+
                     // MARK: - 电台信息 (始终显示在最下方)
                     stationInfo
-                    
+
                     Spacer(minLength: 24)
-                    
+
                     // MARK: - 控制按钮
                     controlButtons
                         .padding(.top, 8)
                         .padding(.bottom, 12)
-                    
+
                     volumeControl
                         .padding(.horizontal, chromeHorizontalPadding(for: proxy.size.width))
                         .padding(.bottom, max(proxy.safeAreaInsets.bottom, 28))
                 }
-                
+
                 // MARK: - Shazam Overlay Layer (识别结果、歌词、错误提示)
                 VStack(spacing: 0) {
                     // 顶部留白：TopBar (44) + Padding (20) + Spacing (8)
                     Color.clear
                         .frame(height: 72)
                         .allowsHitTesting(false)
-                    
+
                     if shazamMatcher.lastError != nil {
                         // 错误提示
                         shazamErrorCard(for: proxy.size.width)
@@ -117,7 +117,7 @@ struct PlayerView: View {
                             .allowsHitTesting(true)
                         Spacer()
                     }
-                    
+
                     Spacer()
                 }
                 .padding(.horizontal, chromeHorizontalPadding(for: proxy.size.width))
@@ -154,7 +154,7 @@ struct PlayerView: View {
             }
         }
     }
-    
+
     // MARK: - 睡眠定时器按钮
     private var sleepTimerButton: some View {
         Button(action: {
@@ -212,7 +212,7 @@ struct PlayerView: View {
         }
 
     }
-    
+
     // MARK: - 更多菜单按钮
     private var menuButton: some View {
         Button(action: {
@@ -230,7 +230,7 @@ struct PlayerView: View {
             }
         }
     }
-    
+
     // MARK: - 屏蔽/举报逻辑
     // MARK: - 通用 ActionSheet (Custom)
     private func presentReportActionSheet() {
@@ -253,18 +253,18 @@ struct PlayerView: View {
         guard let station = playerManager.currentStation else { return }
         // 1. 本地屏蔽
         StationBlockManager.shared.block(station: station)
-        
+
         // 2. 停止播放并退出
         playerManager.stop()
         dismissPlayer()
     }
-    
+
     private func reportStation() {
         guard let station = playerManager.currentStation else { return }
-        
+
         // 1. 本地屏蔽
         StationBlockManager.shared.block(station: station)
-        
+
         // 2. 上报到 Supabase
         StationBlockManager.shared.reportStation(station: station, reason: "用户举报")
 
@@ -286,7 +286,7 @@ struct PlayerView: View {
         ZStack {
             // 基础暗色
             NeonColors.darkBg.ignoresSafeArea()
-            
+
             // 动态封面模糊背景
             if let station = playerManager.currentStation {
                 Group {
@@ -312,7 +312,7 @@ struct PlayerView: View {
                 }
                 .ignoresSafeArea()
             }
-            
+
             // 渐变叠加
             LinearGradient(
                 colors: [
@@ -324,7 +324,7 @@ struct PlayerView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             // 霓虹光晕
             Circle()
                 .fill(
@@ -340,7 +340,7 @@ struct PlayerView: View {
                 .blur(radius: 50)
         }
     }
-    
+
     // MARK: - 顶部栏
     private func topBar(horizontalPadding: CGFloat) -> some View {
         HStack {
@@ -356,22 +356,22 @@ struct PlayerView: View {
                             .fill(.ultraThinMaterial.opacity(0.3))
                     )
             }
-            
+
             Spacer()
-            
+
             // MARK: 歌曲识别按钮 (Pro 功能)
             shazamRecognitionButton
                 .padding(.top, 10) // 视觉微调：稍微下移
-            
+
             Spacer()
-            
-            
+
+
             // 菜单按钮
             menuButton
         }
         .padding(.horizontal, horizontalPadding)
     }
-    
+
     // MARK: - 歌曲识别按钮 (顶部)
     private var shazamRecognitionButton: some View {
         Button(action: {
@@ -380,7 +380,7 @@ struct PlayerView: View {
                 showProUpgrade = true
                 return
             }
-            
+
             if shazamMatcher.isMatching {
                 shazamMatcher.stopMatching()
             } else {
@@ -402,13 +402,13 @@ struct PlayerView: View {
                             .foregroundColor(NeonColors.magenta)
                     }
                 }
-                
+
                 // 文字
                 VStack(alignment: .leading, spacing: 1) {
                     Text(shazamMatcher.isMatching ? "识别中..." : "歌曲识别")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white)
-                    
+
                     if subscriptionManager.isPro {
                         Text(
                             shazamMatcher.shouldShowLyricRecognitionGuidance
@@ -419,7 +419,7 @@ struct PlayerView: View {
                             .foregroundColor(NeonColors.cyan.opacity(0.8))
                     }
                 }
-                
+
                 // PRO 标签
                 if !subscriptionManager.isPro {
                     Text("PRO")
@@ -448,7 +448,7 @@ struct PlayerView: View {
             )
         }
     }
-    
+
     // MARK: - 封面区域
     private var albumArtSection: some View {
         ZStack {
@@ -475,7 +475,7 @@ struct PlayerView: View {
                         startRotation()
                     }
                 }
-            
+
             // 发光背景
             Circle()
                 .fill(
@@ -487,7 +487,7 @@ struct PlayerView: View {
                     )
                 )
                 .frame(width: 200, height: 200)
-            
+
             // 封面图片
             Group {
                 if let station = playerManager.currentStation {
@@ -517,7 +517,7 @@ struct PlayerView: View {
             .shadow(color: NeonColors.purple.opacity(0.5), radius: 30, x: 0, y: 10)
         }
     }
-    
+
     // MARK: - 电台信息
     private var stationInfo: some View {
         VStack(spacing: 16) {
@@ -527,11 +527,11 @@ struct PlayerView: View {
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                
-                
+
+
                 // 1. 睡眠定时器按钮
                 sleepTimerButton
-                
+
                 // 2. 举报/屏蔽按钮 (放在电台名称旁边)
                 if playerManager.currentStation != nil {
                     Button(action: {
@@ -552,7 +552,7 @@ struct PlayerView: View {
                 }
             }
             .padding(.horizontal, 20)
-            
+
             Text(playerManager.currentStation?.tags ?? "")
                 .font(.system(size: 15))
                 .foregroundColor(NeonColors.cyan.opacity(0.7))
@@ -568,7 +568,7 @@ struct PlayerView: View {
             }
         }
     }
-    
+
     // MARK: - 控制按钮
     // MARK: - 控制按钮
     private var controlButtons: some View {
@@ -586,6 +586,11 @@ struct PlayerView: View {
                         .frame(width: 44, height: 44)
                 }
                 .neonGlow(color: favoritesManager.isFavorite(station) ? NeonColors.magenta : .clear, radius: 6)
+                .contextMenu {
+                    FavoriteGroupAssignmentMenu(station: station) {
+                        Label(favoritesManager.isFavorite(station) ? "移动到分组" : "收藏到分组", systemImage: "folder")
+                    }
+                }
             } else {
                 // 占位
                 Image(systemName: "heart")
@@ -593,7 +598,7 @@ struct PlayerView: View {
                     .foregroundColor(.white.opacity(0.3))
                     .frame(width: 44, height: 44)
             }
-            
+
             // 2. 上一首
             Button(action: {
                 playerManager.playPrevious()
@@ -604,7 +609,7 @@ struct PlayerView: View {
                     .frame(width: 44, height: 44)
             }
             .keyboardShortcut(.upArrow, modifiers: [])
-            
+
             // 3. 播放/暂停
             PlayButton(isPlaying: playerManager.isPlaying) {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -612,7 +617,7 @@ struct PlayerView: View {
                 }
             }
             .keyboardShortcut(.space, modifiers: [])
-            
+
             // 4. 下一首
             Button(action: {
                 playerManager.playNext()
@@ -623,7 +628,7 @@ struct PlayerView: View {
                     .frame(width: 44, height: 44)
             }
             .keyboardShortcut(.downArrow, modifiers: [])
-            
+
             // 5. 列表按钮
             Button(action: {
                 showFavoritesList = true
@@ -644,22 +649,22 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 80)
     }
-    
+
     // MARK: - 音量控制
     private var volumeControl: some View {
         HStack(spacing: 16) {
             Image(systemName: "speaker.fill")
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.5))
-            
+
             NeonSlider(value: $playerManager.volume, trackColor: NeonColors.cyan)
-            
+
             Image(systemName: "speaker.wave.3.fill")
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.5))
         }
     }
-    
+
     // MARK: - Shazam 识别中指示器
     private func shazamMatchingIndicator(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 8) {
@@ -674,7 +679,7 @@ struct PlayerView: View {
                             rotation = 360
                         }
                     }
-                
+
                 Text(shazamMatcher.matchingProgress.isEmpty ? "歌曲识别中..." : shazamMatcher.matchingProgress)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(NeonColors.cyan)
@@ -688,7 +693,7 @@ struct PlayerView: View {
                     .lineSpacing(2)
                     .padding(.horizontal, 12)
             }
-            
+
             // 取消按钮
             Button(action: {
                 shazamMatcher.stopMatching()
@@ -709,7 +714,7 @@ struct PlayerView: View {
                 )
         )
     }
-    
+
     // MARK: - ACRCloud 高级识别提示
     private func shazamAdvancedPromptCard(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 16) {
@@ -717,19 +722,19 @@ struct PlayerView: View {
                 .font(.system(size: 30))
                 .foregroundColor(NeonColors.cyan)
                 .neonGlow(color: NeonColors.cyan, radius: 10)
-            
+
             VStack(spacing: 8) {
                 Text("普通识别未命中")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
-                
+
                 Text("是否消耗 1 次高级识别配额进行深度检索？\n(针对中文歌曲识别率更高)")
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
-            
+
             HStack(spacing: 16) {
                 // 确认按钮
                 Button(action: {
@@ -745,7 +750,7 @@ struct PlayerView: View {
                                 .fill(NeonColors.cyan)
                         )
                 }
-                
+
                 // 取消按钮
                 Button(action: {
                     shazamMatcher.showAdvancedRecognitionPrompt = false
@@ -758,7 +763,7 @@ struct PlayerView: View {
                 }
             }
             .padding(.top, 8)
-            
+
             Text("当前剩余高级配额: \(subscriptionManager.currentCredits) 次")
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.4))
@@ -775,7 +780,7 @@ struct PlayerView: View {
         )
         .shadow(color: NeonColors.cyan.opacity(0.2), radius: 20)
     }
-    
+
     // MARK: - Shazam 识别失败提示卡片
     private func shazamErrorCard(for availableWidth: CGFloat) -> some View {
         VStack(spacing: 12) {
@@ -783,13 +788,13 @@ struct PlayerView: View {
             Image(systemName: "music.note.list")
                 .font(.system(size: 32))
                 .foregroundColor(NeonColors.magenta.opacity(0.8))
-            
+
             // 提示文字
             VStack(spacing: 4) {
                 Text("未能识别歌曲")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
-                
+
                 if let error = shazamMatcher.lastError as NSError?, error.code == -4 {
                      Text("这首歌太神秘了，连高级识别也没能找到它的踪迹...")
                         .font(.system(size: 13))
@@ -803,7 +808,7 @@ struct PlayerView: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            
+
             // 操作按钮
             HStack(spacing: 16) {
                 // 再试一次
@@ -825,7 +830,7 @@ struct PlayerView: View {
                             .stroke(NeonColors.cyan.opacity(0.6), lineWidth: 1)
                     )
                 }
-                
+
                 // 关闭
                 Button(action: {
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -871,7 +876,7 @@ struct PlayerView: View {
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
         .animation(.easeOut(duration: 0.2), value: shazamMatcher.lastError != nil)
     }
-    
+
     // MARK: - Shazam 识别结果 Overlay (整合结果和歌词)
     private func shazamResultOverlay(
         match: SHMatchedMediaItem?,
@@ -883,7 +888,7 @@ struct PlayerView: View {
         let title = shazamMatcher.customMatchResult?.title ?? match?.title ?? "未知歌曲"
         let artistName = shazamMatcher.customMatchResult?.artist ?? match?.artist ?? "未知歌手"
         let album = shazamMatcher.customMatchResult?.album
-        
+
         // 构建显示文本：歌手 | 专辑
         let displayArtist: String
         if let album = album, !album.isEmpty {
@@ -893,7 +898,7 @@ struct PlayerView: View {
         }
         let artworkURL = shazamMatcher.customMatchResult?.artworkURL ?? match?.artworkURL
         let appleMusicURL = match?.appleMusicURL
-        
+
         return VStack(spacing: 0) {
             // 1. 结果卡片 (作为顶部 Header)
             VStack(spacing: 16) {
@@ -925,7 +930,7 @@ struct PlayerView: View {
                                     .foregroundColor(.white.opacity(0.5))
                             )
                     }
-                    
+
                     // 歌曲信息 (左对齐，占据剩余空间)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title)
@@ -933,18 +938,18 @@ struct PlayerView: View {
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5) // 自适应缩小
-                        
+
                         Text(displayArtist)
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
-                        
+
                         // 时光机标签
                         if let releaseDate = shazamMatcher.customMatchResult?.releaseDate {
                             TimeMachineTagView(releaseDate: releaseDate)
                         }
-                        
+
                         // 版本候选切换按钮 (如果有多个版本)
                         if shazamMatcher.matchedVersions.count > 1 {
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -952,7 +957,7 @@ struct PlayerView: View {
                                     ForEach(0..<shazamMatcher.matchedVersions.count, id: \.self) { index in
                                         let version = shazamMatcher.matchedVersions[index]
                                         let isSelected = shazamMatcher.customMatchResult?.title == version.title && shazamMatcher.customMatchResult?.artist == version.artist
-                                        
+
                                         Button(action: {
                                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                                 shazamMatcher.selectLyricVersion(at: index)
@@ -962,13 +967,13 @@ struct PlayerView: View {
                                                 Image(systemName: version.source == "qq" ? "music.note.house.fill" : "music.note.list")
                                                     .font(.system(size: 11))
                                                     .foregroundColor(isSelected ? NeonColors.cyan : .white.opacity(0.6))
-                                                
+
                                                 VStack(alignment: .leading, spacing: 2) {
                                                     // 主行：歌手
                                                     Text(version.artist.isEmpty ? "未知歌手" : version.artist)
                                                         .font(.system(size: 11, weight: .bold))
                                                         .foregroundColor(isSelected ? .white : .white.opacity(0.85))
-                                                    
+
                                                     // 副行：平台 | 专辑 (或歌名)
                                                     let platformName = version.source == "qq" ? "QQ" : "网易"
                                                     let subtitle = version.album ?? version.title
@@ -1000,7 +1005,7 @@ struct PlayerView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                
+
                 // 音乐平台按钮
                 HStack(spacing: 24) {
                     // Apple Music
@@ -1009,7 +1014,7 @@ struct PlayerView: View {
                             MusicIconView(imageName: "AppleMusicLogo", color: NeonColors.magenta, scale: 1.0, size: 40)
                         }
                     }
-                    
+
                     // 网易云音乐
                     Button(action: {
                         Task {
@@ -1025,7 +1030,7 @@ struct PlayerView: View {
                             }
                         }
                     }
-                    
+
                     // QQ音乐
                     Button(action: {
                         Task {
@@ -1041,7 +1046,7 @@ struct PlayerView: View {
                             }
                         }
                     }
-                    
+
                     // Add to Playlist (Apple Music)
                     if match?.appleMusicID != nil {
                         Button(action: {
@@ -1095,7 +1100,7 @@ struct PlayerView: View {
                                 .stroke(NeonColors.cyan.opacity(0.2), lineWidth: 1)
                         )
                     }
-                    
+
                     // 分割线
                     Rectangle()
                         .fill(Color.white.opacity(0.1))
@@ -1116,7 +1121,7 @@ struct PlayerView: View {
                             .clipShape(Circle())
                     }
                 }
-                
+
                 // 4. 高级识别入口 (手动触发 - 当普通识别不准确时)
                 // match != nil 说明是 Shazam 普通识别的结果，才展示此入口；如果 match 为 nil 则说明已经是高级识别结果
                 if match != nil && subscriptionManager.isPro && subscriptionManager.currentCredits > 0 {
@@ -1152,7 +1157,7 @@ struct PlayerView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(NeonColors.purple.opacity(0.3), lineWidth: 1)
             )
-            
+
             // 2. 歌词区域 (紧接在下方)
             if shazamMatcher.isFetchingLyrics {
                 HStack(spacing: 8) {
@@ -1179,21 +1184,21 @@ struct PlayerView: View {
             }
         }
     }
-    
+
     // MARK: - 辅助方法
     private func startRotation() {
         withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
             rotation = 360
         }
     }
-    
+
     private func openMusicApp(platform: MusicPlatformLink, title: String?, artist: String?) async {
         let safeTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let safeArtist = artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         guard !safeTitle.isEmpty else { return }
         guard loadingPlatform == nil else { return }
-        
+
         loadingPlatform = platform
         defer { loadingPlatform = nil }
 
@@ -1247,15 +1252,15 @@ struct PlayerView: View {
             }
         }
     }
-    
+
     // MARK: - 分享当前歌曲
     private func shareCurrentSong(title: String, artist: String, album: String?, artworkURL: URL?, stationName: String?) async {
         isGeneratingShareCard = true
         defer { isGeneratingShareCard = false }
-        
+
         // 尝试获取发行时间
         let releaseDate = shazamMatcher.customMatchResult?.releaseDate
-        
+
         // 生成图片并预览
         if let image = await ShareCardGenerator.generateCardImage(
             title: title,
@@ -1270,7 +1275,7 @@ struct PlayerView: View {
             self.showSharePreview = true
         }
     }
-    
+
     // MARK: - 导出分享卡片至本地文件 (下载能力)
     private func exportShareCardImage(_ image: UIImage) {
         let title = shazamMatcher.customMatchResult?.title ?? shazamMatcher.lastMatch?.title ?? "拾音FM分享图"
@@ -1278,16 +1283,16 @@ struct PlayerView: View {
         let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
         let safeTitle = title.components(separatedBy: invalidCharacters).joined(separator: "_")
         let safeFileName = "\(safeTitle)_分享图.png"
-        
+
         guard let tempURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent(safeFileName) else { return }
         guard let data = image.pngData() else { return }
-        
+
         do {
             try data.write(to: tempURL)
             // 提示：UIDocumentPickerViewController 适用于在 iOS 和 Mac Catalyst 上导出文件至 Finder / Files App
             let picker = UIDocumentPickerViewController(forExporting: [tempURL], asCopy: true)
             picker.modalPresentationStyle = .formSheet
-            
+
             guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let rootVC = windowScene.windows.first?.rootViewController else { return }
             var topVC = rootVC
@@ -1300,7 +1305,7 @@ struct PlayerView: View {
         }
     }
 
-    
+
     // MARK: - 歌词视图
     // MARK: - 歌词布局 (用于 Overlay)
     private func lyricsLayout(
@@ -1379,11 +1384,11 @@ struct PlayerView: View {
 struct SongResultView: View {
     let match: SHMatchedMediaItem
     @Environment(\.presentationMode) var presentationMode
-    
+
     var body: some View {
         ZStack {
             NeonColors.darkBg.ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
                 // Artwork
                 if let url = match.artworkURL {
@@ -1407,21 +1412,21 @@ struct SongResultView: View {
                         .background(NeonColors.cardBg)
                         .cornerRadius(12)
                 }
-                
+
                 // Info
                 VStack(spacing: 8) {
                     Text(match.title ?? "Unknown Title")
                         .font(.title2.bold())
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
-                    
+
                     Text(match.artist ?? "Unknown Artist")
                         .font(.headline)
                         .foregroundColor(NeonColors.cyan)
                         .multilineTextAlignment(.center)
                 }
                 .padding()
-                
+
                 // Apple Music Button
                 if let appleMusicURL = match.appleMusicURL {
                     Link(destination: appleMusicURL) {
@@ -1435,7 +1440,7 @@ struct SongResultView: View {
                         .cornerRadius(10)
                     }
                 }
-                
+
                 Spacer()
             }
             .padding(.top, 50)
@@ -1451,12 +1456,12 @@ struct MusicIconView: View {
     let color: Color
     var scale: CGFloat = 1.0
     var size: CGFloat = 44.0 // 增加尺寸参数，默认 44
-    
+
     var body: some View {
         ZStack {
             // 背景层
             color.opacity(color == .white ? 1.0 : 0.1) // 白色背景不透明，其他半透明
-            
+
             // 图标层
             Image(imageName)
                 .resizable()
