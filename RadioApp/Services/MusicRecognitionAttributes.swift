@@ -3,7 +3,7 @@
 //  RadioApp
 //
 //  Created for Dynamic Island Music Recognition.
-//  IMPORTANT: This file must be included in BOTH "RadioApp" and "RadioAppWidget" targets.
+//  IMPORTANT: This file must be included in BOTH "ShiyinFM" and "RadioAppWidget" targets.
 //
 
 import ActivityKit

@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8FF816E82F26FFA500FDAA9F"
-               BuildableName = "RadioApp.app"
-               BlueprintName = "RadioApp"
+               BuildableName = "拾音 FM.app"
+               BlueprintName = "ShiyinFM"
                ReferencedContainer = "container:RadioApp.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,8 +45,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8FF816E82F26FFA500FDAA9F"
-            BuildableName = "RadioApp.app"
-            BlueprintName = "RadioApp"
+            BuildableName = "拾音 FM.app"
+            BlueprintName = "ShiyinFM"
             ReferencedContainer = "container:RadioApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,8 +62,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8FF816E82F26FFA500FDAA9F"
-            BuildableName = "RadioApp.app"
-            BlueprintName = "RadioApp"
+            BuildableName = "拾音 FM.app"
+            BlueprintName = "ShiyinFM"
             ReferencedContainer = "container:RadioApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

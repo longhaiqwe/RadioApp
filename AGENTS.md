@@ -24,13 +24,13 @@
 
 ```bash
 # 为 iOS 模拟器构建
-xcodebuild -project RadioApp.xcodeproj -scheme RadioApp -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' build
+xcodebuild -project RadioApp.xcodeproj -scheme ShiyinFM -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' build
 
 # 为 Mac (Catalyst) 构建
-xcodebuild -project RadioApp.xcodeproj -scheme RadioApp -destination 'platform=macOS' build
+xcodebuild -project RadioApp.xcodeproj -scheme ShiyinFM -destination 'platform=macOS' build
 
 # 清理构建文件夹
-xcodebuild -project RadioApp.xcodeproj -scheme RadioApp clean
+xcodebuild -project RadioApp.xcodeproj -scheme ShiyinFM clean
 
 # 在模拟器上运行（打开 Xcode）
 open RadioApp.xcodeproj

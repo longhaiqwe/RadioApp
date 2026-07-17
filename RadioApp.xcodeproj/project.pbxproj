@@ -42,7 +42,7 @@
 		8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RadioAppWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8FEFB3DE2F4052DD00908364 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8FEFB3E02F4052DD00908364 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		8FF816E92F26FFA500FDAA9F /* RadioApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RadioApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8FF816E92F26FFA500FDAA9F /* 拾音 FM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "拾音 FM.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -60,12 +60,12 @@
 			);
 			target = 8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */;
 		};
-		8FF8170B2F27004300FDAA9F /* Exceptions for "RadioApp" folder in "RadioApp" target */ = {
+		8FF8170B2F27004300FDAA9F /* Exceptions for "RadioApp" folder in "ShiyinFM" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 8FF816E82F26FFA500FDAA9F /* RadioApp */;
+			target = 8FF816E82F26FFA500FDAA9F /* ShiyinFM */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -133,7 +133,7 @@
 		8FF816EA2F26FFA500FDAA9F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8FF816E92F26FFA500FDAA9F /* RadioApp.app */,
+				8FF816E92F26FFA500FDAA9F /* 拾音 FM.app */,
 				8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */,
 			);
 			name = Products;
@@ -164,9 +164,9 @@
 			productReference = 8FEFB3DD2F4052DD00908364 /* RadioAppWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		8FF816E82F26FFA500FDAA9F /* RadioApp */ = {
+		8FF816E82F26FFA500FDAA9F /* ShiyinFM */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8FF816F42F26FFA600FDAA9F /* Build configuration list for PBXNativeTarget "RadioApp" */;
+			buildConfigurationList = 8FF816F42F26FFA600FDAA9F /* Build configuration list for PBXNativeTarget "ShiyinFM" */;
 			buildPhases = (
 				8FF816E52F26FFA500FDAA9F /* Sources */,
 				8FF816E62F26FFA500FDAA9F /* Frameworks */,
@@ -181,11 +181,11 @@
 			fileSystemSynchronizedGroups = (
 				8FF816EB2F26FFA500FDAA9F /* RadioApp */,
 			);
-			name = RadioApp;
+			name = ShiyinFM;
 			packageProductDependencies = (
 			);
-			productName = RadioApp;
-			productReference = 8FF816E92F26FFA500FDAA9F /* RadioApp.app */;
+			productName = ShiyinFM;
+			productReference = 8FF816E92F26FFA500FDAA9F /* 拾音 FM.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -221,7 +221,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8FF816E82F26FFA500FDAA9F /* RadioApp */,
+				8FF816E82F26FFA500FDAA9F /* ShiyinFM */,
 				8FEFB3DC2F4052DD00908364 /* RadioAppWidgetExtension */,
 			);
 		};
@@ -485,7 +485,7 @@
 				);
 				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.longhai.radioapp.shazam;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "拾音 FM";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -527,7 +527,7 @@
 				);
 				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.longhai.radioapp.shazam;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "拾音 FM";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -564,7 +564,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8FF816F42F26FFA600FDAA9F /* Build configuration list for PBXNativeTarget "RadioApp" */ = {
+		8FF816F42F26FFA600FDAA9F /* Build configuration list for PBXNativeTarget "ShiyinFM" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8FF816F52F26FFA600FDAA9F /* Debug */,
