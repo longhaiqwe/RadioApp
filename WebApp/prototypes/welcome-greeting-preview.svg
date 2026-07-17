@@ -1,0 +1,139 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="cyanGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(210 98) rotate(45) scale(380)">
+      <stop stop-color="#00D9FF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#00D9FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pinkGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(930 88) rotate(135) scale(360)">
+      <stop stop-color="#FF006E" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FF006E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="purpleGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(900 720) rotate(45) scale(460)">
+      <stop stop-color="#8338EC" stop-opacity="0.23"/>
+      <stop offset="1" stop-color="#8338EC" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pageBg" x1="0" y1="0" x2="1200" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08080D"/>
+      <stop offset="0.52" stop-color="#0A0A0F"/>
+      <stop offset="1" stop-color="#10101A"/>
+    </linearGradient>
+    <linearGradient id="hotButton" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FF006E"/>
+      <stop offset="1" stop-color="#8338EC"/>
+    </linearGradient>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#00D9FF"/>
+      <stop offset="0.48" stop-color="#8338EC"/>
+      <stop offset="1" stop-color="#FF006E"/>
+    </linearGradient>
+    <filter id="blurGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="cardShadow" x="-15%" y="-40%" width="130%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#00D9FF" flood-opacity="0.13"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="32" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <filter id="cyanText" x="-20%" y="-80%" width="140%" height="260%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#00D9FF" flood-opacity="0.8"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#FF006E" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="860" fill="url(#pageBg)"/>
+  <rect width="1200" height="860" fill="url(#cyanGlow)"/>
+  <rect width="1200" height="860" fill="url(#pinkGlow)"/>
+  <rect width="1200" height="860" fill="url(#purpleGlow)"/>
+
+  <g opacity="0.065">
+    <path d="M0 120H1200M0 180H1200M0 240H1200M0 300H1200M0 360H1200M0 420H1200M0 480H1200M0 540H1200M0 600H1200M0 660H1200M0 720H1200" stroke="white"/>
+    <path d="M120 0V860M180 0V860M240 0V860M300 0V860M360 0V860M420 0V860M480 0V860M540 0V860M600 0V860M660 0V860M720 0V860M780 0V860M840 0V860M900 0V860M960 0V860M1020 0V860M1080 0V860" stroke="white"/>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif">
+    <g transform="translate(78 60)">
+      <text x="0" y="78" fill="white" font-size="74" font-weight="900">发现</text>
+      <text x="2" y="118" fill="#00D9FF" font-size="18" font-weight="700">探索全球电台</text>
+
+      <g transform="translate(942 4)" filter="url(#blurGlow)">
+        <circle cx="32" cy="32" r="32" fill="url(#hotButton)"/>
+        <path d="M23 19H44V40M19 45L45 19M45 45H28M45 45L34 34M19 19L30 30" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+
+      <g transform="translate(0 156)" filter="url(#cardShadow)">
+        <rect width="1044" height="95" rx="24" fill="#151520" fill-opacity="0.75"/>
+        <rect width="1044" height="95" rx="24" fill="url(#cyanGlow)" opacity="0.26"/>
+        <rect x="0.75" y="0.75" width="1042.5" height="93.5" rx="23.25" stroke="#00D9FF" stroke-opacity="0.34" stroke-width="1.5"/>
+        <circle cx="44" cy="47" r="24" fill="#00D9FF" fill-opacity="0.12"/>
+        <path d="M31 47C31 39.8 36.8 34 44 34C51.2 34 57 39.8 57 47M36 47C36 42.6 39.6 39 44 39C48.4 39 52 42.6 52 47M41 47C41 45.3 42.3 44 44 44C45.7 44 47 45.3 47 47M44 51V65" stroke="#00D9FF" stroke-width="3" stroke-linecap="round"/>
+        <text x="86" y="42" fill="white" fill-opacity="0.9" font-size="19" font-weight="700">
+          <tspan>是缘分让我们偶遇，从</tspan>
+          <tspan fill="white" font-weight="900" filter="url(#cyanText)">「清晨音乐台」</tspan>
+          <tspan>开始吧，</tspan>
+        </text>
+        <text x="86" y="70" fill="white" fill-opacity="0.9" font-size="19" font-weight="700">希望你能遇到心仪的歌曲～</text>
+        <rect x="895" y="27" width="122" height="40" rx="20" fill="white" fill-opacity="0.06" stroke="white" stroke-opacity="0.14"/>
+        <text x="918" y="53" fill="white" fill-opacity="0.84" font-size="14" font-weight="850">今日第一站</text>
+      </g>
+
+      <g transform="translate(0 273)">
+        <rect width="1044" height="66" rx="20" fill="#151520" fill-opacity="0.75" stroke="white" stroke-opacity="0.12"/>
+        <circle cx="36" cy="33" r="9" stroke="#00D9FF" stroke-width="3"/>
+        <path d="M43 40L53 50" stroke="#00D9FF" stroke-width="3" stroke-linecap="round"/>
+        <text x="68" y="40" fill="white" fill-opacity="0.43" font-size="17" font-weight="500">搜索电台、风格、地区...</text>
+        <path d="M998 20L1002 31L1014 35L1002 39L998 51L994 39L982 35L994 31L998 20Z" stroke="#8338EC" stroke-width="2.5" stroke-linejoin="round"/>
+      </g>
+
+      <g transform="translate(0 390)">
+        <text x="0" y="0" fill="white" font-size="24" font-weight="900">推荐电台</text>
+        <text x="0" y="32" fill="white" fill-opacity="0.56" font-size="15" font-weight="500">先从熟悉又稳定的台开始。</text>
+        <text x="884" y="17" fill="#00D9FF" fill-opacity="0.82" font-size="14" font-weight="850">为你亮起清晨音乐台</text>
+
+        <g transform="translate(0 58)" filter="url(#cardShadow)">
+          <rect width="330" height="110" rx="20" fill="#151520" fill-opacity="0.78"/>
+          <rect x="0.75" y="0.75" width="328.5" height="108.5" rx="19.25" stroke="#00D9FF" stroke-opacity="0.64" stroke-width="1.5"/>
+          <rect x="16" y="18" width="72" height="72" rx="18" fill="url(#cover)"/>
+          <circle cx="49" cy="45" r="14" fill="#FFD23F" fill-opacity="0.75"/>
+          <path d="M45 65V34L68 29V58M40 66C40 61.6 43.6 58 48 58C52.4 58 56 61.6 56 66C56 70.4 52.4 74 48 74C43.6 74 40 70.4 40 66ZM63 59C63 54.6 66.6 51 71 51C75.4 51 79 54.6 79 59C79 63.4 75.4 67 71 67C66.6 67 63 63.4 63 59Z" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="104" y="43" fill="white" font-size="17" font-weight="850">清晨音乐台</text>
+          <text x="104" y="65" fill="#00D9FF" font-size="12" font-weight="650">music, pop music</text>
+          <path d="M107 82V74L114 78L107 82Z" fill="white" fill-opacity="0.5"/>
+          <text x="121" y="83" fill="white" fill-opacity="0.52" font-size="12" font-weight="700">MP3</text>
+          <circle cx="292" cy="55" r="20" fill="white" fill-opacity="0.045" stroke="white" stroke-opacity="0.11"/>
+          <path d="M300.7 46.6C298.3 44.5 294.7 44.8 292.5 47.3L292 47.8L291.5 47.3C289.3 44.8 285.7 44.5 283.3 46.6C280.7 48.9 280.6 53 283 55.5L292 64L301 55.5C303.4 53 303.3 48.9 300.7 46.6Z" stroke="white" stroke-opacity="0.68" stroke-width="2" stroke-linejoin="round"/>
+        </g>
+
+        <g transform="translate(357 58)">
+          <rect width="330" height="110" rx="20" fill="#151520" fill-opacity="0.74" stroke="white" stroke-opacity="0.12"/>
+          <rect x="16" y="18" width="72" height="72" rx="18" fill="url(#cover)" opacity="0.72"/>
+          <text x="104" y="43" fill="white" font-size="17" font-weight="850">CNR-3 音乐之声</text>
+          <text x="104" y="65" fill="#00D9FF" font-size="12" font-weight="650">classic, live</text>
+          <path d="M107 82V74L114 78L107 82Z" fill="white" fill-opacity="0.5"/>
+          <text x="121" y="83" fill="white" fill-opacity="0.52" font-size="12" font-weight="700">HLS</text>
+          <circle cx="292" cy="55" r="20" fill="white" fill-opacity="0.045" stroke="white" stroke-opacity="0.11"/>
+        </g>
+
+        <g transform="translate(714 58)">
+          <rect width="330" height="110" rx="20" fill="#151520" fill-opacity="0.74" stroke="white" stroke-opacity="0.12"/>
+          <rect x="16" y="18" width="72" height="72" rx="18" fill="url(#cover)" opacity="0.72"/>
+          <text x="104" y="43" fill="white" font-size="17" font-weight="850">AsiaFM 亚洲经典</text>
+          <text x="104" y="65" fill="#00D9FF" font-size="12" font-weight="650">chinese, music</text>
+          <path d="M107 82V74L114 78L107 82Z" fill="white" fill-opacity="0.5"/>
+          <text x="121" y="83" fill="white" fill-opacity="0.52" font-size="12" font-weight="700">MP3</text>
+          <circle cx="292" cy="55" r="20" fill="white" fill-opacity="0.045" stroke="white" stroke-opacity="0.11"/>
+        </g>
+      </g>
+    </g>
+
+    <g transform="translate(240 753)" filter="url(#cardShadow)">
+      <rect width="720" height="72" rx="24" fill="#10101A" fill-opacity="0.91" stroke="#00D9FF" stroke-opacity="0.3"/>
+      <circle cx="42" cy="36" r="23" fill="url(#hotButton)"/>
+      <path d="M36 26V46L52 36L36 26Z" fill="white"/>
+      <text x="82" y="33" fill="white" font-size="15" font-weight="850">从清晨音乐台开始</text>
+      <text x="82" y="55" fill="white" fill-opacity="0.52" font-size="13" font-weight="500">希望你能遇到心仪的歌曲</text>
+    </g>
+  </g>
+</svg>

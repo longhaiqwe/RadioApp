@@ -1,6 +1,6 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stationFixture } from "@/test/fixtures";
 import { AudioPlayerProvider, useAudioPlayer } from "./AudioPlayerProvider";
 
@@ -30,10 +30,12 @@ class MockAudio {
 }
 
 function AudioHarness() {
-  const { next, playStation, setVolume, togglePlayPause } = useAudioPlayer();
+  const { next, playStation, setVolume, state, togglePlayPause } =
+    useAudioPlayer();
 
   return (
     <div>
+      <output aria-label="播放错误">{state.playbackError ?? ""}</output>
       <button
         type="button"
         onClick={() => playStation(stationFixture, [stationFixture], "发现")}
@@ -62,6 +64,10 @@ describe("AudioPlayerProvider", () => {
     vi.stubGlobal("Audio", vi.fn(() => audio));
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("starts playback from the user action and does not replay on volume changes", async () => {
     const user = userEvent.setup();
 
@@ -76,7 +82,7 @@ describe("AudioPlayerProvider", () => {
     await waitFor(() => {
       expect(audio.play).toHaveBeenCalledTimes(1);
     });
-    expect(audio.src).toBe(stationFixture.urlResolved);
+    expect(audio.src).toBe("https://lhttp.qingting.fm/live/4915/64k.mp3");
 
     await user.click(screen.getByRole("button", { name: "音量" }));
 
@@ -161,6 +167,29 @@ describe("AudioPlayerProvider", () => {
     expect(audio.play).toHaveBeenCalledTimes(2);
   });
 
+  it("reloads the live stream when resuming the current station after pause", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "播放" }));
+    act(() => {
+      audio.emit("playing");
+    });
+
+    await user.click(screen.getByRole("button", { name: "切换" }));
+    expect(audio.pause).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "切换" }));
+
+    expect(audio.load).toHaveBeenCalledTimes(2);
+    expect(audio.play).toHaveBeenCalledTimes(2);
+  });
+
   it("reloads when next resolves to the same station", async () => {
     const user = userEvent.setup();
 
@@ -175,5 +204,64 @@ describe("AudioPlayerProvider", () => {
 
     expect(audio.load).toHaveBeenCalledTimes(2);
     expect(audio.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps playing through transient stalled events without reloading the stream", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    });
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    act(() => {
+      audio.emit("playing");
+      audio.emit("stalled");
+    });
+
+    expect(audio.play).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    expect(audio.load).toHaveBeenCalledTimes(1);
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("播放错误")).toHaveTextContent("");
+  });
+
+  it("keeps the initial stream request alive when the browser reports stalled while buffering", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <AudioPlayerProvider>
+        <AudioHarness />
+      </AudioPlayerProvider>
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      audio.emit("stalled");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    expect(audio.load).toHaveBeenCalledTimes(1);
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("播放错误")).toHaveTextContent("");
   });
 });

@@ -39,6 +39,17 @@ input {
   font: inherit;
 }
 
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
 .neon-glow-cyan {
   box-shadow:
     0 0 8px rgba(0, 217, 255, 0.6),

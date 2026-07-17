@@ -14,6 +14,7 @@ import type { Station } from "@/features/stations/stationTypes";
 import { readJson, writeJson } from "@/lib/localJsonStorage";
 import { audioPlayerReducer, initialAudioPlayerState } from "./audioPlayerReducer";
 import type { AudioPlayerState } from "./audioPlayerTypes";
+import { resolvePlaybackSource } from "./playbackSource";
 
 type AudioPlayerContextValue = {
   state: AudioPlayerState;
@@ -28,6 +29,8 @@ type AudioPlayerContextValue = {
 const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
 const PLAYBACK_ERROR_MESSAGE = "该电台暂不支持浏览器播放。";
 const USER_ACTION_REQUIRED_MESSAGE = "请点击播放以开始收听。";
+const STREAM_RECOVERY_DELAY_MS = 1500;
+const MAX_STREAM_RECOVERY_ATTEMPTS = 3;
 
 type StartPlaybackOptions = {
   forceReload?: boolean;
@@ -55,6 +58,9 @@ export function AudioPlayerProvider({
   const playAttemptIdRef = useRef(0);
   const reportedPlayAttemptIdRef = useRef(0);
   const currentPlaybackStationRef = useRef<Station | null>(null);
+  const hasPlayedCurrentStationRef = useRef(false);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recoveryAttemptRef = useRef(0);
   const [state, dispatch] = useReducer(
     audioPlayerReducer,
     initialAudioPlayerState,
@@ -73,6 +79,13 @@ export function AudioPlayerProvider({
     onPlayedStationRef.current = onPlayedStation;
   }, [onPlayedStation]);
 
+  const clearStreamRecovery = useCallback(() => {
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, []);
+
   const startPlayback = useCallback(async (
     station: Station,
     options: StartPlaybackOptions = {}
@@ -82,7 +95,7 @@ export function AudioPlayerProvider({
       return;
     }
 
-    const source = station.urlResolved || station.url;
+    const source = resolvePlaybackSource(station);
     currentPlaybackStationRef.current = station;
     if (options.forceReload || audio.src !== source) {
       audio.src = source;
@@ -113,12 +126,47 @@ export function AudioPlayerProvider({
     }
   }, []);
 
+  const resetStreamRecovery = useCallback(() => {
+    clearStreamRecovery();
+    recoveryAttemptRef.current = 0;
+  }, [clearStreamRecovery]);
+
+  const scheduleStreamRecovery = useCallback(() => {
+    const currentState = stateRef.current;
+    const station = currentPlaybackStationRef.current ?? currentState.currentStation;
+    if (!station || currentState.currentStation?.id !== station.id) return;
+    if (!currentState.isPlaying && !currentState.isLoading) return;
+
+    if (recoveryAttemptRef.current >= MAX_STREAM_RECOVERY_ATTEMPTS) {
+      clearStreamRecovery();
+      dispatch({
+        type: "playbackError",
+        message: PLAYBACK_ERROR_MESSAGE,
+      });
+      return;
+    }
+
+    recoveryAttemptRef.current += 1;
+    clearStreamRecovery();
+    recoveryTimerRef.current = setTimeout(() => {
+      const latestState = stateRef.current;
+      const latestStation =
+        currentPlaybackStationRef.current ?? latestState.currentStation;
+      if (!latestStation || latestState.currentStation?.id !== station.id) return;
+      if (!latestState.isPlaying && !latestState.isLoading) return;
+
+      void startPlayback(station, { forceReload: true });
+    }, STREAM_RECOVERY_DELAY_MS);
+  }, [clearStreamRecovery, startPlayback]);
+
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
     audio.volume = stateRef.current.volume;
 
     const onPlaying = () => {
+      hasPlayedCurrentStationRef.current = true;
+      resetStreamRecovery();
       dispatch({ type: "playbackStarted" });
       const currentStation =
         currentPlaybackStationRef.current ?? stateRef.current.currentStation;
@@ -131,22 +179,26 @@ export function AudioPlayerProvider({
       }
     };
     const onError = () => {
-      dispatch({
-        type: "playbackError",
-        message: PLAYBACK_ERROR_MESSAGE,
-      });
+      scheduleStreamRecovery();
+    };
+    const onStreamInterrupted = () => {
+      if (!hasPlayedCurrentStationRef.current) return;
+      scheduleStreamRecovery();
     };
 
     audio.addEventListener("playing", onPlaying);
     audio.addEventListener("error", onError);
+    audio.addEventListener("ended", onStreamInterrupted);
 
     return () => {
+      clearStreamRecovery();
       audio.removeEventListener("playing", onPlaying);
       audio.removeEventListener("error", onError);
+      audio.removeEventListener("ended", onStreamInterrupted);
       audio.pause();
       audioRef.current = null;
     };
-  }, []);
+  }, [clearStreamRecovery, resetStreamRecovery, scheduleStreamRecovery]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -158,11 +210,13 @@ export function AudioPlayerProvider({
 
   const playStation = useCallback(
     (station: Station, playlist: Station[], playlistTitle: string) => {
+      resetStreamRecovery();
+      hasPlayedCurrentStationRef.current = false;
       const shouldForceReload = stateRef.current.currentStation?.id === station.id;
       dispatch({ type: "playStation", station, playlist, playlistTitle });
       void startPlayback(station, { forceReload: shouldForceReload });
     },
-    [startPlayback]
+    [resetStreamRecovery, startPlayback]
   );
 
   const togglePlayPause = useCallback(() => {
@@ -171,15 +225,16 @@ export function AudioPlayerProvider({
     if (!audio || !currentStation) return;
 
     if (stateRef.current.isPlaying) {
+      resetStreamRecovery();
       audio.pause();
       dispatch({ type: "pause" });
       return;
     }
 
-    void startPlayback(currentStation, {
-      forceReload: stateRef.current.playbackError !== null,
-    });
-  }, [startPlayback]);
+    resetStreamRecovery();
+    hasPlayedCurrentStationRef.current = false;
+    void startPlayback(currentStation, { forceReload: true });
+  }, [resetStreamRecovery, startPlayback]);
 
   const next = useCallback(() => {
     const currentState = stateRef.current;
@@ -194,11 +249,13 @@ export function AudioPlayerProvider({
       return;
     }
 
+    resetStreamRecovery();
+    hasPlayedCurrentStationRef.current = false;
     dispatch({ type: "next" });
     void startPlayback(station, {
       forceReload: currentState.currentStation?.id === station.id,
     });
-  }, [startPlayback]);
+  }, [resetStreamRecovery, startPlayback]);
 
   const previous = useCallback(() => {
     const currentState = stateRef.current;
@@ -215,11 +272,13 @@ export function AudioPlayerProvider({
       return;
     }
 
+    resetStreamRecovery();
+    hasPlayedCurrentStationRef.current = false;
     dispatch({ type: "previous" });
     void startPlayback(station, {
       forceReload: currentState.currentStation?.id === station.id,
     });
-  }, [startPlayback]);
+  }, [resetStreamRecovery, startPlayback]);
 
   const value = useMemo<AudioPlayerContextValue>(
     () => ({

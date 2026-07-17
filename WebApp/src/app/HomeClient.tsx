@@ -3,11 +3,12 @@
 import {
   Clock3,
   Loader2,
+  Radio,
   Search,
   Shuffle,
   Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatedMeshBackground } from "@/components/AnimatedMeshBackground";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassCard } from "@/components/GlassCard";
@@ -15,13 +16,14 @@ import { IconButton } from "@/components/IconButton";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { StationGrid } from "@/components/StationGrid";
-import { WaitlistModal } from "@/components/WaitlistModal";
 import {
   AudioPlayerProvider,
   useAudioPlayer,
 } from "@/features/player/AudioPlayerProvider";
+import type { RecognitionResult } from "@/features/recognition/recognitionTypes";
 import type { Station } from "@/features/stations/stationTypes";
 import { useLocalStations } from "@/hooks/useLocalStations";
+import { recognizeStationFromStream } from "@/lib/recognitionApi";
 import { useStationSearch, useTopStations } from "@/hooks/useStations";
 import { getRandomStation } from "@/lib/stationApi";
 
@@ -29,10 +31,33 @@ type HomeClientProps = {
   initialTopStations: Station[];
 };
 
+type RecognitionViewState = {
+  status: "idle" | "loading" | "success" | "error";
+  result: RecognitionResult | null;
+  error: string | null;
+  stationId?: string;
+  startedAt?: number;
+};
+
+const idleRecognition: RecognitionViewState = {
+  status: "idle",
+  result: null,
+  error: null,
+};
+
 function WebRadioExperience({ initialTopStations }: HomeClientProps) {
   const [query, setQuery] = useState("");
-  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [recognition, setRecognition] = useState<RecognitionViewState>({
+    status: "idle",
+    result: null,
+    error: null,
+  });
+  const recognitionRunRef = useRef<{
+    runId: number;
+    stationId: string;
+  } | null>(null);
+  const recognitionRunIdRef = useRef(0);
   const favorites = useLocalStations("radioapp:web:favorites", 100);
   const recent = useLocalStations("radioapp:web:recent", 30);
   const topStations = useTopStations(initialTopStations);
@@ -55,6 +80,7 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
     playlistTitle: string
   ) => {
     player.playStation(station, playlist, playlistTitle);
+    player.setExpanded(true);
   };
 
   const toggleFavorite = (station: Station) => {
@@ -68,6 +94,68 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
   };
 
   const currentStationId = player.state.currentStation?.id;
+  const currentRecognition =
+    recognition.stationId === currentStationId ? recognition : idleRecognition;
+
+  const recognizeCurrentStation = async () => {
+    const station = player.state.currentStation;
+    if (!station) return;
+    if (recognitionRunRef.current?.stationId === station.id) return;
+    if (currentRecognition.status === "loading") return;
+
+    const startedAt = Date.now();
+    const runId = recognitionRunIdRef.current + 1;
+    recognitionRunIdRef.current = runId;
+    recognitionRunRef.current = { runId, stationId: station.id };
+
+    const isCurrentRun = () =>
+      recognitionRunRef.current?.runId === runId &&
+      recognitionRunRef.current.stationId === station.id;
+
+    setRecognition({
+      status: "loading",
+      result: null,
+      error: null,
+      stationId: station.id,
+      startedAt,
+    });
+
+    try {
+      const result = await recognizeStationFromStream(station);
+      if (!isCurrentRun()) return;
+
+      setRecognition({
+        status: "success",
+        result,
+        error: null,
+        stationId: station.id,
+        startedAt,
+      });
+    } catch (error) {
+      if (!isCurrentRun()) return;
+
+      setRecognition({
+        status: "error",
+        result: null,
+        stationId: station.id,
+        startedAt,
+        error:
+          error instanceof Error
+            ? error.message
+            : "暂时没能识别出歌词，请稍后再试。",
+      });
+    } finally {
+      if (isCurrentRun()) {
+        recognitionRunRef.current = null;
+      }
+    }
+  };
+
+  const dismissRecognition = () => {
+    recognitionRunIdRef.current += 1;
+    recognitionRunRef.current = null;
+    setRecognition(idleRecognition);
+  };
 
   return (
     <main className="mx-auto flex min-h-screen w-full min-w-0 max-w-6xl flex-col px-4 pb-28 pt-12 md:px-8">
@@ -100,6 +188,30 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
           </button>
         </div>
       </header>
+
+      <section
+        aria-label="欢迎语"
+        className="relative mb-4 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-[rgba(0,217,255,0.34)] bg-[linear-gradient(135deg,rgba(0,217,255,0.13),rgba(255,0,110,0.08)),rgba(21,21,32,0.72)] p-3 shadow-[0_0_24px_rgba(0,217,255,0.14)] backdrop-blur-xl sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+      >
+        <div className="absolute -right-10 -top-16 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(255,210,63,0.22),transparent_64%)]" />
+        <span
+          aria-hidden="true"
+          className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[rgba(0,217,255,0.28)] bg-[rgba(0,217,255,0.12)] text-[var(--neon-cyan)]"
+        >
+          <Radio size={20} />
+        </span>
+        <p className="relative min-w-0 text-sm font-semibold leading-6 text-white/85 sm:text-base">
+          是缘分让我们偶遇，从
+          <span className="whitespace-nowrap font-black text-white [text-shadow:0_0_8px_rgba(0,217,255,0.7),0_0_18px_rgba(255,0,110,0.35)]">
+            「清晨音乐台」
+          </span>
+          开始吧，希望你能遇到心仪的歌曲～
+        </p>
+        <span className="relative col-span-2 inline-flex w-max max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-black text-white/80 sm:col-span-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--neon-gold)]" />
+          今日第一站
+        </span>
+      </section>
 
       <GlassCard className="mb-4 p-3">
         <label className="flex items-center gap-3">
@@ -217,11 +329,23 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
 
       <button
         type="button"
-        onClick={() => setWaitlistOpen(true)}
+        onClick={() => {
+          if (player.state.currentStation) {
+            player.setExpanded(true);
+            void recognizeCurrentStation();
+          }
+        }}
+        disabled={
+          !player.state.currentStation || currentRecognition.status === "loading"
+        }
         className="mt-8 inline-flex items-center justify-center gap-2 rounded-2xl border border-[rgba(255,0,110,0.3)] bg-[rgba(255,0,110,0.1)] px-4 py-3 text-sm font-bold text-white/85"
       >
-        <Clock3 size={18} />
-        识别歌曲：macOS 版即将推出
+        {currentRecognition.status === "loading" ? (
+          <Loader2 className="animate-spin" size={18} />
+        ) : (
+          <Sparkles size={18} />
+        )}
+        {player.state.currentStation ? "识别当前歌曲" : "播放电台后识别歌曲"}
       </button>
 
       <MiniPlayer />
@@ -232,16 +356,10 @@ function WebRadioExperience({ initialTopStations }: HomeClientProps) {
             : false
         }
         onToggleFavorite={toggleFavorite}
-        onOpenWaitlist={() => setWaitlistOpen(true)}
+        recognition={currentRecognition}
+        onRecognize={recognizeCurrentStation}
+        onDismissRecognition={dismissRecognition}
       />
-      {waitlistOpen ? (
-        <WaitlistModal
-          source="recognition"
-          stationId={player.state.currentStation?.id}
-          stationName={player.state.currentStation?.name}
-          onClose={() => setWaitlistOpen(false)}
-        />
-      ) : null}
     </main>
   );
 }
