@@ -203,68 +203,47 @@ class RadioService {
     
     // MARK: - Convenience / Smart Search
     
-    /// Smart search that handles "1017" frequency fixes and keyword splitting
+    /// Smart search that handles frequency formatting, simplified/traditional names, and relevance filtering.
     func searchStations(name: String) async throws -> [Station] {
-        // 1. Pre-process logic (Kept from previous fix)
-        // Insert space between non-digit and digit, but respect floating point "101.7"
         var processedName = name
         if let regex = try? NSRegularExpression(pattern: "([^\\d.])(\\d)", options: []) {
             processedName = regex.stringByReplacingMatches(in: processedName, options: [], range: NSRange(location: 0, length: processedName.utf16.count), withTemplate: "$1 $2")
         }
-        
+
         let keywords = processedName.trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .whitespaces)
             .filter { !$0.isEmpty }
-        
 
-        
         guard let firstKeyword = keywords.first else { return [] }
-        
-        // 2. Initial Fetch using the first keyword
-        // usage of advancedSearch allows us to do this cleanly
-        var filter = StationFilter()
-        filter.name = firstKeyword
-        filter.limit = 500 // Get enough candidates
-        filter.hideBroken = true
-        
-        let stations = try await advancedSearch(filter: filter)
 
-        
-        // 3. Client-side filtering for remaining keywords
-        if keywords.count > 1 {
-            let remainingKeywords = keywords.dropFirst()
-            let filtered = stations.filter { station in
-                let stationName = station.name.lowercased()
-                let stationTags = station.tags.lowercased()
-                
-                return remainingKeywords.allSatisfy { keyword in
-                    let lowerKeyword = keyword.lowercased()
-                    
-                    // Direct match
-                    if stationName.contains(lowerKeyword) || stationTags.contains(lowerKeyword) { return true }
-                    
-                    // Frequency fuzzy match (e.g. "1017" -> "101.7")
-                    if let number = Int(keyword), String(number) == keyword {
-                         if keyword.count > 2 {
-                             let decimalKeyword = String(keyword.dropLast()) + "." + String(keyword.suffix(1))
-                             if stationName.contains(decimalKeyword) || stationTags.contains(decimalKeyword) { return true }
-                         }
-                    }
-                    return false
-                }
-            }
-            
-
-            
-            // Fallback logic
-            if filtered.isEmpty && !stations.isEmpty {
-                return stations
-            }
-            
-            return filtered
+        var searchTerms = [firstKeyword]
+        for fallbackTerm in RadioStationSearchMatcher.fallbackTerms(for: firstKeyword)
+            where !fallbackTerm.isEmpty && !searchTerms.contains(fallbackTerm) {
+            searchTerms.append(fallbackTerm)
         }
-        
-        return stations
+
+        for searchTerm in searchTerms {
+            var filter = StationFilter()
+            filter.name = searchTerm
+            filter.limit = 500
+            filter.hideBroken = true
+
+            let stations = try await advancedSearch(filter: filter)
+            let matches = stations.filter { station in
+                RadioStationSearchMatcher.matches(
+                    name: station.name,
+                    tags: station.tags,
+                    country: station.country,
+                    language: station.language,
+                    query: processedName
+                )
+            }
+            if !matches.isEmpty {
+                return matches
+            }
+        }
+
+        return []
     }
     
 
