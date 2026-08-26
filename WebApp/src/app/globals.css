@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --neon-cyan: #00d9ff;
+  --neon-magenta: #ff006e;
+  --neon-purple: #8338ec;
+  --neon-electric: #7b2cbf;
+  --neon-warm-pink: #ff5e78;
+  --neon-mint: #00f5d4;
+  --neon-gold: #ffd23f;
+  --neon-red: #ff3b30;
+  --neon-dark-bg: #0a0a0f;
+  --neon-card-bg: #151520;
+  --neon-surface-bg: #1a1a2e;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.68);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--neon-dark-bg);
+  color: var(--text-primary);
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.neon-glow-cyan {
+  box-shadow:
+    0 0 8px rgba(0, 217, 255, 0.6),
+    0 0 18px rgba(0, 217, 255, 0.35);
+}
+
+.neon-glow-magenta {
+  box-shadow:
+    0 0 10px rgba(255, 0, 110, 0.6),
+    0 0 22px rgba(255, 0, 110, 0.35);
+}
