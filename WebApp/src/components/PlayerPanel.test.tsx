@@ -681,7 +681,12 @@ describe("PlayerPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "打开测试播放器" }));
 
-    expect(screen.getByRole("button", { name: "歌曲识别" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "下载 macOS 客户端使用歌曲识别" })
+    ).toHaveAttribute(
+      "href",
+      "https://longhaixueai-1258687935.cos.ap-guangzhou.myqcloud.com/downloads/ShiyinFM-0.1.6-build7-universal.dmg"
+    );
 
     const controls = screen.getByRole("group", { name: "播放控制" });
     expect(within(controls).getByRole("button", { name: "收藏" })).toBeInTheDocument();
@@ -692,7 +697,9 @@ describe("PlayerPanel", () => {
       within(controls).getByRole("button", { name: "查看播放列表" })
     ).toBeInTheDocument();
     expect(
-      within(controls).queryByRole("button", { name: "歌曲识别" })
+      within(controls).queryByRole("link", {
+        name: "下载 macOS 客户端使用歌曲识别",
+      })
     ).not.toBeInTheDocument();
   });
 
@@ -734,8 +741,8 @@ describe("PlayerPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "打开测试播放器" }));
 
-    expect(screen.getByText("歌曲识别")).toHaveClass("text-base");
-    expect(screen.getByText("选取歌词清晰片段开始识别")).toHaveClass(
+    expect(screen.getByText("macOS 版识曲")).toHaveClass("text-base");
+    expect(screen.getByText("下载 macOS 客户端使用完整识曲")).toHaveClass(
       "text-[11px]"
     );
     expect(screen.getByRole("heading", { name: stationFixture.name })).toHaveClass(
@@ -1146,10 +1153,12 @@ describe("PlayerPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "打开识别中播放器" }));
 
-    const action = screen.getByRole("button", { name: "歌曲识别" });
+    const action = screen.getByRole("link", {
+      name: "下载 macOS 客户端使用歌曲识别",
+    });
     expect(action).toHaveClass("w-72", "min-h-12", "overflow-hidden", "transition-colors");
-    expect(screen.getByText("识别中")).toBeInTheDocument();
-    expect(screen.getByText("正在听取歌词")).toBeInTheDocument();
+    expect(screen.getByText("macOS 版识曲")).toBeInTheDocument();
+    expect(screen.getByText("下载 macOS 客户端使用完整识曲")).toBeInTheDocument();
     expect(screen.queryByText("选取歌词清晰片段开始识别")).not.toBeInTheDocument();
   });
 

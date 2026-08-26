@@ -44,7 +44,6 @@ export function buildSyncedLyrics({
     lines,
     matchedSnippet: match.snippet.text,
     confidenceScore: roundScore(match.score),
-    matchedSnippetsCount: match.matchCount,
     estimatedOffsetSeconds: roundScore(
       Math.max(
         0,
@@ -100,13 +99,11 @@ function findBestLyricMatch(
       }
     | undefined;
   const windows = buildLyricWindows(lines);
-  let matchCount = 0;
 
   for (const [snippetIndex, snippet] of snippets.entries()) {
     const normalizedSnippet = normalizeLyricText(snippet.text);
     if (normalizedSnippet.length < 6) continue;
 
-    let bestScoreForThisSnippet = 0;
     for (const window of windows) {
       const normalizedWindow = normalizeLyricText(window.text);
       if (normalizedWindow.length < 4) continue;
@@ -117,11 +114,6 @@ function findBestLyricMatch(
           ? Math.min(normalizedWindow.length, normalizedSnippet.length) /
             Math.max(normalizedWindow.length, normalizedSnippet.length)
           : bigramDiceScore(normalizedSnippet, normalizedWindow);
-
-      if (score > bestScoreForThisSnippet) {
-        bestScoreForThisSnippet = score;
-      }
-
       const weightedScore = score * (0.85 + snippet.confidenceScore * 0.15);
 
       if (!bestMatch || weightedScore > bestMatch.score) {
@@ -133,13 +125,9 @@ function findBestLyricMatch(
         };
       }
     }
-
-    if (bestScoreForThisSnippet >= 0.55) {
-      matchCount += 1;
-    }
   }
 
-  return bestMatch ? { ...bestMatch, matchCount } : null;
+  return bestMatch;
 }
 
 function estimateSnippetStartSeconds(
@@ -216,9 +204,7 @@ function bigramDiceScore(lhs: string, rhs: string) {
     }
   }
 
-  const dice = (2 * overlap) / (lhsBigrams.length + rhsBigrams.length);
-  const overlapRatio = overlap / Math.min(lhsBigrams.length, rhsBigrams.length);
-  return Math.max(dice, overlapRatio * 0.85);
+  return (2 * overlap) / (lhsBigrams.length + rhsBigrams.length);
 }
 
 function makeBigrams(text: string) {

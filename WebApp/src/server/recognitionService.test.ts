@@ -111,8 +111,7 @@ describe("recognitionService", () => {
     });
     expect(fetchSyncedLyricsVersionsForCandidates).toHaveBeenCalledWith(
       result.candidates,
-      result.snippets,
-      { streamMetadata: null }
+      result.snippets
     );
     expect(result.versions).toHaveLength(1);
     expect(result.lyrics).toMatchObject({
@@ -172,8 +171,7 @@ describe("recognitionService", () => {
     expect(searchNetEaseSongCandidates).not.toHaveBeenCalled();
     expect(fetchSyncedLyricsVersionsForCandidates).toHaveBeenCalledWith(
       [qqCandidate],
-      result.snippets,
-      { streamMetadata: null }
+      result.snippets
     );
     expect(result.candidates[0]).toMatchObject({
       source: "qq",

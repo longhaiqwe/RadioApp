@@ -49,7 +49,6 @@ export type SyncedLyrics = {
   matchedSnippet?: string;
   confidenceScore?: number;
   estimatedOffsetSeconds?: number;
-  matchedSnippetsCount?: number;
   platformSongIds?: {
     qq?: string;
     netease?: string;

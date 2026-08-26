@@ -51,13 +51,10 @@ async function recognizeStationAttempt(
 ): Promise<RecognitionResult> {
   logRecognitionStage("start", { ...logContext, attempt });
 
-  const captureStart = Date.now();
+  const streamMetadataPromise = fetchStreamTrackMetadata({
+    streamUrl: request.streamUrl,
+  }).catch(() => null);
   const audioData = await captureStreamAudio({ streamUrl: request.streamUrl });
-  const captureEnd = Date.now();
-  const physicalDuration = (captureEnd - captureStart) / 1000;
-  const audioDuration = 15; // ffmpeg capture duration is 15s
-  const compensation = physicalDuration > 0.05 ? Math.max(0, audioDuration - physicalDuration) : 0;
-
   logRecognitionStage("captured", {
     ...logContext,
     attempt,
@@ -86,10 +83,7 @@ async function recognizeStationAttempt(
     throw new Error("no_usable_lyric_snippets");
   }
 
-  const streamMetadata = await fetchStreamTrackMetadata({
-    streamUrl: request.streamUrl,
-  }).catch(() => null);
-
+  const streamMetadata = await streamMetadataPromise;
   logRecognitionStage("metadata", {
     ...logContext,
     attempt,
@@ -104,24 +98,11 @@ async function recognizeStationAttempt(
     candidateCount: candidates.length,
     candidateSource: searchResult.source,
   });
-
   const lyrics = versions[0]?.lyrics ?? null;
-  if (compensation > 0) {
-    if (lyrics && typeof lyrics.estimatedOffsetSeconds === "number") {
-      lyrics.estimatedOffsetSeconds = Number((lyrics.estimatedOffsetSeconds + compensation).toFixed(3));
-    }
-    for (const v of versions) {
-      if (v.lyrics && typeof v.lyrics.estimatedOffsetSeconds === "number") {
-        v.lyrics.estimatedOffsetSeconds = Number((v.lyrics.estimatedOffsetSeconds + compensation).toFixed(3));
-      }
-    }
-  }
-
   const rankedCandidates = promoteMatchedCandidate(
     candidates,
     lyrics?.matchedCandidate
   );
-
   logRecognitionStage("lyrics", {
     ...logContext,
     attempt,
@@ -149,49 +130,28 @@ async function searchSongCandidatesAndLyrics(
     trackMetadata: streamMetadata,
   });
 
-  // 1. 高置信度提前熔断：获取 QQ 音乐全部候选歌词并检查 Top 1 得分
   if (qqCandidates.length > 0) {
     const qqVersions = await fetchSyncedLyricsVersionsForCandidates(
       qqCandidates,
-      snippets,
-      { streamMetadata }
+      snippets
     );
     if (qqVersions.length > 0) {
       return { source: "qq", candidates: qqCandidates, versions: qqVersions };
     }
   }
 
-  // 2. 低置信度降级为双通道混合对比与统一打分
   const netEaseCandidates = await searchNetEaseSongCandidates(snippets, {
     trackMetadata: streamMetadata,
   });
-
-  const allCandidatesMap = new Map<string, SongCandidate>();
-  for (const c of qqCandidates) {
-    const key = `${normalizeChineseVariantsForSync(c.title.toLowerCase())}::${normalizeChineseVariantsForSync(c.artist.toLowerCase())}`;
-    if (!allCandidatesMap.has(key)) {
-      allCandidatesMap.set(key, c);
-    }
-  }
-  for (const c of netEaseCandidates) {
-    const key = `${normalizeChineseVariantsForSync(c.title.toLowerCase())}::${normalizeChineseVariantsForSync(c.artist.toLowerCase())}`;
-    if (!allCandidatesMap.has(key)) {
-      allCandidatesMap.set(key, c);
-    }
-  }
-
-  const combinedCandidates = Array.from(allCandidatesMap.values());
-  const combinedVersions = await fetchSyncedLyricsVersionsForCandidates(
-    combinedCandidates,
-    snippets,
-    { streamMetadata }
+  const netEaseVersions = await fetchSyncedLyricsVersionsForCandidates(
+    netEaseCandidates,
+    snippets
   );
 
-  const source = combinedVersions[0]?.candidate.source ?? "qq";
   return {
-    source,
-    candidates: combinedCandidates,
-    versions: combinedVersions,
+    source: "netease",
+    candidates: netEaseCandidates,
+    versions: netEaseVersions,
   };
 }
 
@@ -246,15 +206,4 @@ function isRetryableRecognitionError(error: unknown) {
     "Connection timed out",
     "Error opening input",
   ].some((retryableMessage) => message.includes(retryableMessage));
-}
-
-function normalizeChineseVariantsForSync(text: string) {
-  const variantMap: Record<string, string> = {
-    愛: "爱", 與: "与", 無: "无", 連: "连", 還: "还", 挂: "挂", 掛: "挂",
-    誰: "谁", 会: "会", 會: "会", 傷: "伤", 聽: "听", 説: "说", 說: "说",
-    懷: "怀", 絕: "绝", 熱: "热", 動: "动", 諒: "凉", 緊: "紧", 過: "过",
-    遠: "远", 變: "变", 給: "给", 見: "见", 點: "点", 風: "风", 雲: "云",
-    開: "开", 夢: "梦", 头: "头", 頭: "头", 體: "体", 乐: "乐", 樂: "乐", 间: "间", 間: "间", 峯: "峰", 峰: "峰"
-  };
-  return text.replace(/[愛與無連還掛誰會傷聽說懷絕熱動諒紧紧過遠變給見點風雲開梦梦頭體樂間峯]/g, (char) => variantMap[char] ?? char);
 }

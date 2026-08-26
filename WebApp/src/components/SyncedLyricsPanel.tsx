@@ -1,7 +1,7 @@
 "use client";
 
 import type { SyncedLyrics } from "@/features/recognition/recognitionTypes";
-import { RefreshCcw, RotateCcw, RotateCw, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { RefreshCcw, RotateCcw, RotateCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type SyncedLyricsPanelProps = {
@@ -29,8 +29,6 @@ export function SyncedLyricsPanel({
   const isUserScrolling = useRef(false);
   const scrollResumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lineRefs = useRef(new Map<string, HTMLParagraphElement>());
-  const isAutoScrolling = useRef(false);
-  const autoScrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeLineId = useMemo(() => {
     const activeLine = lyrics.lines.findLast((line) => line.time <= currentSongTime);
@@ -50,24 +48,16 @@ export function SyncedLyricsPanel({
   useEffect(() => {
     return () => {
       if (scrollResumeTimer.current) clearTimeout(scrollResumeTimer.current);
-      if (autoScrollEndTimer.current) clearTimeout(autoScrollEndTimer.current);
     };
   }, []);
 
   useEffect(() => {
     if (!activeLineId || isUserScrolling.current) return;
 
-    isAutoScrolling.current = true;
-    if (autoScrollEndTimer.current) clearTimeout(autoScrollEndTimer.current);
-
     lineRefs.current.get(activeLineId)?.scrollIntoView?.({
       block: "center",
       behavior: "smooth",
     });
-
-    autoScrollEndTimer.current = setTimeout(() => {
-      isAutoScrolling.current = false;
-    }, 800);
   }, [activeLineId]);
 
   const adjustLyricsTiming = (deltaSeconds: number) => {
@@ -87,92 +77,6 @@ export function SyncedLyricsPanel({
     );
   };
 
-  const getRepeatTimesForCurrentLine = () => {
-    if (!activeLineId) return [];
-    const activeLine = lyrics.lines.find((line) => line.id === activeLineId);
-    if (!activeLine) return [];
-
-    const normalize = (text: string) =>
-      text.toLowerCase().replace(/[\p{P}\p{S}\s]/gu, "");
-    const normalizedActiveText = normalize(activeLine.text);
-    if (normalizedActiveText.length < 2) return [];
-
-    const repeatTimes: number[] = [];
-    for (const line of lyrics.lines) {
-      const normalizedLineText = normalize(line.text);
-      if (
-        normalizedLineText.includes(normalizedActiveText) ||
-        normalizedActiveText.includes(normalizedLineText)
-      ) {
-        repeatTimes.push(line.time);
-      }
-    }
-    return repeatTimes.sort((a, b) => a - b);
-  };
-
-  const jumpToNextSection = () => {
-    const repeatTimes = getRepeatTimesForCurrentLine();
-    const currentTime = currentSongTime;
-
-    const nextTime = repeatTimes.find((time) => time > currentTime + 1.0);
-    if (typeof nextTime === "number") {
-      const delta = nextTime - currentTime;
-      const nextOffset = manualOffsetSeconds + delta;
-      setManualOffsetSeconds(nextOffset);
-      setCurrentSongTime(readCurrentSongTime(lyrics, recognitionStartedAt, nextOffset));
-    } else {
-      const nextOffset = manualOffsetSeconds + 90;
-      setManualOffsetSeconds(nextOffset);
-      setCurrentSongTime(readCurrentSongTime(lyrics, recognitionStartedAt, nextOffset));
-    }
-  };
-
-  const jumpToPreviousSection = () => {
-    const repeatTimes = getRepeatTimesForCurrentLine();
-    const currentTime = currentSongTime;
-
-    const prevTimes = repeatTimes.filter((time) => time < currentTime - 1.0);
-    const prevTime = prevTimes[prevTimes.length - 1];
-    if (typeof prevTime === "number") {
-      const delta = currentTime - prevTime;
-      const nextOffset = manualOffsetSeconds - delta;
-      setManualOffsetSeconds(nextOffset);
-      setCurrentSongTime(readCurrentSongTime(lyrics, recognitionStartedAt, nextOffset));
-    } else {
-      const nextOffset = manualOffsetSeconds - 90;
-      setManualOffsetSeconds(nextOffset);
-      setCurrentSongTime(readCurrentSongTime(lyrics, recognitionStartedAt, nextOffset));
-    }
-  };
-
-  const handleScroll = () => {
-    if (isAutoScrolling.current) {
-      if (autoScrollEndTimer.current) clearTimeout(autoScrollEndTimer.current);
-      autoScrollEndTimer.current = setTimeout(() => {
-        isAutoScrolling.current = false;
-      }, 150);
-      return;
-    }
-
-    isUserScrolling.current = true;
-    if (scrollResumeTimer.current) clearTimeout(scrollResumeTimer.current);
-
-    scrollResumeTimer.current = setTimeout(() => {
-      isUserScrolling.current = false;
-      if (activeLineId) {
-        isAutoScrolling.current = true;
-        if (autoScrollEndTimer.current) clearTimeout(autoScrollEndTimer.current);
-        lineRefs.current.get(activeLineId)?.scrollIntoView?.({
-          block: "center",
-          behavior: "smooth",
-        });
-        autoScrollEndTimer.current = setTimeout(() => {
-          isAutoScrolling.current = false;
-        }, 800);
-      }
-    }, 3000);
-  };
-
   return (
     <section
       aria-label="同步歌词"
@@ -181,6 +85,19 @@ export function SyncedLyricsPanel({
       <div
         data-testid="lyrics-scroll-viewport"
         className="relative h-[clamp(15rem,38vh,24rem)]"
+        onPointerDown={() => {
+          isUserScrolling.current = true;
+          if (scrollResumeTimer.current) clearTimeout(scrollResumeTimer.current);
+        }}
+        onPointerUp={() => {
+          if (scrollResumeTimer.current) clearTimeout(scrollResumeTimer.current);
+          scrollResumeTimer.current = setTimeout(() => {
+            isUserScrolling.current = false;
+          }, 4000);
+        }}
+        onPointerCancel={() => {
+          isUserScrolling.current = false;
+        }}
       >
         <div
           aria-hidden="true"
@@ -190,7 +107,7 @@ export function SyncedLyricsPanel({
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-gradient-to-t from-black via-black/75 to-transparent"
         />
-        <div className="scrollbar-none h-full overflow-y-auto px-5" onScroll={handleScroll}>
+        <div className="scrollbar-none h-full overflow-y-auto px-5">
           <div className="space-y-3 py-16 text-center sm:py-20">
             {lyrics.lines.map((line) => {
               const isActive = line.id === activeLineId;
@@ -217,14 +134,7 @@ export function SyncedLyricsPanel({
         </div>
       </div>
       <div className="border-t border-white/10 bg-white/[0.03] px-4 pb-3 pt-2">
-        <div className="flex items-start justify-center gap-4 sm:gap-8">
-          <LyricTimingButton
-            label="跳转到上一段"
-            caption="上一段"
-            onClick={jumpToPreviousSection}
-          >
-            <ChevronsLeft size={18} />
-          </LyricTimingButton>
+        <div className="flex items-start justify-center gap-8">
           <LyricTimingButton
             label="歌词后退 1 秒"
             caption="-1s"
@@ -245,13 +155,6 @@ export function SyncedLyricsPanel({
             onClick={() => adjustLyricsTiming(1)}
           >
             <RotateCw size={18} />
-          </LyricTimingButton>
-          <LyricTimingButton
-            label="跳转到下一段"
-            caption="下一段"
-            onClick={jumpToNextSection}
-          >
-            <ChevronsRight size={18} />
           </LyricTimingButton>
         </div>
         <p className="mt-3 text-center text-xs text-white/40">

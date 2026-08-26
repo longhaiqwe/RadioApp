@@ -97,7 +97,7 @@ export async function searchQQSongCandidates(
     const songs = payload?.req_1?.data?.body?.song?.list ?? [];
     songs.slice(0, limitPerSnippet).forEach((song, rankIndex) => {
       const candidate = parseQQSong(song);
-      if (!candidate || isDerivative(candidate.title)) return;
+      if (!candidate) return;
 
       const scoredCandidate = {
         ...candidate,
@@ -246,23 +246,24 @@ function roundScore(score: number) {
   return Math.round(score * 1000) / 1000;
 }
 
-function isDerivative(title: string) {
-  const keywords = ["伴奏", "instrumental", "inst.", "off vocal", "dj", "remix", "club mix"];
-  const lowerTitle = title.toLowerCase();
-  return keywords.some((keyword) => lowerTitle.includes(keyword));
-}
-
 function normalizeChineseVariants(text: string) {
   const variantMap: Record<string, string> = {
-    愛: "爱", 與: "与", 無: "无", 連: "连", 還: "还", 挂: "挂", 掛: "挂",
-    誰: "谁", 会: "会", 會: "会", 傷: "伤", 聽: "听", 説: "说", 說: "说",
-    懷: "怀", 絕: "绝", 熱: "热", 動: "动", 諒: "谅", 緊: "紧", 過: "过",
-    遠: "远", 變: "变", 給: "给", 見: "见", 點: "点", 風: "风", 雲: "云",
-    開: "开", 夢: "梦", 头: "头", 頭: "头", 體: "体", 樂: "乐", 間: "间", 峯: "峰", 峰: "峰"
+    愛: "爱",
+    與: "与",
+    無: "无",
+    連: "连",
+    還: "还",
+    掛: "挂",
+    誰: "谁",
+    會: "会",
+    傷: "伤",
+    聽: "听",
+    說: "说",
+    懷: "怀",
+    峯: "峰",
   };
 
-  return text.replace(
-    /[愛與無連還掛誰會傷聽說懷絕熱動諒緊過遠變給見點風雲開梦梦頭體樂間峯]/g,
-    (character) => variantMap[character] ?? character
+  return text.replace(/[愛與無連還掛誰會傷聽說懷峯]/g, (character) =>
+    variantMap[character] ?? character
   );
 }

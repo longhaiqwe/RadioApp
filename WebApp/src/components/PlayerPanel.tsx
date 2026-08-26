@@ -39,6 +39,9 @@ import { IconButton } from "./IconButton";
 import { StationAvatar } from "./StationAvatar";
 import { SyncedLyricsPanel } from "./SyncedLyricsPanel";
 
+const MACOS_DOWNLOAD_URL =
+  "https://longhaixueai-1258687935.cos.ap-guangzhou.myqcloud.com/downloads/ShiyinFM-0.1.6-build7-universal.dmg";
+
 type RecognitionPanelState = {
   status: "idle" | "loading" | "success" | "error";
   result: RecognitionResult | null;
@@ -120,10 +123,7 @@ export function PlayerPanel({
       <div className="relative mx-auto flex h-full max-w-4xl flex-col px-5 pb-5 pt-4 sm:px-8">
         <div className="flex items-center justify-between">
           <div className="w-11" aria-hidden="true" />
-          <RecognitionAction
-            status={recognition.status}
-            onRecognize={onRecognize}
-          />
+          <RecognitionAction onRecognize={onRecognize} />
           <IconButton
             label={hasRecognitionView ? "关闭识别结果" : "关闭播放器"}
             onClick={closePanel}
@@ -1042,44 +1042,35 @@ function findInitialVersionId(
 }
 
 function RecognitionAction({
-  status,
   onRecognize,
 }: {
-  status: RecognitionPanelState["status"];
   onRecognize: () => void;
 }) {
-  const isLoading = status === "loading";
+  void onRecognize;
 
   return (
-    <button
-      type="button"
-      aria-label="歌曲识别"
-      disabled={isLoading}
-      onClick={onRecognize}
-      className="flex min-h-12 w-72 max-w-[calc(100vw-7rem)] items-center overflow-hidden rounded-full border border-[rgba(255,0,110,0.45)] bg-[rgba(25,18,35,0.72)] px-4 text-left shadow-[0_0_20px_rgba(255,0,110,0.12)] transition-colors hover:border-[rgba(255,0,110,0.75)] disabled:cursor-wait disabled:opacity-80"
+    <a
+      href={MACOS_DOWNLOAD_URL}
+      aria-label="下载 macOS 客户端使用歌曲识别"
+      className="flex min-h-12 w-72 max-w-[calc(100vw-7rem)] items-center overflow-hidden rounded-full border border-[rgba(255,0,110,0.45)] bg-[rgba(25,18,35,0.72)] px-4 text-left shadow-[0_0_20px_rgba(255,0,110,0.12)] transition-colors hover:border-[rgba(255,0,110,0.75)]"
     >
       <span
-        key={status}
         className="flex min-w-0 items-center gap-2.5"
         style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
       >
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[rgba(255,0,110,0.62)] text-[var(--neon-magenta)]">
-          {isLoading ? (
-            <Loader2 className="animate-spin" size={15} />
-          ) : (
-            <Sparkles size={15} />
-          )}
+          <Sparkles size={15} />
         </span>
         <span className="min-w-0">
           <span className="block truncate text-base font-bold leading-none text-white">
-            {isLoading ? "识别中" : "歌曲识别"}
+            macOS 版识曲
           </span>
           <span className="mt-1 block truncate text-[11px] text-[var(--neon-cyan)]">
-            {isLoading ? "正在听取歌词" : "选取歌词清晰片段开始识别"}
+            下载 macOS 客户端使用完整识曲
           </span>
         </span>
       </span>
-    </button>
+    </a>
   );
 }
 
