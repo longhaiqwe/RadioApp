@@ -615,10 +615,15 @@ class SearchViewModel: ObservableObject {
                 if selectedProvince != nil || selectedStyle != nil {
                     var filter = StationFilter()
                     filter.name = query.isEmpty ? nil : query
-                    filter.state = selectedProvince
+                    if let selectedProvince {
+                        let regionQuery = RadioBrowserRegionQuery.make(regionCode: selectedProvince)
+                        filter.state = regionQuery.state
+                        filter.countryCode = regionQuery.countryCode
+                    } else {
+                        filter.countryCode = "CN"
+                    }
                     filter.tag = selectedStyle
 
-                    filter.countryCode = "CN"
                     filter.limit = 100
                     filter.order = "clickcount"
                     filter.reverse = true
